@@ -45,6 +45,10 @@ interface OfferDao {
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt DESC")
     fun observeSince(since: Long): Flow<List<OfferEntity>>
 
+    /** Detection time of the newest offer whose hash does not start with [excludePrefix]. */
+    @Query("SELECT MAX(detectedAt) FROM detected_offers WHERE offer_hash NOT LIKE :excludePrefix || '%'")
+    fun observeLatestDetectedAtExcluding(excludePrefix: String): Flow<Long?>
+
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt ASC")
     suspend fun getSince(since: Long): List<OfferEntity>
 }

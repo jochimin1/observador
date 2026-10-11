@@ -98,6 +98,25 @@ object DashboardStats {
                 )
             }
 
+    /**
+     * Whole percentages for [counts] that always add up to 100 (largest remainder), so a caption
+     * never reads 33% + 33% + 33%. All zeros when the counts add up to 0.
+     */
+    fun percentages(counts: List<Int>): List<Int> {
+        val total = counts.sum()
+        if (total <= 0) return counts.map { 0 }
+        val exact = counts.map { it * 100.0 / total }
+        val result = exact.map { it.toInt() }.toMutableList()
+        var missing = 100 - result.sum()
+        val byRemainder = exact.indices.sortedByDescending { exact[it] - result[it] }
+        for (i in byRemainder) {
+            if (missing == 0) break
+            result[i] += 1
+            missing--
+        }
+        return result
+    }
+
     /** Middle value; the mean of the two middle values when the count is even; 0 when empty. */
     fun median(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0

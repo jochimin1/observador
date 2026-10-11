@@ -1,13 +1,9 @@
 package com.ubers.observador.ui.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -55,13 +50,13 @@ import com.ubers.observador.data.AppSettings
 import com.ubers.observador.domain.EngineSettings
 import com.ubers.observador.domain.FieldResult
 import com.ubers.observador.domain.FieldValidation
-import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.ProfitEngine
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.ScoreBreakdown
 import com.ubers.observador.domain.SettingsLimits
 import com.ubers.observador.domain.formatNumber
 import com.ubers.observador.domain.models.UberOffer
+import com.ubers.observador.ui.components.QualityBar
 import kotlin.math.roundToInt
 
 /** Fixed offer used by the "try it" card so the driver can see how thresholds move the score. */
@@ -206,7 +201,7 @@ fun SettingsScreen(
                 description = "El score se traduce en tres categorías para que decidas de un vistazo, " +
                     "sin leer números."
             )
-            QualityBar(thresholds)
+            CutsBar(thresholds)
             IntSettingCard(
                 title = "BUENO desde",
                 description = "Score a partir del cual un viaje deja de ser MALO y pasa a BUENO (amarillo).",
@@ -271,6 +266,9 @@ fun SettingsScreen(
                 )
             }
 
+            val overlayMessage by viewModel.overlayTestMessage.collectAsState()
+            OverlayPreviewCard(message = overlayMessage, onTest = { viewModel.showTestOverlay() })
+
             SectionHeader("Detección")
             IntSettingCard(
                 title = "Ventana anti-duplicados",
@@ -311,6 +309,33 @@ fun SettingsScreen(
             )
 
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/** Shows the floating card with a sample offer, so its size and colours can be checked. */
+@Composable
+private fun OverlayPreviewCard(message: String?, onTest: () -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Probar la tarjeta",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "Muestra la tarjeta flotante con una oferta de ejemplo. Cada toque alterna MALO, " +
+                    "BUENO y EXCELENTE. Necesita el servicio de accesibilidad activo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(onClick = onTest) { Text("Probar") }
+            if (message != null) {
+                Text(text = message, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -635,45 +660,21 @@ private fun ScorePartRow(label: String, value: String, points: Double) {
 }
 
 @Composable
-private fun QualityBar(thresholds: QualityThresholds) {
+private fun CutsBar(thresholds: QualityThresholds) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-        ) {
-            QualitySegment(OfferQuality.BAD, thresholds.goodFrom)
-            QualitySegment(OfferQuality.GOOD, thresholds.excellentFrom - thresholds.goodFrom)
-            QualitySegment(OfferQuality.EXCELLENT, 100 - thresholds.excellentFrom)
-        }
+        QualityBar(
+            bad = thresholds.goodFrom,
+            good = thresholds.excellentFrom - thresholds.goodFrom,
+            excellent = 100 - thresholds.excellentFrom,
+            description = "Cortes: MALO de 0 a ${thresholds.goodFrom - 1}, BUENO de ${thresholds.goodFrom} " +
+                "a ${thresholds.excellentFrom - 1}, EXCELENTE de ${thresholds.excellentFrom} a 100"
+        )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val style = MaterialTheme.typography.labelSmall
             Text("0", style = style)
             Text("${thresholds.goodFrom} · ${thresholds.excellentFrom}", style = style)
             Text("100", style = style)
         }
-    }
-}
-
-@Composable
-private fun RowScope.QualitySegment(quality: OfferQuality, size: Int) {
-    if (size <= 0) return
-    Box(
-        modifier = Modifier
-            .weight(size.toFloat())
-            .fillMaxHeight()
-            .background(Color(quality.backgroundArgb)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = quality.label,
-            color = Color(quality.foregroundArgb),
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            maxLines = 1,
-            softWrap = false
-        )
     }
 }
 

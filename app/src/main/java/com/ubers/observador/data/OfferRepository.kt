@@ -31,5 +31,9 @@ class OfferRepository(db: AppDatabase) {
     /** Offers detected at or after [since], newest first. */
     fun observeSince(since: Long): Flow<List<OfferEntity>> = dao.observeSince(since)
 
+    /** When the newest offer not tagged with [testPrefix] was detected; null if there is none. */
+    fun observeLatestRealOfferAt(testPrefix: String): Flow<Long?> =
+        dao.observeLatestDetectedAtExcluding(testPrefix)
+
     suspend fun getOffersSince(since: Long): List<OfferEntity> = dao.getSince(since)
 }

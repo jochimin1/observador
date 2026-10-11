@@ -57,6 +57,17 @@ class DashboardStatsTest {
     }
 
     @Test
+    fun `percentages always add up to 100`() {
+        assertEquals(listOf(30, 45, 25), DashboardStats.percentages(listOf(6, 9, 5)))
+        assertEquals(listOf(34, 33, 33), DashboardStats.percentages(listOf(1, 1, 1)))
+        assertEquals(listOf(0, 100, 0), DashboardStats.percentages(listOf(0, 7, 0)))
+        assertEquals(listOf(0, 0, 0), DashboardStats.percentages(listOf(0, 0, 0)))
+        for (counts in listOf(listOf(1, 2, 4), listOf(3, 3, 1), listOf(17, 5, 9))) {
+            assertEquals(100, DashboardStats.percentages(counts).sum())
+        }
+    }
+
+    @Test
     fun `short trips do not inflate the median like they inflate the average`() {
         val s = DashboardStats.summarize(
             listOf(offer(70, rdpPerKm = 12.0), offer(70, rdpPerKm = 13.0), offer(70, rdpPerKm = 40.0)), cuts

@@ -9,19 +9,16 @@ import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
+import com.ubers.observador.data.debug.TestOfferSeeder
 import com.ubers.observador.data.export.ExportFormat
 import com.ubers.observador.data.export.ExportRange
 import com.ubers.observador.data.export.OfferExporter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
-import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
 import com.ubers.observador.domain.WorkdayClock
-import com.ubers.observador.domain.models.OfferAnalysis
-import com.ubers.observador.domain.models.UberOffer
-import com.ubers.observador.service.UberAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -35,7 +32,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -55,7 +51,14 @@ data class DashboardUiState(
     /** The working day in progress, so day headers can say "Hoy" and "Ayer". */
     val currentWorkday: LocalDate? = null,
     /** True until the first query for the period answers, so "no offers" is not flashed. */
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    /** The driver's minimums, to say whether the period's medians are above or below them. */
+    val minRdpPerKm: Double = 0.0,
+    val minRdpPerHour: Double = 0.0,
+    /** Newest real (not test) offer, for the status bar; null if none yet. */
+    val lastRealOfferAt: Long? = null,
+    /** Refreshed every minute so "hace 3 min" keeps moving. */
+    val nowMillis: Long = 0L
 )
 
 sealed interface ExportEvent {
@@ -72,36 +75,6 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.getInstance(app)
     private val repository = OfferRepository(db)
     private val settings = AppSettings(app)
-
-    fun showTestOverlay() = viewModelScope.launch {
-        val duration = settings.overlayDurationSeconds.first()
-        val quality = OfferQuality.entries[testOverlayCount++ % OfferQuality.entries.size]
-        val score = when (quality) {
-            OfferQuality.BAD -> 35
-            OfferQuality.GOOD -> 65
-            OfferQuality.EXCELLENT -> 88
-        }
-        val fakeOffer = UberOffer(price = 136.06, pickupKm = 2.3, pickupMin = 7, tripKm = 8.5, tripMin = 18)
-        val fakeAnalysis = OfferAnalysis(
-            offer = fakeOffer,
-            totalKm = 10.8,
-            totalMin = 25,
-            rdpPerKm = 12.60,
-            rdpPerHour = 326.5,
-            fuelCost = 16.2,
-            netProfit = 119.86,
-            score = score
-        )
-        // TYPE_ACCESSIBILITY_OVERLAY needs the service's own context, so go through the service
-        val shown = UberAccessibilityService.instance?.showTestOverlay(fakeAnalysis, quality, duration) ?: false
-        if (!shown) _messages.emit("Activa el servicio de accesibilidad para probar el overlay.")
-    }
-
-    // Each tap on "Probar overlay" previews the next category: MALO, BUENO, EXCELENTE
-    private var testOverlayCount = 0
-
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     private val _exportEvents = MutableSharedFlow<ExportEvent>(extraBufferCapacity = 1)
     val exportEvents: SharedFlow<ExportEvent> = _exportEvents.asSharedFlow()
@@ -210,7 +183,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         Window(p, clock, clock.periodStart(p, now), clock.workdayOf(now))
     }.distinctUntilChanged()
 
-    val uiState: StateFlow<DashboardUiState> = window
+    private val periodState: Flow<DashboardUiState> = window
         .flatMapLatest { w ->
             // The whole period is loaded, so no day is ever cut short. At ~50 offers a day,
             // even a year of history is a few MB; revisit with paging if that changes.
@@ -224,16 +197,26 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     days = DashboardStats.groupByWorkday(scored, w.clock),
                     thresholds = cuts,
                     currentWorkday = w.currentWorkday,
-                    loading = false
+                    loading = false,
+                    minRdpPerKm = engine.minRdpPerKm,
+                    minRdpPerHour = engine.minRdpPerHour
                 )
             }
         }
         .flowOn(Dispatchers.Default)
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            DashboardUiState()
-        )
+
+    // The minute tick and the last offer only touch the status bar; the period is not recomputed
+    val uiState: StateFlow<DashboardUiState> = combine(
+        periodState,
+        clockNow,
+        repository.observeLatestRealOfferAt(TestOfferSeeder.HASH_PREFIX)
+    ) { state, (_, now), lastRealOfferAt ->
+        state.copy(nowMillis = now, lastRealOfferAt = lastRealOfferAt)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        DashboardUiState()
+    )
 
     private class PendingExport(val content: String, val count: Int)
 

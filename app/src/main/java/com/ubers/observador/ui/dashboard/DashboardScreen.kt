@@ -9,8 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import com.ubers.observador.R
 import com.ubers.observador.data.export.ExportFormat
 import com.ubers.observador.data.export.ExportRange
 import kotlinx.coroutines.launch
@@ -25,14 +28,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.data.db.OfferEntity
+import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
+import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
+import com.ubers.observador.domain.TimeAgo
+import com.ubers.observador.domain.formatNumber
+import com.ubers.observador.ui.components.QualityBar
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -51,6 +61,7 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val csvSaveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(ExportFormat.CSV.mimeType)
@@ -90,12 +101,6 @@ fun DashboardScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.messages.collect { message ->
-            scope.launch { snackbarHostState.showSnackbar(message) }
-        }
-    }
-
     if (showExportDialog) {
         ExportDialog(
             onDismiss = { showExportDialog = false },
@@ -115,61 +120,76 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("Observador") },
                 actions = {
-                    TextButton(onClick = { showExportDialog = true }) {
-                        Text("Exportar")
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(painterResource(R.drawable.ic_settings), contentDescription = "Ajustes")
                     }
-                    TextButton(onClick = onNavigateToSettings) {
-                        Text("Ajustes")
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "Más opciones")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Exportar ofertas") },
+                                onClick = {
+                                    showMenu = false
+                                    showExportDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            item {
-                StatsCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
-            }
-            item {
-                ServiceControlCard(
-                    accessibilityEnabled = accessibilityEnabled,
-                    onEnableAccessibility = {
-                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    },
-                    onTestOverlay = { viewModel.showTestOverlay() }
-                )
-            }
-            item {
-                Text(
-                    text = "Ofertas por jornada",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            if (!state.loading && state.days.isEmpty()) {
+            // Fixed above the list: whether Observador is reading Uber is the first thing to know
+            ServiceStatusBar(
+                enabled = accessibilityEnabled,
+                lastOfferAt = state.lastRealOfferAt,
+                nowMillis = state.nowMillis,
+                loading = state.loading,
+                onEnable = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                item {
+                    SummaryCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
+                }
                 item {
                     Text(
-                        text = if (state.period == StatsPeriod.ALL) {
-                            "Aún no hay ofertas registradas.\nActiva el servicio de accesibilidad y abre Uber Driver."
-                        } else {
-                            "No hay ofertas en este periodo."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Ofertas por jornada",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
-            } else {
-                state.days.forEach { day ->
-                    item(key = "day-${day.date}") { DayHeader(day, state.currentWorkday) }
-                    items(day.offers, key = { it.id }) { offer ->
-                        OfferRow(offer = offer, thresholds = state.thresholds)
+                if (!state.loading && state.days.isEmpty()) {
+                    item {
+                        Text(
+                            text = if (state.period == StatsPeriod.ALL) {
+                                "Aún no hay ofertas registradas.\nActiva el servicio de accesibilidad y abre Uber Driver."
+                            } else {
+                                "No hay ofertas en este periodo."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    state.days.forEach { day ->
+                        item(key = "day-${day.date}") { DayHeader(day, state.currentWorkday) }
+                        items(day.offers, key = { it.id }) { offer ->
+                            OfferRow(offer = offer, thresholds = state.thresholds)
+                        }
                     }
                 }
             }
@@ -177,8 +197,58 @@ fun DashboardScreen(
     }
 }
 
+/** Green when Observador is reading Uber (with the time of the last real offer), red with a fix when not. */
 @Composable
-private fun StatsCard(
+private fun ServiceStatusBar(
+    enabled: Boolean,
+    lastOfferAt: Long?,
+    nowMillis: Long,
+    loading: Boolean,
+    onEnable: () -> Unit
+) {
+    val container = if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer
+    val content = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
+    val dot = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    Surface(color = container, contentColor = content, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(dot, CircleShape)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) {}
+            ) {
+                Text(
+                    text = if (enabled) "Leyendo ofertas" else "Inactivo",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                val detail = when {
+                    !enabled -> "Observador no está leyendo Uber."
+                    loading -> null
+                    lastOfferAt == null -> "Aún no ha llegado ninguna oferta."
+                    else -> "Última oferta ${TimeAgo.format(nowMillis, lastOfferAt)}"
+                }
+                if (detail != null) {
+                    Text(text = detail, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (!enabled) {
+                Button(onClick = onEnable) { Text("Activar") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryCard(
     state: DashboardUiState,
     selected: StatsPeriod,
     onSelect: (StatsPeriod) -> Unit
@@ -187,7 +257,7 @@ private fun StatsCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Resumen", style = MaterialTheme.typography.titleMedium)
             // Scrolls sideways if a large system font makes the chips wider than the screen
@@ -203,76 +273,105 @@ private fun StatsCard(
                     )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(label = "Ofertas", value = "${summary.count}")
-                StatItem(label = "RD$/km mediana", value = "%.2f".format(summary.medianRdpPerKm))
-                StatItem(label = "RD$/h mediana", value = "%.0f".format(summary.medianRdpPerHour))
-                StatItem(label = "Score prom.", value = "%.0f".format(summary.avgScore))
-            }
-            if (summary.count > 0) {
-                Text(
-                    text = "MALO ${summary.bad} · BUENO ${summary.good} · EXCELENTE ${summary.excellent}",
-                    style = MaterialTheme.typography.bodySmall
+            when {
+                state.loading -> Unit
+                summary.count == 0 -> Text(
+                    text = "Sin ofertas en este periodo.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                summary.best?.let { best ->
-                    Text(
-                        text = "Mejor: RD$%.2f · score %d %s".format(
-                            best.price, best.score, state.thresholds.classify(best.score).label
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                else -> {
+                    SummaryTiles(state)
+                    CategoryMix(summary)
                 }
             }
         }
     }
 }
 
+/** Four numbers in a 2x2 grid; one column when the system font is very large. */
 @Composable
-private fun StatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(text = label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun SummaryTiles(state: DashboardUiState) {
+    val summary = state.summary
+    val above = MaterialTheme.colorScheme.primary
+    val below = MaterialTheme.colorScheme.error
+    fun versusMin(value: Double, min: Double): Pair<String, Color> =
+        if (value >= min) "▲ sobre tu mínimo de ${formatNumber(min)}" to above
+        else "▼ bajo tu mínimo de ${formatNumber(min)}" to below
+
+    val (kmNote, kmColor) = versusMin(summary.medianRdpPerKm, state.minRdpPerKm)
+    val (hourNote, hourColor) = versusMin(summary.medianRdpPerHour, state.minRdpPerHour)
+    val best = summary.best
+    val tiles = listOf(
+        TileData("Ofertas vistas", "${summary.count}", null, Color.Unspecified),
+        TileData("RD$/km mediana", "%.2f".format(summary.medianRdpPerKm), kmNote, kmColor),
+        TileData("RD$/h mediana", "%.0f".format(summary.medianRdpPerHour), hourNote, hourColor),
+        TileData(
+            label = "Mejor oferta",
+            value = if (best != null) "RD$%.2f".format(best.price) else "-",
+            note = best?.let { "score ${it.score} · ${state.thresholds.classify(it.score).label}" },
+            noteColor = Color.Unspecified
+        )
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (LocalDensity.current.fontScale > LARGE_FONT_SCALE) {
+            tiles.forEach { t -> SummaryTile(t, Modifier.fillMaxWidth()) }
+        } else {
+            tiles.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { t -> SummaryTile(t, Modifier.weight(1f)) }
+                }
+            }
+        }
     }
 }
 
+private data class TileData(val label: String, val value: String, val note: String?, val noteColor: Color)
+
 @Composable
-private fun ServiceControlCard(
-    accessibilityEnabled: Boolean,
-    onEnableAccessibility: () -> Unit,
-    onTestOverlay: () -> Unit
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Servicio de Accesibilidad", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+private fun SummaryTile(tile: TileData, modifier: Modifier) {
+    val (label, value, note, noteColor) = tile
+    // One stop for TalkBack: "RD$/km mediana, 14.25, sobre tu mínimo de 6"
+    Column(modifier = modifier.semantics(mergeDescendants = true) {}) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (note != null) {
             Text(
-                text = if (accessibilityEnabled) {
-                    "Activo. Observador está leyendo las ofertas de Uber Driver."
-                } else {
-                    "Para que Observador detecte las ofertas, debes activarlo en Accesibilidad del sistema."
-                },
+                text = note,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (noteColor == Color.Unspecified) MaterialTheme.colorScheme.onSurfaceVariant else noteColor
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!accessibilityEnabled) {
-                    Button(onClick = onEnableAccessibility) {
-                        Text("Activar accesibilidad")
-                    }
-                }
-                OutlinedButton(onClick = onTestOverlay) {
-                    Text("Probar overlay")
-                }
-            }
         }
     }
 }
+
+/** The MALO / BUENO / EXCELENTE bar with count and percentage under each part. */
+@Composable
+private fun CategoryMix(summary: PeriodSummary) {
+    val counts = listOf(summary.bad, summary.good, summary.excellent)
+    val (badPct, goodPct, excellentPct) = DashboardStats.percentages(counts)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        QualityBar(
+            bad = summary.bad,
+            good = summary.good,
+            excellent = summary.excellent,
+            description = "Reparto: MALO $badPct por ciento, BUENO $goodPct por ciento, " +
+                "EXCELENTE $excellentPct por ciento"
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val style = MaterialTheme.typography.labelSmall
+            Text("MALO ${summary.bad} · $badPct%", style = style)
+            Text("BUENO ${summary.good} · $goodPct%", style = style)
+            Text("EXCELENTE ${summary.excellent} · $excellentPct%", style = style)
+        }
+    }
+}
+
+private const val LARGE_FONT_SCALE = 1.3f
 
 @Composable
 private fun ExportDialog(

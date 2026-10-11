@@ -14,6 +14,27 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.2.0] - 2026-10-10
+
+Fase 2 del plan del dashboard: jerarquía de la pantalla.
+
+### Añadido
+- Franja de estado fija arriba del dashboard: verde "Leyendo ofertas" con la hora de la última
+  oferta real (sin contar las de prueba), o roja "Inactivo" con un botón que abre Accesibilidad.
+- Resumen en cuadrícula de 2 x 2: ofertas vistas, RD$/km y RD$/h medianos con una flecha que
+  dice si están por encima o por debajo de tus mínimos, y la mejor oferta. Con letra del sistema
+  muy grande pasa a una sola columna.
+- Barra de reparto MALO / BUENO / EXCELENTE con cantidad y porcentaje (los porcentajes siempre
+  suman 100). TalkBack la lee como una frase.
+- "Probar la tarjeta" en Ajustes → Overlay.
+
+### Cambiado
+- La barra superior usa un ícono para Ajustes y lleva "Exportar ofertas" al menú ⋮.
+- La barra de categorías de Ajustes y la del dashboard son el mismo componente.
+
+### Eliminado
+- La tarjeta "Servicio de Accesibilidad" y el botón "Probar overlay" del dashboard.
+
 ## [1.1.0] - 2026-10-10
 
 Fase 1 del plan del dashboard: datos correctos.
@@ -63,6 +84,7 @@ Primera versión registrada en GitHub (commit `74bdd64`).
 - Ofertas duplicadas: seguimiento por sesión de la tarjeta, ventana anti-duplicados y limpieza
   de duplicados antiguos al migrar la base de datos (versión 4).
 
-[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.1.0...HEAD
+[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jochimin1/observador/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jochimin1/observador/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jochimin1/observador/releases/tag/v1.0.0

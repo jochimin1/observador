@@ -8,6 +8,10 @@ import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.debug.TestOfferSeeder
+import com.ubers.observador.domain.OfferQuality
+import com.ubers.observador.domain.models.OfferAnalysis
+import com.ubers.observador.domain.models.UberOffer
+import com.ubers.observador.service.UberAccessibilityService
 import com.ubers.observador.domain.EngineSettings
 import com.ubers.observador.domain.QualityThresholds
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
@@ -73,6 +78,42 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateGraceWindow(v: Int) = viewModelScope.launch { appSettings.updateGraceWindow(v) }
     fun updateExcellentScore(v: Int) = viewModelScope.launch { appSettings.updateExcellentScore(v) }
     fun updateWorkdayStartHour(v: Int) = viewModelScope.launch { appSettings.updateWorkdayStartHour(v) }
+
+    // ---- Overlay preview ----
+
+    // Each tap previews the next category: MALO, BUENO, EXCELENTE
+    private var overlayPreviewCount = 0
+
+    private val _overlayTestMessage = MutableStateFlow<String?>(null)
+    val overlayTestMessage: StateFlow<String?> = _overlayTestMessage.asStateFlow()
+
+    fun showTestOverlay() = viewModelScope.launch {
+        val duration = appSettings.overlayDurationSeconds.first()
+        val quality = OfferQuality.entries[overlayPreviewCount++ % OfferQuality.entries.size]
+        val score = when (quality) {
+            OfferQuality.BAD -> 35
+            OfferQuality.GOOD -> 65
+            OfferQuality.EXCELLENT -> 88
+        }
+        val fakeOffer = UberOffer(price = 136.06, pickupKm = 2.3, pickupMin = 7, tripKm = 8.5, tripMin = 18)
+        val fakeAnalysis = OfferAnalysis(
+            offer = fakeOffer,
+            totalKm = 10.8,
+            totalMin = 25,
+            rdpPerKm = 12.60,
+            rdpPerHour = 326.5,
+            fuelCost = 16.2,
+            netProfit = 119.86,
+            score = score
+        )
+        // TYPE_ACCESSIBILITY_OVERLAY needs the service's own context, so go through the service
+        val shown = UberAccessibilityService.instance?.showTestOverlay(fakeAnalysis, quality, duration) ?: false
+        _overlayTestMessage.value = if (shown) {
+            "Mostrando la tarjeta ${quality.label} durante $duration s."
+        } else {
+            "Activa el servicio de accesibilidad para probar la tarjeta."
+        }
+    }
 
     // ---- Debug tools: known fake offers to check the dashboard without driving ----
 
