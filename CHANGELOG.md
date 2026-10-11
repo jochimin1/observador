@@ -14,6 +14,19 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.3.0] - 2026-10-10
+
+Fase 3 del plan del dashboard: fila de oferta y detalle.
+
+### Añadido
+- Panel de detalle al tocar una oferta: recogida y viaje por separado, pago por km y por hora,
+  combustible, ganancia neta y los cuatro sub-scores con su barra. Se cierra deslizando hacia
+  abajo o con Atrás.
+
+### Cambiado
+- Cada oferta es una fila plana con una franja de color, el precio y el RD$/km en grande y solo
+  la hora (la fecha ya la da la cabecera de la jornada). Caben más ofertas por pantalla.
+
 ## [1.2.0] - 2026-10-10
 
 Fase 2 del plan del dashboard: jerarquía de la pantalla.
@@ -84,7 +97,8 @@ Primera versión registrada en GitHub (commit `74bdd64`).
 - Ofertas duplicadas: seguimiento por sesión de la tarjeta, ventana anti-duplicados y limpieza
   de duplicados antiguos al migrar la base de datos (versión 4).
 
-[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.2.0...HEAD
+[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/jochimin1/observador/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/jochimin1/observador/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jochimin1/observador/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jochimin1/observador/releases/tag/v1.0.0

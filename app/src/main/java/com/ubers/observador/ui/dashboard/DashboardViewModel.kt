@@ -15,6 +15,7 @@ import com.ubers.observador.data.export.ExportRange
 import com.ubers.observador.data.export.OfferExporter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
+import com.ubers.observador.domain.EngineSettings
 import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
@@ -52,9 +53,8 @@ data class DashboardUiState(
     val currentWorkday: LocalDate? = null,
     /** True until the first query for the period answers, so "no offers" is not flashed. */
     val loading: Boolean = true,
-    /** The driver's minimums, to say whether the period's medians are above or below them. */
-    val minRdpPerKm: Double = 0.0,
-    val minRdpPerHour: Double = 0.0,
+    /** Current settings: minimums for the summary arrows, and the rule for the detail panel. */
+    val engineSettings: EngineSettings = EngineSettings(),
     /** Newest real (not test) offer, for the status bar; null if none yet. */
     val lastRealOfferAt: Long? = null,
     /** Refreshed every minute so "hace 3 min" keeps moving. */
@@ -198,8 +198,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     thresholds = cuts,
                     currentWorkday = w.currentWorkday,
                     loading = false,
-                    minRdpPerKm = engine.minRdpPerKm,
-                    minRdpPerHour = engine.minRdpPerHour
+                    engineSettings = engine
                 )
             }
         }

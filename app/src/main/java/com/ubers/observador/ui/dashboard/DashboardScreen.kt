@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -37,6 +38,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
+import com.ubers.observador.domain.OfferDetails
+import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
@@ -62,6 +65,11 @@ fun DashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var selectedOfferId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Looked up in the current list: if the offer leaves the period, the panel closes by itself
+    val selectedOffer = remember(selectedOfferId, state.days) {
+        selectedOfferId?.let { id -> state.days.asSequence().flatMap { it.offers }.firstOrNull { it.id == id } }
+    }
 
     val csvSaveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(ExportFormat.CSV.mimeType)
@@ -99,6 +107,13 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    if (selectedOffer != null) {
+        OfferDetailSheet(
+            detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
+            onDismiss = { selectedOfferId = null }
+        )
     }
 
     if (showExportDialog) {
@@ -159,7 +174,6 @@ fun DashboardScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 item {
@@ -169,7 +183,7 @@ fun DashboardScreen(
                     Text(
                         text = "Ofertas por jornada",
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 20.dp)
                     )
                 }
                 if (!state.loading && state.days.isEmpty()) {
@@ -188,7 +202,11 @@ fun DashboardScreen(
                     state.days.forEach { day ->
                         item(key = "day-${day.date}") { DayHeader(day, state.currentWorkday) }
                         items(day.offers, key = { it.id }) { offer ->
-                            OfferRow(offer = offer, thresholds = state.thresholds)
+                            OfferRow(
+                                offer = offer,
+                                thresholds = state.thresholds,
+                                onClick = { selectedOfferId = offer.id }
+                            )
                         }
                     }
                 }
@@ -299,8 +317,8 @@ private fun SummaryTiles(state: DashboardUiState) {
         if (value >= min) "▲ sobre tu mínimo de ${formatNumber(min)}" to above
         else "▼ bajo tu mínimo de ${formatNumber(min)}" to below
 
-    val (kmNote, kmColor) = versusMin(summary.medianRdpPerKm, state.minRdpPerKm)
-    val (hourNote, hourColor) = versusMin(summary.medianRdpPerHour, state.minRdpPerHour)
+    val (kmNote, kmColor) = versusMin(summary.medianRdpPerKm, state.engineSettings.minRdpPerKm)
+    val (hourNote, hourColor) = versusMin(summary.medianRdpPerHour, state.engineSettings.minRdpPerHour)
     val best = summary.best
     val tiles = listOf(
         TileData("Ofertas vistas", "${summary.count}", null, Color.Unspecified),
@@ -434,7 +452,7 @@ private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) 
 }
 
 private val DAY_HEADER_FORMAT = DateTimeFormatter.ofPattern("EEE dd MMM yyyy")
-private val OFFER_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy · h:mm a")
+private val OFFER_TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a")
 
 @Composable
 private fun DayHeader(day: DayGroup, currentWorkday: LocalDate?) {
@@ -444,7 +462,7 @@ private fun DayHeader(day: DayGroup, currentWorkday: LocalDate?) {
         currentWorkday?.minusDays(1) -> "Ayer"
         else -> day.date.format(DAY_HEADER_FORMAT)
     }
-    Column(modifier = Modifier.padding(top = 8.dp)) {
+    Column(modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) {
         Text(text = label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         Text(
             text = "%d ofertas · RD$%.2f/km mediana · score %.0f".format(
@@ -456,64 +474,78 @@ private fun DayHeader(day: DayGroup, currentWorkday: LocalDate?) {
     }
 }
 
+/**
+ * One offer, readable at a glance: colour stripe, price and RD$/km in large type, the time only
+ * (the day header already says which day). Tapping opens the detail panel.
+ */
 @Composable
-private fun OfferRow(offer: OfferEntity, thresholds: QualityThresholds) {
-    val detectedAt = remember(offer.detectedAt) {
-        Instant.ofEpochMilli(offer.detectedAt)
-            .atZone(ZoneId.systemDefault())
-            .format(OFFER_DATE_TIME_FORMAT)
+private fun OfferRow(offer: OfferEntity, thresholds: QualityThresholds, onClick: () -> Unit) {
+    val time = remember(offer.detectedAt) {
+        Instant.ofEpochMilli(offer.detectedAt).atZone(ZoneId.systemDefault()).format(OFFER_TIME_FORMAT)
     }
     val quality = thresholds.classify(offer.score)
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .height(IntrinsicSize.Min)
+                .clickable(onClickLabel = "Ver detalle", onClick = onClick)
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .width(6.dp)
+                    .fillMaxHeight()
+                    .background(Color(quality.backgroundArgb), RoundedCornerShape(3.dp))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     text = "RD$%.2f".format(offer.price),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = detectedAt,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "RD$%.2f/km · %d min".format(offer.rdpPerKm, offer.totalMin),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "%.1f km (%.1f recogida + %.1f viaje) · %d min | RD$%.2f/km".format(
-                        offer.totalKm, offer.pickupKm, offer.tripKm, offer.totalMin, offer.rdpPerKm
-                    ),
+                    text = "%s · recogida %.1f km · viaje %.1f km".format(time, offer.pickupKm, offer.tripKm),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            // The label sits under the score so the verdict never depends on color alone
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color(quality.backgroundArgb), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "${offer.score}",
-                        color = Color(quality.foregroundArgb),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                }
-                Text(
-                    text = quality.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
+            ScoreBadge(score = offer.score, quality = quality)
         }
+        HorizontalDivider()
+    }
+}
+
+/** Score with its label underneath, so the verdict never depends on colour alone. */
+@Composable
+private fun ScoreBadge(score: Int, quality: OfferQuality) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(Color(quality.backgroundArgb), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "$score",
+                color = Color(quality.foregroundArgb),
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        }
+        Text(
+            text = quality.label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
