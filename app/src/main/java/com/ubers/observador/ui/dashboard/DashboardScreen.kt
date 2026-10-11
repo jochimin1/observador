@@ -65,6 +65,8 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
+    val bestHours by viewModel.bestHours.collectAsState()
+    val bestHoursPeriod by viewModel.selectedBestHoursPeriod.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -115,6 +117,21 @@ fun DashboardScreen(
     }
 
     var dayToDelete by remember { mutableStateOf<DayGroup?>(null) }
+
+    // The tapped time slot stays highlighted after its panel closes; looked up by hour, so the
+    // panel follows new offers and a change of period while it is open
+    var selectedSlotStart by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showSlotDetail by rememberSaveable { mutableStateOf(false) }
+    val selectedSlot = remember(selectedSlotStart, bestHours.stats) {
+        selectedSlotStart?.let { hour -> bestHours.stats.slots.firstOrNull { it.startHour == hour } }
+    }
+    if (showSlotDetail && selectedSlot != null) {
+        SlotDetailSheet(
+            slot = selectedSlot,
+            isBest = selectedSlot.startHour == bestHours.stats.bestSlot?.startHour,
+            onDismiss = { showSlotDetail = false }
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.deletedEvents.collect { deleted ->
@@ -226,6 +243,19 @@ fun DashboardScreen(
             ) {
                 item {
                     SummaryCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
+                }
+                item {
+                    BestHoursSection(
+                        state = bestHours,
+                        selectedPeriod = bestHoursPeriod,
+                        selectedStartHour = selectedSlotStart,
+                        onSelectPeriod = viewModel::selectBestHoursPeriod,
+                        onSelectSlot = { slot ->
+                            selectedSlotStart = slot.startHour
+                            showSlotDetail = true
+                        },
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
                 }
                 item {
                     Text(
@@ -458,7 +488,8 @@ private fun CategoryMix(summary: PeriodSummary) {
     }
 }
 
-private const val LARGE_FONT_SCALE = 1.3f
+/** Above this system font scale, layouts switch to one column or thin out labels. */
+internal const val LARGE_FONT_SCALE = 1.3f
 
 @Composable
 private fun ExportDialog(

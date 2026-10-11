@@ -354,9 +354,10 @@ private fun TestDataCard(message: String?, onLoad: () -> Unit, onClear: () -> Un
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Solo aparece en la versión de desarrollo. Carga 60 ofertas en hoy, ayer y " +
-                    "hace 6 días para comprobar el dashboard sin salir a manejar. Van marcadas como " +
-                    "prueba: al borrarlas, tus ofertas reales no se tocan.",
+                text = "Solo aparece en la versión de desarrollo. Carga 160 ofertas: 60 en hoy, ayer y " +
+                    "hace 6 días para comprobar el resumen y la lista, y 100 en otros 6 días con un " +
+                    "patrón conocido para Mejores horas. Van marcadas como prueba: al borrarlas, tus " +
+                    "ofertas reales no se tocan.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -17,8 +17,17 @@ import java.time.ZonedDateTime
  * - today: 20 offers, one every 2 minutes, the last one 2 minutes before "now"
  * - yesterday: 20 offers between 08:00 and 23:00
  * - 6 days ago: the same 20, except the last two, which land at 00:30 and 01:30 of the next day
- * Every block of 20 is 6 MALO, 9 BUENO and 5 EXCELENTE with cuts 60/80. Offers between 18:00
- * and 20:00 pay the most per hour, so a "best hours" chart has a known peak.
+ * Every block of 20 is 6 MALO, 9 BUENO and 5 EXCELENTE with cuts 60/80.
+ *
+ * On six other days (2, 3, 4, 7, 8 and 9 days ago) a market pattern for "Mejores horas"
+ * (Fase 5) is added, 100 offers that never touch the three days above:
+ * - 06-08: many offers, mostly MALO (low pay per hour)
+ * - 12-14: many offers, middling quality
+ * - 16-18: good conditions
+ * - 18-20: the real best slot: most offers, all BUENO or EXCELENTE, good pay per km and hour
+ * - 20-22: the highest median RD$/h, but few offers, mixed quality and lower RD$/km: it must
+ *   not win
+ * - 22-00 and 00-02: a few EXCELENTE offers, too few to count ("Pocos datos")
  */
 object TestOfferSeeder {
 
@@ -54,6 +63,8 @@ object TestOfferSeeder {
     private val B4 = Template(55.0, 2.5, 7, 3.0, 12)    // 56 MALO
     private val B5 = Template(80.0, 6.5, 14, 5.0, 13)   // 29 MALO
     private val B6 = Template(100.0, 4.0, 11, 9.0, 25)  // 39 MALO
+    private val HG = Template(140.0, 4.5, 7, 4.5, 5)    // 76 BUENO, RD$700/h but RD$15.56/km
+    private val HE = Template(210.0, 1.0, 2, 7.0, 9)    // 94 EXCELENTE, RD$1145/h
 
     /** One working day in time order: 6 MALO, 9 BUENO, 5 EXCELENTE; 18:00-20:00 pays best. */
     private val DAY = listOf(
@@ -64,10 +75,36 @@ object TestOfferSeeder {
         Slot(20, 30, B5), Slot(21, 30, G6), Slot(22, 15, B6), Slot(23, 0, G2)
     )
 
+    /** Repeated on each market day: 06-08, 12-14, 16-18 and 18-20. */
+    private val MARKET_DAY = listOf(
+        Slot(6, 5, B1), Slot(6, 25, B2), Slot(6, 50, B5), Slot(7, 20, G2),
+        Slot(12, 10, G2), Slot(12, 40, B4), Slot(13, 5, G6), Slot(13, 35, G3),
+        Slot(16, 15, G7), Slot(16, 45, G1), Slot(17, 30, E5),
+        Slot(18, 5, E1), Slot(18, 35, E3), Slot(19, 5, E4), Slot(19, 40, G7)
+    )
+
+    private val MARKET_DAYS_AGO = listOf(2L, 3L, 4L, 7L, 8L, 9L)
+
+    /** Offers only on some market days (days ago to slot): 20-22, 22-00 and 00-02. */
+    private val MARKET_EXTRAS = listOf(
+        2L to Slot(20, 40, HG), 3L to Slot(20, 40, HG), 4L to Slot(20, 40, HG),
+        7L to Slot(20, 40, HG), 8L to Slot(20, 40, HG),
+        3L to Slot(21, 15, HE), 8L to Slot(21, 15, HE),
+        4L to Slot(22, 40, HE), 9L to Slot(22, 40, HE),
+        9L to Slot(0, 45, HE)
+    )
+
+    /** Offers in the dashboard block (today, yesterday and 6 days ago). */
+    const val DASHBOARD_OFFERS = 3 * PER_DAY
+
+    /** Offers in the market pattern for "Mejores horas". */
+    val MARKET_OFFERS: Int get() = MARKET_DAY.size * MARKET_DAYS_AGO.size + MARKET_EXTRAS.size
+
     fun generate(
         now: ZonedDateTime,
         engine: ProfitEngine = ProfitEngine(),
-        settings: EngineSettings = EngineSettings()
+        settings: EngineSettings = EngineSettings(),
+        includeMarketPattern: Boolean = true
     ): List<OfferEntity> {
         val zone = now.zone
         val todayStamps = DAY.mapIndexed { i, slot ->
@@ -86,7 +123,15 @@ object TestOfferSeeder {
             }
             slot.template to at.atZone(zone)
         }
-        return (todayStamps + yesterdayStamps + weekAgoStamps).map { (t, at) ->
+        val marketStamps = if (!includeMarketPattern) emptyList() else {
+            MARKET_DAYS_AGO.flatMap { ago ->
+                val date = now.toLocalDate().minusDays(ago)
+                MARKET_DAY.map { slot -> slot.template to date.atTime(slot.hour, slot.minute).atZone(zone) }
+            } + MARKET_EXTRAS.map { (ago, slot) ->
+                slot.template to now.toLocalDate().minusDays(ago).atTime(slot.hour, slot.minute).atZone(zone)
+            }
+        }
+        return (todayStamps + yesterdayStamps + weekAgoStamps + marketStamps).map { (t, at) ->
             val offer = UberOffer(
                 price = t.price,
                 pickupKm = t.pickupKm,

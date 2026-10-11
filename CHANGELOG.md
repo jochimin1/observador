@@ -14,6 +14,35 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.5.0] - 2026-10-10
+
+Fase 5 del plan del dashboard: mejores horas para salir. Mide el mercado que viste (las ofertas
+que te llegaron), no lo que ganaste.
+
+### Añadido
+- Sección "Mejores horas para salir" entre el resumen y la lista. Divide el día en 12 franjas
+  fijas de 2 horas, según la hora real del teléfono, y dibuja el pago mediano por hora de cada
+  una. Periodo de 7 o 30 días (30 por defecto).
+- Tarjeta "Mejor franja observada": RD$/h y RD$/km medianos, porcentaje de buenas o excelentes,
+  cantidad de ofertas, confianza e índice de oportunidad (0 a 100).
+- Top 3 de franjas, ordenado por índice de oportunidad.
+- Detalle al tocar una barra, la tarjeta o una fila del Top 3: mediana y rango típico (P25 a P75)
+  del RD$/h, RD$/km, score mediano, buenas + excelentes, excelentes, recogida típica, frecuencia,
+  días con ofertas, confianza e índice.
+- Las franjas con menos de 5 ofertas se dibujan como barra hueca ("Pocos datos") y nunca
+  compiten por mejor franja.
+- Línea discontinua con tu mínimo de RD$/h en la gráfica.
+- TalkBack enfoca cada barra por separado, la lee como una frase y anuncia la seleccionada.
+- Ofertas de prueba: 100 más con un patrón de mercado conocido (160 en total). Con ellas
+  18–20 sale como mejor franja, 20–22 paga más por hora pero no gana y 00–02 sale con pocos
+  datos.
+
+### Cambiado
+- La mediana del dashboard usa la misma función de percentiles que la nueva sección (el
+  resultado no cambia).
+- En el panel de detalle de una oferta, con letra muy grande la etiqueta se parte en dos líneas
+  en lugar de empujar el valor fuera de la pantalla.
+
 ## [1.4.0] - 2026-10-10
 
 Fase 4 del plan del dashboard: filtros, orden y borrado.

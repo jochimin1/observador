@@ -20,7 +20,7 @@ class OfferListOptionsTest {
     private val now = ZonedDateTime.of(2026, 10, 10, 15, 0, 0, 0, zone)
     private val cuts = QualityThresholds(goodFrom = 60, excellentFrom = 80)
     private val days = DashboardStats.groupByWorkday(
-        TestOfferSeeder.generate(now).sortedByDescending { it.detectedAt },
+        TestOfferSeeder.generate(now, includeMarketPattern = false).sortedByDescending { it.detectedAt },
         WorkdayClock(4, zone)
     )
 

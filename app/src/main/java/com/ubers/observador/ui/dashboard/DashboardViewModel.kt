@@ -14,6 +14,8 @@ import com.ubers.observador.data.debug.TestOfferSeeder
 import com.ubers.observador.data.export.ExportFormat
 import com.ubers.observador.data.export.ExportRange
 import com.ubers.observador.data.export.OfferExporter
+import com.ubers.observador.domain.BestHours
+import com.ubers.observador.domain.BestHoursStats
 import com.ubers.observador.domain.CategoryFilter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
@@ -67,6 +69,16 @@ data class DashboardUiState(
     /** Which offers the list shows and in what order; [days] already reflects both. */
     val filter: CategoryFilter = CategoryFilter.ALL,
     val sort: OfferSort = OfferSort.TIME
+)
+
+/** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
+data class BestHoursUiState(
+    /** Period the [stats] belong to; the chip may already show the next one while it loads. */
+    val period: StatsPeriod = BestHours.DEFAULT_PERIOD,
+    val stats: BestHoursStats = BestHours.emptyStats(),
+    /** Driver's RD$/h minimum, drawn as a reference line on the chart. */
+    val minRdpPerHour: Double = EngineSettings().minRdpPerHour,
+    val loading: Boolean = true
 )
 
 /** Offers just deleted, kept exactly as stored so "Deshacer" can put them back. */
@@ -249,6 +261,44 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         SharingStarted.WhileSubscribed(5_000),
         DashboardUiState()
     )
+
+    // ---- Best hours to go out ----
+
+    private val bestHoursPeriod = MutableStateFlow(BestHours.DEFAULT_PERIOD)
+
+    /** The 7 / 30-day chip; kept while the driver visits Settings, like the summary chips. */
+    val selectedBestHoursPeriod: StateFlow<StatsPeriod> = bestHoursPeriod.asStateFlow()
+
+    fun selectBestHoursPeriod(newPeriod: StatsPeriod) {
+        if (newPeriod in BestHours.PERIODS) bestHoursPeriod.value = newPeriod
+    }
+
+    private data class BestHoursWindow(val period: StatsPeriod, val since: Long, val zone: ZoneId)
+
+    // The window is counted in working days, like the "30 días" chip above, so both agree on
+    // which offers are in. Inside it, slots use the real clock hour (BestHours ignores the
+    // working-day start). Equal windows are dropped, so the minute tick does not re-query.
+    val bestHours: StateFlow<BestHoursUiState> = combine(bestHoursPeriod, clockNow) { p, (clock, now) ->
+        // PERIODS only holds bounded periods; 0 would mean "no lower bound" anyway
+        BestHoursWindow(p, clock.periodStart(p, now) ?: 0L, clock.zone)
+    }
+        .distinctUntilChanged()
+        .flatMapLatest { w ->
+            combine(
+                repository.observeSince(w.since),
+                settings.engineSettings,
+                settings.qualityThresholds
+            ) { offers, engine, cuts ->
+                BestHoursUiState(
+                    period = w.period,
+                    stats = DashboardStats.calculateBestHours(offers, engine, cuts, w.zone),
+                    minRdpPerHour = engine.minRdpPerHour,
+                    loading = false
+                )
+            }
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BestHoursUiState())
 
     // ---- Deleting, with undo ----
 

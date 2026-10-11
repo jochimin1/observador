@@ -3,6 +3,7 @@ package com.ubers.observador.domain
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.domain.models.UberOffer
 import java.time.LocalDate
+import java.time.ZoneId
 
 /** Totals for the selected period. Every value is 0 (never NaN) when there are no offers. */
 data class PeriodSummary(
@@ -118,10 +119,27 @@ object DashboardStats {
     }
 
     /** Middle value; the mean of the two middle values when the count is even; 0 when empty. */
-    fun median(values: List<Double>): Double {
-        if (values.isEmpty()) return 0.0
-        val sorted = values.sorted()
-        val mid = sorted.size / 2
-        return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2.0
+    fun median(values: List<Double>): Double = percentile(values.sorted(), 0.5) ?: 0.0
+
+    /**
+     * Percentile [p] (0-1) of [sorted] values, by linear interpolation between closest ranks
+     * (the "type 7" method of R, Excel's PERCENTILE.INC): rank h = (n - 1) x p, then
+     * x[floor(h)] + (h - floor(h)) x (x[floor(h) + 1] - x[floor(h)]).
+     * P50 is the usual median. Null when there are no values; a single value is every percentile.
+     */
+    fun percentile(sorted: List<Double>, p: Double): Double? {
+        if (sorted.isEmpty()) return null
+        val h = (sorted.size - 1) * p.coerceIn(0.0, 1.0)
+        val lower = h.toInt()
+        val upper = minOf(lower + 1, sorted.size - 1)
+        return sorted[lower] + (h - lower) * (sorted[upper] - sorted[lower])
     }
+
+    /** Fase 5 entry point: the "Mejores horas" statistics for [offers] (see [BestHours]). */
+    fun calculateBestHours(
+        offers: List<OfferEntity>,
+        settings: EngineSettings,
+        cuts: QualityThresholds,
+        zone: ZoneId
+    ): BestHoursStats = BestHours.calculate(offers, settings, cuts, zone)
 }

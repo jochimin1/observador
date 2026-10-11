@@ -22,7 +22,7 @@ class DashboardStatsTest {
     private val cuts = QualityThresholds(goodFrom = 60, excellentFrom = 80)
 
     // Same order the DAO returns: newest first
-    private val seeded = TestOfferSeeder.generate(now).sortedByDescending { it.detectedAt }
+    private val seeded = TestOfferSeeder.generate(now, includeMarketPattern = false).sortedByDescending { it.detectedAt }
 
     private fun offer(score: Int, price: Double = 100.0, rdpPerKm: Double = 10.0, at: ZonedDateTime = now) =
         OfferEntity(
@@ -124,5 +124,31 @@ class DashboardStatsTest {
         val days = DashboardStats.groupByWorkday(list, clock4)
         assertEquals(12.0, days.first().medianRdpPerKm, 1e-9)
         assertEquals(LocalDate.of(2026, 10, 9), days.last().date)
+    }
+
+    @Test
+    fun `best hours and the summary count the same offers the same way`() {
+        val all = TestOfferSeeder.generate(now)
+        val engine = EngineSettings()
+        val hours = DashboardStats.calculateBestHours(all, engine, cuts, zone)
+        val summary = DashboardStats.summarize(DashboardStats.rescore(all, engine), cuts)
+        assertEquals(summary.count, hours.totalOffers)
+        assertEquals(summary.count, hours.slots.sumOf { it.offerCount })
+        assertEquals(summary.bad, hours.slots.sumOf { it.badCount })
+        assertEquals(summary.good, hours.slots.sumOf { it.goodCount })
+        assertEquals(summary.excellent, hours.slots.sumOf { it.excellentCount })
+    }
+
+    @Test
+    fun `with every offer in one slot its median is the summary median`() {
+        val start = now.withHour(18).withMinute(0)
+        val list = listOf(90.0, 120.0, 150.0, 300.0, 95.0).mapIndexed { i, price ->
+            offer(70, price = price, at = start.plusMinutes(i * 20L))
+        }
+        val engine = EngineSettings()
+        val slot = DashboardStats.calculateBestHours(list, engine, cuts, zone).slots.single { it.startHour == 18 }
+        val summary = DashboardStats.summarize(DashboardStats.rescore(list, engine), cuts)
+        assertEquals(summary.medianRdpPerHour, slot.medianRdpPerHour ?: error("18-20 has offers"), 1e-9)
+        assertEquals(summary.medianRdpPerKm, slot.medianRdpPerKm ?: error("18-20 has offers"), 1e-9)
     }
 }

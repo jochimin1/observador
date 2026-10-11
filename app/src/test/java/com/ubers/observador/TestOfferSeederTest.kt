@@ -17,7 +17,8 @@ class TestOfferSeederTest {
 
     private val zone = ZoneId.of("America/Santo_Domingo")
     private val now = ZonedDateTime.of(2026, 10, 10, 15, 0, 0, 0, zone)
-    private val offers = TestOfferSeeder.generate(now)
+    private val offers = TestOfferSeeder.generate(now, includeMarketPattern = false)
+    private val all = TestOfferSeeder.generate(now)
     private val cuts = QualityThresholds(goodFrom = 60, excellentFrom = 80)
 
     private fun OfferEntity.at() = Instant.ofEpochMilli(detectedAt).atZone(zone)
@@ -63,6 +64,17 @@ class TestOfferSeederTest {
     }
 
     @Test
+    fun `the market pattern adds 100 offers on other days and leaves the dashboard block alone`() {
+        assertEquals(160, all.size)
+        assertEquals(TestOfferSeeder.DASHBOARD_OFFERS + TestOfferSeeder.MARKET_OFFERS, all.size)
+        assertTrue(all.all { it.offerHash.startsWith(TestOfferSeeder.HASH_PREFIX) })
+        val d = now.toLocalDate()
+        val dashboardDays = setOf(d, d.minusDays(1), d.minusDays(5), d.minusDays(6))
+        assertEquals(offers.toSet(), all.filter { it.at().toLocalDate() in dashboardDays }.toSet())
+        assertTrue(all.all { it.detectedAt < now.toInstant().toEpochMilli() })
+    }
+
+    @Test
     fun `offers from 6 to 8 pm pay the most per hour`() {
         val past = offers.filter { it.at().toLocalDate() != now.toLocalDate() }
         val (evening, rest) = past.partition { it.at().hour in 18..19 }
@@ -78,6 +90,7 @@ class TestOfferSeederTest {
 
     @Test
     fun `same now gives the same offers`() {
-        assertEquals(offers, TestOfferSeeder.generate(now))
+        assertEquals(offers, TestOfferSeeder.generate(now, includeMarketPattern = false))
+        assertEquals(all, TestOfferSeeder.generate(now))
     }
 }

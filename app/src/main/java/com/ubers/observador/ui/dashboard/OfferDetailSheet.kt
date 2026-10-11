@@ -131,16 +131,23 @@ private fun DetailSection(title: String, content: @Composable () -> Unit) {
     }
 }
 
+/** "Label ........ value" row, read by TalkBack as one item. Also used by the time slot detail. */
 @Composable
-private fun DetailLine(label: String, value: String, strong: Boolean = false) {
+internal fun DetailLine(label: String, value: String, strong: Boolean = false) {
     val weight = if (strong) FontWeight.Bold else FontWeight.Normal
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {},
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, fontWeight = weight)
+        // The label wraps first, so a very large font never pushes the value off the screen
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = weight,
+            modifier = Modifier.weight(1f)
+        )
         Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = weight)
     }
 }
