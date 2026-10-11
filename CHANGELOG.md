@@ -14,6 +14,32 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.6.0] - 2026-10-10
+
+Fase 7A: detectar el ciclo de vida del viaje. Solo observa: no guarda viajes, no cambia la base
+de datos y nunca toca nada en Uber. Las reglas de la oferta están comprobadas; las de recogida,
+llegada, viaje en curso, fin, cancelación y búsqueda son candidatas hasta validarlas con un
+viaje real.
+
+### Añadido
+- Capa de interpretación del viaje: captura de pantalla sin tipos de Android, clasificador de
+  pantallas con confianza y evidencia explicable, eventos tipados y máquina de estados
+  (IDLE, OFFER_VISIBLE, TO_PICKUP, ARRIVED_OR_WAITING, IN_TRIP, COMPLETED, CANCELLED, UNKNOWN).
+- Sin estados inventados: una oferta que desaparece no es un rechazo, y completar o cancelar
+  exige una pantalla que lo muestre. Si Observador arranca a mitad de viaje, recupera el estado
+  sin inventar horas anteriores.
+- Evita eventos repetidos y cambios por parpadeo: 50 lecturas iguales dan un solo evento, y las
+  transiciones importantes se confirman con una segunda lectura.
+- Diagnóstico en Ajustes, solo en la versión de desarrollo: estado, pantalla, confianza,
+  evidencia, salud del detector, contadores, últimos 50 eventos, "Reiniciar detector" y "Copiar
+  lectura" (lectura de la pantalla con nombres y direcciones ocultos, para validar las reglas).
+
+### Cambiado
+- El árbol de accesibilidad se lee una sola vez por pantalla; la lectura de ofertas usa esa
+  copia con las mismas reglas de siempre.
+- Los textos de la pantalla ya no se escriben en el registro de la versión final, solo en la de
+  desarrollo.
+
 ## [1.5.0] - 2026-10-10
 
 Fase 5 del plan del dashboard: mejores horas para salir. Mide el mercado que viste (las ofertas

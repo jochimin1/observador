@@ -14,6 +14,7 @@ import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.ProfitEngine
+import com.ubers.observador.domain.lifecycle.ScreenSnapshot
 import com.ubers.observador.domain.models.OfferAnalysis
 import com.ubers.observador.domain.models.UberOffer
 import kotlinx.coroutines.CancellationException
@@ -38,10 +39,11 @@ class UberAccessibilityService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var debounceRunnable: Runnable? = null
     private var absenceRunnable: Runnable? = null
+    private var recheckRunnable: Runnable? = null
 
     companion object {
         private const val TAG = "UberA11y"
-        private const val UBER_DRIVER_PACKAGE = "com.ubercab.driver"
+        private const val UBER_DRIVER_PACKAGE = RideLifecycleMonitor.UBER_DRIVER_PACKAGE
         private const val DEBOUNCE_MS = 300L
 
         /** Set while the service is connected; lets the app's UI reach the service-backed overlay. */
@@ -68,6 +70,7 @@ class UberAccessibilityService : AccessibilityService() {
         overlayManager = OverlayManager(this)
         notifier = OfferNotifier(applicationContext)
         instance = this
+        RideLifecycleMonitor.onServiceConnected()
         Log.d(TAG, "Service connected")
     }
 
@@ -84,20 +87,24 @@ class UberAccessibilityService : AccessibilityService() {
         ) return
 
         debounceRunnable?.let { mainHandler.removeCallbacks(it) }
-        val parse = Runnable { tryParseOffer() }
+        val parse = Runnable { readScreen() }
         debounceRunnable = parse
         mainHandler.postDelayed(parse, DEBOUNCE_MS)
     }
 
-    private fun tryParseOffer() {
+    /** Reads the tree once; the offer parser and the ride lifecycle both work from that copy. */
+    private fun readScreen() {
         // Null root means the window tree isn't ready: unknown, not "card gone"
         val root = rootInActiveWindow ?: return
-        val offer: UberOffer? = try {
-            // If another app took the foreground, there is no Uber card to read
-            if (root.packageName?.toString() == UBER_DRIVER_PACKAGE) OfferParser.parse(root) else null
+        val snapshot = try {
+            ScreenSnapshotFactory.from(root, System.currentTimeMillis())
         } finally {
             root.recycle()
         }
+        // If another app took the foreground, there is no Uber card to read
+        val offer: UberOffer? =
+            if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parse(snapshot.texts) else null
+        observeLifecycle(snapshot, offer?.offerHash())
 
         if (offer == null) {
             scheduleAbsenceCheck()
@@ -109,6 +116,31 @@ class UberAccessibilityService : AccessibilityService() {
         if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
             sessionStart(offer, hash)
         }
+    }
+
+    /**
+     * Fase 7A: only observes. Its result never decides what happens to offers, and a failure here
+     * is logged and contained so offer reading carries on.
+     */
+    private fun observeLifecycle(snapshot: ScreenSnapshot, offerHash: String?) {
+        val result = try {
+            RideLifecycleMonitor.onSnapshot(snapshot, offerHash)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Ride lifecycle failed on this screen; offers are not affected", e)
+            return
+        }
+        result.recheckAfterMs?.let { scheduleRecheck(it) }
+    }
+
+    /** Reads the screen again to confirm a screen that is not yet stable. */
+    private fun scheduleRecheck(delayMs: Long) {
+        recheckRunnable?.let { mainHandler.removeCallbacks(it) }
+        val recheck = Runnable {
+            recheckRunnable = null
+            readScreen()
+        }
+        recheckRunnable = recheck
+        mainHandler.postDelayed(recheck, delayMs)
     }
 
     /** Confirms the card is really gone (not a flicker) before ending the session. */
@@ -174,6 +206,8 @@ class UberAccessibilityService : AccessibilityService() {
     private fun resetState() {
         debounceRunnable?.let { mainHandler.removeCallbacks(it) }
         debounceRunnable = null
+        recheckRunnable?.let { mainHandler.removeCallbacks(it) }
+        recheckRunnable = null
         cancelAbsenceCheck()
         tracker.reset()
         if (::overlayManager.isInitialized) overlayManager.dismiss()
@@ -181,12 +215,14 @@ class UberAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
+        // Feedback was interrupted, events keep coming: the ride lifecycle carries on
         resetState()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         resetState()
+        RideLifecycleMonitor.onServiceLost()
         if (instance === this) instance = null
         job.cancel()
     }

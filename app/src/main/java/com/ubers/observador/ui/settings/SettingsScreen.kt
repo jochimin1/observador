@@ -296,6 +296,7 @@ fun SettingsScreen(
                     onLoad = { viewModel.loadTestOffers() },
                     onClear = { viewModel.clearTestOffers() }
                 )
+                LifecycleDebugCard()
             }
 
             // Which build is installed, to match a bug or a screenshot with CHANGELOG.md
