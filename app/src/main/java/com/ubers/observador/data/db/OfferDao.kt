@@ -45,6 +45,19 @@ interface OfferDao {
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt DESC")
     fun observeSince(since: Long): Flow<List<OfferEntity>>
 
+    @Query("SELECT * FROM detected_offers WHERE id = :id")
+    suspend fun getById(id: Long): OfferEntity?
+
+    @Query("DELETE FROM detected_offers WHERE id = :id")
+    suspend fun deleteById(id: Long): Int
+
+    /** Offers detected in [from, to). */
+    @Query("SELECT * FROM detected_offers WHERE detectedAt >= :from AND detectedAt < :to")
+    suspend fun getBetween(from: Long, to: Long): List<OfferEntity>
+
+    @Query("DELETE FROM detected_offers WHERE detectedAt >= :from AND detectedAt < :to")
+    suspend fun deleteBetween(from: Long, to: Long): Int
+
     /** Detection time of the newest offer whose hash does not start with [excludePrefix]. */
     @Query("SELECT MAX(detectedAt) FROM detected_offers WHERE offer_hash NOT LIKE :excludePrefix || '%'")
     fun observeLatestDetectedAtExcluding(excludePrefix: String): Flow<Long?>

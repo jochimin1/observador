@@ -25,6 +25,26 @@ class OfferRepository(db: AppDatabase) {
     /** Deletes every offer tagged with [prefix]; returns how many were deleted. */
     suspend fun deleteByHashPrefix(prefix: String): Int = dao.deleteByHashPrefix(prefix)
 
+    /**
+     * Deletes one offer and returns the row exactly as stored, so it can be put back with
+     * [restore]; null if it was already gone.
+     */
+    suspend fun delete(id: Long): OfferEntity? {
+        val stored = dao.getById(id) ?: return null
+        dao.deleteById(id)
+        return stored
+    }
+
+    /** Deletes every offer detected in [from, to) and returns them as stored, for [restore]. */
+    suspend fun deleteBetween(from: Long, to: Long): List<OfferEntity> {
+        val stored = dao.getBetween(from, to)
+        if (stored.isNotEmpty()) dao.deleteBetween(from, to)
+        return stored
+    }
+
+    /** Puts deleted offers back with their original ids and values. */
+    suspend fun restore(offers: List<OfferEntity>) = dao.insertAll(offers)
+
     /** Every offer, newest first. */
     fun observeAll(): Flow<List<OfferEntity>> = dao.observeAll()
 

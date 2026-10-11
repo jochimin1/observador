@@ -14,6 +14,18 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.4.0] - 2026-10-10
+
+Fase 4 del plan del dashboard: filtros, orden y borrado.
+
+### Añadido
+- Filtro por categoría en la lista: Todas, Excelentes, Buenas y Malas, cada una con su cantidad.
+  Con un filtro activo, la cabecera de cada jornada dice cuántas se muestran ("3 de 12 ofertas").
+- Orden dentro de cada jornada: por hora, score, precio o RD$/km.
+- Borrar una oferta deslizándola hacia la izquierda, desde su panel de detalle o con TalkBack
+  ("Borrar oferta"). Aparece "Deshacer" durante unos segundos y la oferta vuelve tal como estaba.
+- Borrar una jornada entera desde su menú ⋮, con confirmación y también con "Deshacer".
+
 ## [1.3.0] - 2026-10-10
 
 Fase 3 del plan del dashboard: fila de oferta y detalle.
@@ -97,7 +109,8 @@ Primera versión registrada en GitHub (commit `74bdd64`).
 - Ofertas duplicadas: seguimiento por sesión de la tarjeta, ventana anti-duplicados y limpieza
   de duplicados antiguos al migrar la base de datos (versión 4).
 
-[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.3.0...HEAD
+[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/jochimin1/observador/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/jochimin1/observador/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/jochimin1/observador/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jochimin1/observador/compare/v1.0.0...v1.1.0

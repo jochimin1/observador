@@ -9,13 +9,17 @@ import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
+import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.data.debug.TestOfferSeeder
 import com.ubers.observador.data.export.ExportFormat
 import com.ubers.observador.data.export.ExportRange
 import com.ubers.observador.data.export.OfferExporter
+import com.ubers.observador.domain.CategoryFilter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
 import com.ubers.observador.domain.EngineSettings
+import com.ubers.observador.domain.OfferListOptions
+import com.ubers.observador.domain.OfferSort
 import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
@@ -33,6 +37,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -58,8 +63,14 @@ data class DashboardUiState(
     /** Newest real (not test) offer, for the status bar; null if none yet. */
     val lastRealOfferAt: Long? = null,
     /** Refreshed every minute so "hace 3 min" keeps moving. */
-    val nowMillis: Long = 0L
+    val nowMillis: Long = 0L,
+    /** Which offers the list shows and in what order; [days] already reflects both. */
+    val filter: CategoryFilter = CategoryFilter.ALL,
+    val sort: OfferSort = OfferSort.TIME
 )
+
+/** Offers just deleted, kept exactly as stored so "Deshacer" can put them back. */
+data class DeletedOffers(val message: String, val offers: List<OfferEntity>)
 
 sealed interface ExportEvent {
     data class ReadyToSave(val fileName: String, val format: ExportFormat) : ExportEvent
@@ -204,18 +215,64 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         }
         .flowOn(Dispatchers.Default)
 
-    // The minute tick and the last offer only touch the status bar; the period is not recomputed
+    // ---- List filter and order (kept while the driver visits Settings) ----
+
+    private val filter = MutableStateFlow(CategoryFilter.ALL)
+    private val sort = MutableStateFlow(OfferSort.TIME)
+
+    fun selectFilter(newFilter: CategoryFilter) {
+        filter.value = newFilter
+    }
+
+    fun selectSort(newSort: OfferSort) {
+        sort.value = newSort
+    }
+
+    private val listOptions = combine(filter, sort) { f, s -> f to s }
+
+    // The minute tick, the last offer and the list options are cheap: the period is not recomputed
     val uiState: StateFlow<DashboardUiState> = combine(
         periodState,
         clockNow,
-        repository.observeLatestRealOfferAt(TestOfferSeeder.HASH_PREFIX)
-    ) { state, (_, now), lastRealOfferAt ->
-        state.copy(nowMillis = now, lastRealOfferAt = lastRealOfferAt)
+        repository.observeLatestRealOfferAt(TestOfferSeeder.HASH_PREFIX),
+        listOptions
+    ) { state, (_, now), lastRealOfferAt, (f, s) ->
+        state.copy(
+            nowMillis = now,
+            lastRealOfferAt = lastRealOfferAt,
+            filter = f,
+            sort = s,
+            days = OfferListOptions.apply(state.days, f, s, state.thresholds)
+        )
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         DashboardUiState()
     )
+
+    // ---- Deleting, with undo ----
+
+    private val _deleted = MutableSharedFlow<DeletedOffers>(extraBufferCapacity = 1)
+    val deletedEvents: SharedFlow<DeletedOffers> = _deleted.asSharedFlow()
+
+    fun deleteOffer(id: Long) = viewModelScope.launch {
+        // null when a repeated swipe callback already deleted it: no second notice
+        val stored = repository.delete(id) ?: return@launch
+        _deleted.emit(DeletedOffers("Oferta borrada", listOf(stored)))
+    }
+
+    /** Deletes every offer of the working day that started on [workday]. */
+    fun deleteWorkday(workday: LocalDate) = viewModelScope.launch {
+        val clock = WorkdayClock(settings.workdayStartHour.first(), ZoneId.systemDefault())
+        val stored = repository.deleteBetween(clock.startOf(workday), clock.startOf(workday.plusDays(1)))
+        if (stored.isNotEmpty()) {
+            _deleted.emit(DeletedOffers("${stored.size} ofertas borradas", stored))
+        }
+    }
+
+    fun undoDelete(offers: List<OfferEntity>) = viewModelScope.launch {
+        repository.restore(offers)
+    }
 
     private class PendingExport(val content: String, val count: Int)
 

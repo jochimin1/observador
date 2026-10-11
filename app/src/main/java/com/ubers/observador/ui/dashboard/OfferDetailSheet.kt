@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,15 +36,15 @@ private val DETAIL_TIME_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM · h:mm 
 /** Bottom panel with the why behind one offer. Closes by swiping down or with Back. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit) {
+fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit, onDelete: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        OfferDetailContent(detail)
+        OfferDetailContent(detail, onDelete)
     }
 }
 
 @Composable
-private fun OfferDetailContent(detail: OfferDetail) {
+private fun OfferDetailContent(detail: OfferDetail, onDelete: () -> Unit) {
     val o = detail.offer
     val quality = detail.quality
     val parts = detail.breakdown
@@ -110,6 +111,11 @@ private fun OfferDetailContent(detail: OfferDetail) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        // Also reachable without the swipe gesture, and from TalkBack
+        TextButton(onClick = onDelete) {
+            Text(text = "Borrar esta oferta", color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
