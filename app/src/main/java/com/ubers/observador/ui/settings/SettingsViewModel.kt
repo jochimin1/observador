@@ -26,7 +26,8 @@ data class SettingsUiState(
     val showOverlay: Boolean = true,
     val mode: String = AppSettings.MODE_OBSERVER,
     val graceWindow: Int = 60,
-    val excellentScore: Int = 80
+    val excellentScore: Int = 80,
+    val workdayStartHour: Int = AppSettings.DEFAULT_WORKDAY_START_HOUR
 ) {
     /** Effective cut-offs: EXCELENTE is always above BUENO even if the raw values cross. */
     val thresholds: QualityThresholds get() = QualityThresholds.of(minScore, excellentScore)
@@ -54,6 +55,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         state.copy(graceWindow = graceWindow)
     }.combine(appSettings.excellentScoreThreshold) { state, excellent ->
         state.copy(excellentScore = excellent)
+    }.combine(appSettings.workdayStartHour) { state, startHour ->
+        state.copy(workdayStartHour = startHour)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun updateCostPerKm(v: Double) = viewModelScope.launch { appSettings.updateCostPerKm(v) }
@@ -69,6 +72,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateMode(v: String) = viewModelScope.launch { appSettings.updateMode(v) }
     fun updateGraceWindow(v: Int) = viewModelScope.launch { appSettings.updateGraceWindow(v) }
     fun updateExcellentScore(v: Int) = viewModelScope.launch { appSettings.updateExcellentScore(v) }
+    fun updateWorkdayStartHour(v: Int) = viewModelScope.launch { appSettings.updateWorkdayStartHour(v) }
 
     // ---- Debug tools: known fake offers to check the dashboard without driving ----
 

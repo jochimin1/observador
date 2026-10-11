@@ -6,6 +6,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.Role
@@ -30,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.domain.DayGroup
 import com.ubers.observador.domain.QualityThresholds
+import com.ubers.observador.domain.StatsPeriod
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -43,6 +46,7 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -130,7 +134,9 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            item { StatsCard(state) }
+            item {
+                StatsCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
+            }
             item {
                 ServiceControlCard(
                     accessibilityEnabled = accessibilityEnabled,
@@ -142,22 +148,26 @@ fun DashboardScreen(
             }
             item {
                 Text(
-                    text = "Ofertas por día",
+                    text = "Ofertas por jornada",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            if (state.recentOffers.isEmpty()) {
+            if (!state.loading && state.days.isEmpty()) {
                 item {
                     Text(
-                        text = "Aún no hay ofertas registradas.\nActiva el servicio de accesibilidad y abre Uber Driver.",
+                        text = if (state.period == StatsPeriod.ALL) {
+                            "Aún no hay ofertas registradas.\nActiva el servicio de accesibilidad y abre Uber Driver."
+                        } else {
+                            "No hay ofertas en este periodo."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
                 state.days.forEach { day ->
-                    item(key = "day-${day.date}") { DayHeader(day) }
+                    item(key = "day-${day.date}") { DayHeader(day, state.currentWorkday) }
                     items(day.offers, key = { it.id }) { offer ->
                         OfferRow(offer = offer, thresholds = state.thresholds)
                     }
@@ -168,21 +178,54 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun StatsCard(state: DashboardUiState) {
+private fun StatsCard(
+    state: DashboardUiState,
+    selected: StatsPeriod,
+    onSelect: (StatsPeriod) -> Unit
+) {
+    val summary = state.summary
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Estadísticas", style = MaterialTheme.typography.titleMedium)
+            Text("Resumen", style = MaterialTheme.typography.titleMedium)
+            // Scrolls sideways if a large system font makes the chips wider than the screen
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatsPeriod.entries.forEach { period ->
+                    FilterChip(
+                        selected = period == selected,
+                        onClick = { onSelect(period) },
+                        label = { Text(period.label) }
+                    )
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Total", value = "${state.totalOffers}")
-                StatItem(label = "Score prom.", value = "%.0f".format(state.avgScore))
-                StatItem(label = "RD$/km prom.", value = "%.2f".format(state.avgRdpPerKm))
-                StatItem(label = "RD$/h prom.", value = "%.0f".format(state.avgRdpPerHour))
+                StatItem(label = "Ofertas", value = "${summary.count}")
+                StatItem(label = "RD$/km mediana", value = "%.2f".format(summary.medianRdpPerKm))
+                StatItem(label = "RD$/h mediana", value = "%.0f".format(summary.medianRdpPerHour))
+                StatItem(label = "Score prom.", value = "%.0f".format(summary.avgScore))
+            }
+            if (summary.count > 0) {
+                Text(
+                    text = "MALO ${summary.bad} · BUENO ${summary.good} · EXCELENTE ${summary.excellent}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                summary.best?.let { best ->
+                    Text(
+                        text = "Mejor: RD$%.2f · score %d %s".format(
+                            best.price, best.score, state.thresholds.classify(best.score).label
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -295,18 +338,18 @@ private val DAY_HEADER_FORMAT = DateTimeFormatter.ofPattern("EEE dd MMM yyyy")
 private val OFFER_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy · h:mm a")
 
 @Composable
-private fun DayHeader(day: DayGroup) {
-    val today = LocalDate.now()
+private fun DayHeader(day: DayGroup, currentWorkday: LocalDate?) {
+    // Working days, not calendar days: with a 4 am start, 1:30 am still belongs to "Hoy"
     val label = when (day.date) {
-        today -> "Hoy"
-        today.minusDays(1) -> "Ayer"
+        currentWorkday -> "Hoy"
+        currentWorkday?.minusDays(1) -> "Ayer"
         else -> day.date.format(DAY_HEADER_FORMAT)
     }
     Column(modifier = Modifier.padding(top = 8.dp)) {
         Text(text = label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "%d ofertas · RD$%.2f/km prom. · score %.0f".format(
-                day.count, day.avgRdpPerKm, day.avgScore
+            text = "%d ofertas · RD$%.2f/km mediana · score %.0f".format(
+                day.count, day.medianRdpPerKm, day.avgScore
             ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

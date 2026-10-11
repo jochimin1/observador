@@ -9,41 +9,53 @@ import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
-import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.data.export.ExportFormat
 import com.ubers.observador.data.export.ExportRange
 import com.ubers.observador.data.export.OfferExporter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
-import com.ubers.observador.domain.EngineSettings
 import com.ubers.observador.domain.OfferQuality
+import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
+import com.ubers.observador.domain.StatsPeriod
+import com.ubers.observador.domain.WorkdayClock
 import com.ubers.observador.domain.models.OfferAnalysis
 import com.ubers.observador.domain.models.UberOffer
 import com.ubers.observador.service.UberAccessibilityService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class DashboardUiState(
-    val totalOffers: Int = 0,
-    val offersAboveThreshold: Int = 0,
-    val avgRdpPerKm: Double = 0.0,
-    val avgRdpPerHour: Double = 0.0,
-    val avgScore: Double = 0.0,
-    val recentOffers: List<OfferEntity> = emptyList(),
+    val period: StatsPeriod = StatsPeriod.TODAY,
+    val summary: PeriodSummary = PeriodSummary(),
     val days: List<DayGroup> = emptyList(),
-    val thresholds: QualityThresholds = QualityThresholds()
+    val thresholds: QualityThresholds = QualityThresholds(),
+    /** The working day in progress, so day headers can say "Hoy" and "Ayer". */
+    val currentWorkday: LocalDate? = null,
+    /** True until the first query for the period answers, so "no offers" is not flashed. */
+    val loading: Boolean = true
 )
 
 sealed interface ExportEvent {
@@ -54,6 +66,7 @@ sealed interface ExportEvent {
     data object Failed : ExportEvent
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModel(app: Application) : AndroidViewModel(app) {
 
     private val db = AppDatabase.getInstance(app)
@@ -163,35 +176,69 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    val uiState: StateFlow<DashboardUiState> = combine(
-        repository.observeTotalCount(),
-        repository.observeAvgRdpPerKm(),
-        repository.observeAvgRdpPerHour(),
-        repository.observeAvgScore(),
-        repository.observeRecent(RECENT_LIMIT)
-    ) { total, avgKm, avgHour, avgScore, recent ->
-        DashboardUiState(
-            totalOffers = total,
-            avgRdpPerKm = avgKm ?: 0.0,
-            avgRdpPerHour = avgHour ?: 0.0,
-            avgScore = avgScore ?: 0.0,
-            recentOffers = recent
-        )
-    }.combine(repository.observeDaySummaries()) { state, summaries ->
-        state.copy(days = DashboardStats.groupByDay(state.recentOffers, summaries))
-    }.combine(settings.qualityThresholds) { state, thresholds ->
-        val aboveThreshold = state.recentOffers.count { it.score >= thresholds.goodFrom }
-        state.copy(offersAboveThreshold = aboveThreshold, thresholds = thresholds)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        DashboardUiState()
+    // ---- Period summary ----
+
+    private val period = MutableStateFlow(StatsPeriod.TODAY)
+
+    /** The chip the driver picked; updates at once, before the new query answers. */
+    val selectedPeriod: StateFlow<StatsPeriod> = period.asStateFlow()
+
+    fun selectPeriod(newPeriod: StatsPeriod) {
+        period.value = newPeriod
+    }
+
+    /** The working-day clock and "now", re-emitted every minute so "Hoy" rolls over on its own. */
+    private val clockNow: Flow<Pair<WorkdayClock, Long>> = settings.workdayStartHour.flatMapLatest { hour ->
+        val clock = WorkdayClock(hour, ZoneId.systemDefault())
+        flow {
+            while (true) {
+                emit(clock to System.currentTimeMillis())
+                delay(CLOCK_TICK_MS)
+            }
+        }
+    }
+
+    private data class Window(
+        val period: StatsPeriod,
+        val clock: WorkdayClock,
+        val since: Long?,
+        val currentWorkday: LocalDate
     )
+
+    // Equal windows are dropped, so the minute tick only re-queries when a working day starts
+    private val window: Flow<Window> = combine(period, clockNow) { p, (clock, now) ->
+        Window(p, clock, clock.periodStart(p, now), clock.workdayOf(now))
+    }.distinctUntilChanged()
+
+    val uiState: StateFlow<DashboardUiState> = window
+        .flatMapLatest { w ->
+            // The whole period is loaded, so no day is ever cut short. At ~50 offers a day,
+            // even a year of history is a few MB; revisit with paging if that changes.
+            val rows = if (w.since == null) repository.observeAll() else repository.observeSince(w.since)
+            combine(rows, settings.engineSettings, settings.qualityThresholds) { offers, engine, cuts ->
+                // D1: judge the whole period with the current settings
+                val scored = DashboardStats.rescore(offers, engine)
+                DashboardUiState(
+                    period = w.period,
+                    summary = DashboardStats.summarize(scored, cuts),
+                    days = DashboardStats.groupByWorkday(scored, w.clock),
+                    thresholds = cuts,
+                    currentWorkday = w.currentWorkday,
+                    loading = false
+                )
+            }
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            DashboardUiState()
+        )
 
     private class PendingExport(val content: String, val count: Int)
 
     private companion object {
         const val TAG = "DashboardViewModel"
-        const val RECENT_LIMIT = 200
+        const val CLOCK_TICK_MS = 60_000L
     }
 }

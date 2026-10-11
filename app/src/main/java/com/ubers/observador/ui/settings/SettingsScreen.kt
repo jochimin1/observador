@@ -233,6 +233,20 @@ fun SettingsScreen(
                 onValid = { viewModel.updateExcellentScore(it) }
             )
 
+            SectionHeader("Jornada")
+            IntSettingCard(
+                title = "Inicio de la jornada",
+                description = "Hora en que empieza tu día de trabajo, en formato de 24 horas (16 = 4 pm). " +
+                    "En el dashboard, \"Hoy\" va de esa hora a la misma hora del día siguiente: una " +
+                    "oferta de la 1:30 am sigue contando en la jornada que empezó la tarde anterior.",
+                hint = workdayHint(state.workdayStartHour),
+                value = state.workdayStartHour,
+                min = SettingsLimits.WORKDAY_START_MIN,
+                max = SettingsLimits.WORKDAY_START_MAX,
+                suffix = "h",
+                onValid = { viewModel.updateWorkdayStartHour(it) }
+            )
+
             SectionHeader("Overlay")
             SettingCard(
                 title = "Mostrar tarjeta sobre Uber",
@@ -286,6 +300,16 @@ fun SettingsScreen(
                 )
             }
 
+            // Which build is installed, to match a bug or a screenshot with CHANGELOG.md
+            Text(
+                text = "Observador ${BuildConfig.VERSION_NAME} · compilación ${BuildConfig.VERSION_CODE}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 16.dp)
+            )
+
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -320,6 +344,21 @@ private fun TestDataCard(message: String?, onLoad: () -> Unit, onClear: () -> Un
             }
         }
     }
+}
+
+/** 16, 0 -> "4:00 pm". */
+private fun clock12(hour: Int, minute: Int): String {
+    val h = if (hour % 12 == 0) 12 else hour % 12
+    return "%d:%02d %s".format(h, minute, if (hour < 12) "am" else "pm")
+}
+
+private fun workdayHint(startHour: Int): String {
+    val endHour = (startHour + 23) % 24
+    val endDay = if (startHour == 0) "del mismo día" else "del día siguiente"
+    // "la 1:00", but "las 2:00"
+    fun article(hour: Int) = if (hour % 12 == 1) "la" else "las"
+    return "Tu jornada va de ${article(startHour)} ${clock12(startHour, 0)} a " +
+        "${article(endHour)} ${clock12(endHour, 59)} $endDay."
 }
 
 private fun costHint(costPerKm: Double): String {

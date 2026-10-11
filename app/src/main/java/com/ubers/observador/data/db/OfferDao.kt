@@ -41,35 +41,10 @@ interface OfferDao {
     @Query("SELECT * FROM detected_offers ORDER BY detectedAt DESC")
     fun observeAll(): Flow<List<OfferEntity>>
 
-    @Query("SELECT * FROM detected_offers ORDER BY detectedAt DESC LIMIT :n")
-    fun observeRecent(n: Int): Flow<List<OfferEntity>>
+    /** Offers detected at or after [since], newest first. */
+    @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt DESC")
+    fun observeSince(since: Long): Flow<List<OfferEntity>>
 
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt ASC")
     suspend fun getSince(since: Long): List<OfferEntity>
-
-    @Query(
-        """SELECT date(detectedAt / 1000, 'unixepoch', 'localtime') AS day,
-                  COUNT(*) AS count,
-                  AVG(rdpPerKm) AS avgRdpPerKm,
-                  AVG(score) AS avgScore
-           FROM detected_offers
-           GROUP BY day
-           ORDER BY day DESC"""
-    )
-    fun observeDaySummaries(): Flow<List<DaySummary>>
-
-    @Query("SELECT COUNT(*) FROM detected_offers")
-    fun observeTotalCount(): Flow<Int>
-
-    @Query("SELECT AVG(rdpPerKm) FROM detected_offers")
-    fun observeAvgRdpPerKm(): Flow<Double?>
-
-    @Query("SELECT AVG(rdpPerHour) FROM detected_offers")
-    fun observeAvgRdpPerHour(): Flow<Double?>
-
-    @Query("SELECT AVG(score) FROM detected_offers")
-    fun observeAvgScore(): Flow<Double?>
-
-    @Query("SELECT COUNT(*) FROM detected_offers WHERE score >= :threshold")
-    fun observeCountAboveThreshold(threshold: Int): Flow<Int>
 }

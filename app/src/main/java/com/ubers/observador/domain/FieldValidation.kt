@@ -30,6 +30,8 @@ object SettingsLimits {
     const val OVERLAY_SECONDS_MAX = 60
     const val GRACE_SECONDS_MIN = 10
     const val GRACE_SECONDS_MAX = 600
+    const val WORKDAY_START_MIN = 0
+    const val WORKDAY_START_MAX = 23
 }
 
 object FieldValidation {

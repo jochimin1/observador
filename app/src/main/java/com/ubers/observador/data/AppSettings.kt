@@ -31,6 +31,9 @@ class AppSettings(private val context: Context) {
         private val KEY_MODE = stringPreferencesKey("operating_mode")
         private val KEY_SHOW_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("show_overlay")
         private val KEY_GRACE_WINDOW = intPreferencesKey("grace_window_seconds")
+        private val KEY_WORKDAY_START = intPreferencesKey("workday_start_hour")
+
+        const val DEFAULT_WORKDAY_START_HOUR = 4
 
         const val MODE_OBSERVER = "OBSERVER"
         const val MODE_ASSISTED = "ASSISTED"
@@ -85,6 +88,14 @@ class AppSettings(private val context: Context) {
     val graceWindowSeconds: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[KEY_GRACE_WINDOW] ?: 60
     }
+
+    /** Hour (0-23) when the driver's working day starts; offers before it count in the day before. */
+    val workdayStartHour: Flow<Int> = context.dataStore.data.map { prefs ->
+        (prefs[KEY_WORKDAY_START] ?: DEFAULT_WORKDAY_START_HOUR).coerceIn(0, 23)
+    }
+
+    suspend fun updateWorkdayStartHour(value: Int) =
+        context.dataStore.edit { it[KEY_WORKDAY_START] = value }
 
     suspend fun updateCostPerKm(value: Double) =
         context.dataStore.edit { it[KEY_COST_PER_KM] = value }

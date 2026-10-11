@@ -1,7 +1,6 @@
 package com.ubers.observador.data
 
 import com.ubers.observador.data.db.AppDatabase
-import com.ubers.observador.data.db.DaySummary
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.data.db.toEntity
 import com.ubers.observador.domain.models.OfferAnalysis
@@ -26,12 +25,11 @@ class OfferRepository(db: AppDatabase) {
     /** Deletes every offer tagged with [prefix]; returns how many were deleted. */
     suspend fun deleteByHashPrefix(prefix: String): Int = dao.deleteByHashPrefix(prefix)
 
-    fun observeRecent(n: Int = 20): Flow<List<OfferEntity>> = dao.observeRecent(n)
+    /** Every offer, newest first. */
+    fun observeAll(): Flow<List<OfferEntity>> = dao.observeAll()
+
+    /** Offers detected at or after [since], newest first. */
+    fun observeSince(since: Long): Flow<List<OfferEntity>> = dao.observeSince(since)
+
     suspend fun getOffersSince(since: Long): List<OfferEntity> = dao.getSince(since)
-    fun observeDaySummaries(): Flow<List<DaySummary>> = dao.observeDaySummaries()
-    fun observeTotalCount(): Flow<Int> = dao.observeTotalCount()
-    fun observeAvgRdpPerKm(): Flow<Double?> = dao.observeAvgRdpPerKm()
-    fun observeAvgRdpPerHour(): Flow<Double?> = dao.observeAvgRdpPerHour()
-    fun observeAvgScore(): Flow<Double?> = dao.observeAvgScore()
-    fun observeCountAboveThreshold(threshold: Int): Flow<Int> = dao.observeCountAboveThreshold(threshold)
 }
