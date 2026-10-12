@@ -166,6 +166,12 @@ class RideLifecyclePipeline(
         return PipelineResult(classification = null, events = out.events, transitions = out.transitions)
     }
 
+    /** Puts back a ride still open in the database after a restart (see RideLifecycleStateMachine.restore). */
+    fun restore(sessionId: String, relatedOfferHash: String?, stage: RideLifecycleState) {
+        forgetScreens()
+        machine.restore(sessionId, relatedOfferHash, stage, clock())
+    }
+
     /** Starts over: ride, offer link and screen memory cleared. Counters and history stay. */
     fun reset() {
         machine.reset()
@@ -293,7 +299,8 @@ class RideLifecyclePipeline(
             recovered = after.recovered,
             from = from,
             to = to,
-            evidence = input.evidence
+            evidence = input.evidence,
+            recoveryTransition = kind == LogKind.RECOVERY
         )
         diagnostics = diagnostics.copy(eventsGenerated = diagnostics.eventsGenerated + 1)
         remember(LifecycleLogEntry(input.atMs, kind, input.type, from, to))

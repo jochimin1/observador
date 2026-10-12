@@ -70,6 +70,7 @@ class UberAccessibilityService : AccessibilityService() {
         overlayManager = OverlayManager(this)
         notifier = OfferNotifier(applicationContext)
         instance = this
+        RideLifecycleMonitor.start(applicationContext)
         RideLifecycleMonitor.onServiceConnected()
         Log.d(TAG, "Service connected")
     }

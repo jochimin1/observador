@@ -64,4 +64,8 @@ interface OfferDao {
 
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt ASC")
     suspend fun getSince(since: Long): List<OfferEntity>
+
+    /** The newest stored offer with [hash], to copy into a trip when it begins (Fase 7B). */
+    @Query("SELECT * FROM detected_offers WHERE offer_hash = :hash ORDER BY detectedAt DESC LIMIT 1")
+    suspend fun getLatestByHash(hash: String): OfferEntity?
 }

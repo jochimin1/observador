@@ -14,6 +14,31 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.7.0] - 2026-10-12
+
+Fase 7B: registro persistente de viajes. Los eventos del ciclo de la 7A se guardan y forman
+viajes que sobreviven a reinicios. No calcula ganancias. Validación con un viaje real de Uber:
+pendiente (depende también de validar la 7A).
+
+### Añadido
+- Base de datos versión 5 con migración explícita 4 → 5: tablas nuevas `trips` (estado actual
+  de cada viaje) y `ride_events` (historial de eventos que nunca se modifica). La tabla de
+  ofertas no cambia.
+- Un viaje se crea al confirmarse la aceptación o al recuperarse a mitad de camino; una oferta
+  vista nunca crea viaje. Guarda la oferta original (precio, recogida, viaje, score de ese
+  momento) y los ajustes con los que se juzgó.
+- Reglas: una sesión = un viaje; un evento repetido no se duplica; la primera hora observada
+  manda; COMPLETED y CANCELLED se excluyen; nuevo estado INTERRUPTED para finales no vistos;
+  anomalías con códigos fijos (orden imposible, dos viajes activos, conflicto final...).
+- Un único escritor guarda cada evento y el cambio de su viaje en la misma transacción, con
+  reintentos seguros.
+- Al reiniciar, el viaje abierto vuelve a la 7A y continúa como el mismo viaje; si Uber ya está
+  buscando ofertas, queda INTERRUPTED.
+- Ajustes → Herramientas de prueba (solo desarrollo): "Viajes detectados" con lista, línea de
+  tiempo, contadores, comprobación de integridad y viajes de prueba que se borran sin tocar los
+  reales.
+- Esquemas de Room exportados en `app/schemas` y prueba de migración con MigrationTestHelper.
+
 ## [1.6.0] - 2026-10-10
 
 Fase 7A: detectar el ciclo de vida del viaje. Solo observa: no guarda viajes, no cambia la base

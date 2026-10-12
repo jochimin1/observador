@@ -61,7 +61,9 @@ data class RideLifecycleEvent(
     val recovered: Boolean,
     val from: RideLifecycleState,
     val to: RideLifecycleState,
-    val evidence: List<EvidenceCode>
+    val evidence: List<EvidenceCode>,
+    /** True when this event joined a ride already under way, rather than a stage seen happen. */
+    val recoveryTransition: Boolean = false
 )
 
 /**
@@ -136,6 +138,24 @@ class RideLifecycleStateMachine(private val newSessionId: () -> String) {
 
     fun reset() {
         context = RideLifecycleContext()
+    }
+
+    /**
+     * Fase 7B: after a restart, picks up a ride still open in the database. The ride starts as
+     * UNKNOWN (nothing has been seen yet in this process) remembering [stage], so the next ride
+     * screen rejoins the same session and a searching screen closes it.
+     */
+    fun restore(sessionId: String, relatedOfferHash: String?, stage: RideLifecycleState, atMs: Long) {
+        context = RideLifecycleContext(
+            state = RideLifecycleState.UNKNOWN,
+            sessionId = sessionId,
+            relatedOfferHash = relatedOfferHash,
+            startedFromKnownOffer = relatedOfferHash != null,
+            recovered = true,
+            recoveredAt = atMs,
+            lastTransitionAt = atMs,
+            stateBeforeLost = stage
+        )
     }
 
     fun process(input: LifecycleInput): TransitionResult {

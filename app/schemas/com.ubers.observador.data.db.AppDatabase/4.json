@@ -1,0 +1,137 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "527c79ca9a8d3042bd10da14b1763367",
+    "entities": [
+      {
+        "tableName": "detected_offers",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `offer_hash` TEXT NOT NULL, `detectedAt` INTEGER NOT NULL, `price` REAL NOT NULL, `pickupKm` REAL NOT NULL, `pickupMin` INTEGER NOT NULL, `tripKm` REAL NOT NULL, `tripMin` INTEGER NOT NULL, `totalKm` REAL NOT NULL, `totalMin` INTEGER NOT NULL, `rdpPerKm` REAL NOT NULL, `rdpPerHour` REAL NOT NULL, `fuelCost` REAL NOT NULL, `netProfit` REAL NOT NULL, `score` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "offerHash",
+            "columnName": "offer_hash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detectedAt",
+            "columnName": "detectedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "price",
+            "columnName": "price",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pickupKm",
+            "columnName": "pickupKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pickupMin",
+            "columnName": "pickupMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripKm",
+            "columnName": "tripKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripMin",
+            "columnName": "tripMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalKm",
+            "columnName": "totalKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalMin",
+            "columnName": "totalMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rdpPerKm",
+            "columnName": "rdpPerKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rdpPerHour",
+            "columnName": "rdpPerHour",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fuelCost",
+            "columnName": "fuelCost",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "netProfit",
+            "columnName": "netProfit",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_detected_offers_offer_hash",
+            "unique": false,
+            "columnNames": [
+              "offer_hash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_detected_offers_offer_hash` ON `${TABLE_NAME}` (`offer_hash`)"
+          },
+          {
+            "name": "index_detected_offers_detectedAt",
+            "unique": false,
+            "columnNames": [
+              "detectedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_detected_offers_detectedAt` ON `${TABLE_NAME}` (`detectedAt`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '527c79ca9a8d3042bd10da14b1763367')"
+    ]
+  }
+}
