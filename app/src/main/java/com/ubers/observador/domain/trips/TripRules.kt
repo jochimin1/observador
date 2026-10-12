@@ -101,7 +101,7 @@ object TripAggregator {
                 // Uber only shows a cancellation for an accepted trip
                 (target == TripStatus.CANCELLED && input.from == RideLifecycleState.OFFER_VISIBLE)
             )
-        if (!startsTrip || target == null) {
+        if (!startsTrip) {
             val harmless = type == TripEventType.INTERRUPTED || type == TripEventType.LIFECYCLE_LOST
             return TripWrite(
                 result = if (harmless) {
@@ -118,6 +118,7 @@ object TripAggregator {
                 id = newTripId(),
                 lifecycleSessionId = input.lifecycleSessionId,
                 relatedOfferHash = input.relatedOfferHash,
+                // Kotlin 2 knows target is non-null here: startsTrip checked it
                 status = target,
                 recovered = input.recoveryTransition,
                 startedFromKnownOffer = known,

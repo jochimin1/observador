@@ -129,8 +129,8 @@ class RideLifecyclePipeline(
 
         val fingerprint = ScreenFingerprint.of(snapshot, offerHash)
         val previous = lastClassification
-        val repaint = fingerprint == lastFingerprint && previous != null
-        val classification = if (repaint && previous != null) {
+        val repaint = previous != null && fingerprint == lastFingerprint
+        val classification = if (previous != null && fingerprint == lastFingerprint) {
             diagnostics = diagnostics.copy(duplicateSnapshotsIgnored = diagnostics.duplicateSnapshotsIgnored + 1)
             previous
         } else {
