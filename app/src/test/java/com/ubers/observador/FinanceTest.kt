@@ -420,6 +420,39 @@ class FinanceTest {
         assertEquals(1, regressions.size)
     }
 
+    // ---- Synthetic replay: 7A lifecycle -> 7B trip -> 7C money ----
+
+    @Test fun replayOfARideThenItsEarningsScreenGivesRealMoneyNotTheOffer() {
+        val replay = com.ubers.observador.domain.lifecycle.LifecycleReplay.run(LifecycleFixtures.normalRide(), LifecycleFixtures.classifier)
+        assertEquals(RideLifecycleState.COMPLETED, replay.context.state)
+        var n = 0
+        val trips = com.ubers.observador.domain.trips.InMemoryTripLedger(newTripId = { "trip-${++n}" }, newEventId = { "side-$n" })
+        val offer = com.ubers.observador.domain.trips.TripOfferSnapshot(136.06, 4.1, 7, 7.2, 11, 76, 0)
+        replay.events.mapNotNull(com.ubers.observador.domain.trips.TripEventInput::from).forEach { trips.persist(it, offer = offer) }
+        val trip = trips.trips.single()
+        val money = InMemoryFinancialLedger(
+            tripIdForSession = { s -> trips.trips.firstOrNull { it.lifecycleSessionId == s }?.id },
+            offeredFor = { dop(13_606) }
+        )
+        val zone = ZoneId.of("UTC")
+        val at = requireNotNull(trip.completedAt) + minute
+        // The 7A summary screen (offer price, no label) gives nothing; Uber's earnings screen gives the total
+        detector.detect(LifecycleFixtures.summary(), UberScreenType.TRIP_SUMMARY, replay.context, at, zone).observations.forEach { money.persist(it) }
+        assertNull(money.summary(trip.id))
+        val earnings = screen(text("Ganaste"), text("RD$150.00"))
+        repeat(50) { detector.detect(earnings, UberScreenType.TRIP_SUMMARY, replay.context, at + it * 1_000L, zone).observations.forEach { o -> money.persist(o) } }
+        val s = money.summary(trip.id)!!
+        assertEquals(dop(15_000), s.effectiveEarnings)
+        assertEquals(1, s.observationCount)
+        assertEquals("10.2", s.differenceFromOffer()!!.second.toPlainString())
+        // A tip notice three hours later stays unlinked: the trip is not reopened, nothing guessed
+        val tip = detector.detect(screen(text("Recibiste una propina"), text("Propina RD$20.00")), UberScreenType.UNKNOWN, replay.context, at + 180 * minute, zone)
+        tip.observations.forEach { money.persist(it) }
+        assertEquals(dop(15_000), money.summary(trip.id)!!.effectiveEarnings)
+        assertEquals(1, money.unassigned().size)
+        assertEquals(com.ubers.observador.domain.trips.TripStatus.COMPLETED, trips.trips.single().status)
+    }
+
     // ---- TEST seeder (the debug data the phone will show) ----
 
     @Test fun seederMatchesTheSpecScenarios() {
