@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ubers.observador.domain.EngineSettings
+import com.ubers.observador.domain.ProfitSettingsSnapshot
 import com.ubers.observador.domain.QualityThresholds
+import com.ubers.observador.domain.ScoreWeights
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -32,6 +34,11 @@ class AppSettings(private val context: Context) {
         private val KEY_SHOW_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("show_overlay")
         private val KEY_GRACE_WINDOW = intPreferencesKey("grace_window_seconds")
         private val KEY_WORKDAY_START = intPreferencesKey("workday_start_hour")
+        private val KEY_WEIGHT_KM = intPreferencesKey("weight_km_pct")
+        private val KEY_WEIGHT_HOUR = intPreferencesKey("weight_hour_pct")
+        private val KEY_WEIGHT_PICKUP_KM = intPreferencesKey("weight_pickup_km_pct")
+        private val KEY_WEIGHT_PICKUP_MIN = intPreferencesKey("weight_pickup_min_pct")
+        private val KEY_SHADOW_MODEL = stringPreferencesKey("shadow_model_version_id")
 
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
@@ -56,9 +63,30 @@ class AppSettings(private val context: Context) {
             minRdpPerKm = prefs[KEY_MIN_RDP_PER_KM] ?: 6.0,
             minRdpPerHour = prefs[KEY_MIN_RDP_PER_HOUR] ?: 300.0,
             maxPickupKm = prefs[KEY_MAX_PICKUP_KM] ?: 6.0,
-            maxPickupMin = prefs[KEY_MAX_PICKUP_MIN] ?: 12
+            maxPickupMin = prefs[KEY_MAX_PICKUP_MIN] ?: 12,
+            weights = ScoreWeights.of(
+                prefs[KEY_WEIGHT_KM], prefs[KEY_WEIGHT_HOUR], prefs[KEY_WEIGHT_PICKUP_KM], prefs[KEY_WEIGHT_PICKUP_MIN]
+            )
         )
     }
+
+    /** Every setting that decides a score, read together (Fase 7D). */
+    val profitSettings: Flow<ProfitSettingsSnapshot> = context.dataStore.data.map { prefs ->
+        ProfitSettingsSnapshot(
+            minRdpPerKm = prefs[KEY_MIN_RDP_PER_KM] ?: 6.0,
+            minRdpPerHour = prefs[KEY_MIN_RDP_PER_HOUR] ?: 300.0,
+            maxPickupKm = prefs[KEY_MAX_PICKUP_KM] ?: 6.0,
+            maxPickupMinutes = prefs[KEY_MAX_PICKUP_MIN] ?: 12,
+            weights = ScoreWeights.of(
+                prefs[KEY_WEIGHT_KM], prefs[KEY_WEIGHT_HOUR], prefs[KEY_WEIGHT_PICKUP_KM], prefs[KEY_WEIGHT_PICKUP_MIN]
+            ),
+            goodFrom = QualityThresholds.of(prefs[KEY_MIN_SCORE] ?: 60, prefs[KEY_EXCELLENT_SCORE] ?: 80).goodFrom,
+            excellentFrom = QualityThresholds.of(prefs[KEY_MIN_SCORE] ?: 60, prefs[KEY_EXCELLENT_SCORE] ?: 80).excellentFrom
+        )
+    }
+
+    /** The model version scored silently next to the active one, or null when no shadow test runs. */
+    val shadowModelVersionId: Flow<String?> = context.dataStore.data.map { it[KEY_SHADOW_MODEL] }
 
     val minScoreThreshold: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[KEY_MIN_SCORE] ?: 60
@@ -132,6 +160,27 @@ class AppSettings(private val context: Context) {
 
     suspend fun updateShowOverlay(value: Boolean) =
         context.dataStore.edit { it[KEY_SHOW_OVERLAY] = value }
+
+    /**
+     * Writes a whole model in one edit (promotion or rollback, only after the user confirms), so
+     * no offer is ever scored with half of one model and half of another.
+     */
+    suspend fun applyProfitSettings(model: ProfitSettingsSnapshot) = context.dataStore.edit {
+        it[KEY_MIN_RDP_PER_KM] = model.minRdpPerKm
+        it[KEY_MIN_RDP_PER_HOUR] = model.minRdpPerHour
+        it[KEY_MAX_PICKUP_KM] = model.maxPickupKm
+        it[KEY_MAX_PICKUP_MIN] = model.maxPickupMinutes
+        it[KEY_WEIGHT_KM] = model.weights.kmPct
+        it[KEY_WEIGHT_HOUR] = model.weights.hourPct
+        it[KEY_WEIGHT_PICKUP_KM] = model.weights.pickupKmPct
+        it[KEY_WEIGHT_PICKUP_MIN] = model.weights.pickupMinPct
+        it[KEY_MIN_SCORE] = model.goodFrom
+        it[KEY_EXCELLENT_SCORE] = model.excellentFrom
+    }
+
+    suspend fun updateShadowModel(versionId: String?) = context.dataStore.edit {
+        if (versionId == null) it.remove(KEY_SHADOW_MODEL) else it[KEY_SHADOW_MODEL] = versionId
+    }
 
     suspend fun updateGraceWindow(value: Int) =
         context.dataStore.edit { it[KEY_GRACE_WINDOW] = value }

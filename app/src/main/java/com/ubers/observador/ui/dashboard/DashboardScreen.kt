@@ -60,6 +60,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun DashboardScreen(
     onNavigateToSettings: () -> Unit,
+    onNavigateToIntelligence: () -> Unit = {},
     accessibilityEnabled: Boolean,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -200,6 +201,9 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("Observador") },
                 actions = {
+                    IconButton(onClick = onNavigateToIntelligence) {
+                        Icon(painterResource(R.drawable.ic_analytics), contentDescription = "Análisis")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(painterResource(R.drawable.ic_settings), contentDescription = "Ajustes")
                     }

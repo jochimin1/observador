@@ -90,7 +90,8 @@ class TripPersistenceCoordinator(
             maxPickupKm = engine.maxPickupKm,
             maxPickupMinutes = engine.maxPickupMin,
             goodFrom = cuts.goodFrom,
-            excellentFrom = cuts.excellentFrom
+            excellentFrom = cuts.excellentFrom,
+            weights = engine.weights
         )
     }
 

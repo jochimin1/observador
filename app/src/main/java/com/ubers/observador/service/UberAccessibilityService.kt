@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.ubers.observador.data.AppSettings
+import com.ubers.observador.data.IntelligenceRepository
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.OfferQuality
@@ -33,6 +34,7 @@ class UberAccessibilityService : AccessibilityService() {
 
     private lateinit var settings: AppSettings
     private lateinit var repository: OfferRepository
+    private lateinit var shadowScorer: ShadowScorer
     private lateinit var overlayManager: OverlayManager
     private lateinit var notifier: OfferNotifier
 
@@ -66,6 +68,7 @@ class UberAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         settings = AppSettings(applicationContext)
         repository = OfferRepository(AppDatabase.getInstance(applicationContext))
+        shadowScorer = ShadowScorer(settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)))
         // Use `this` so TYPE_ACCESSIBILITY_OVERLAY is backed by the service context
         overlayManager = OverlayManager(this)
         notifier = OfferNotifier(applicationContext)
@@ -194,6 +197,16 @@ class UberAccessibilityService : AccessibilityService() {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to process offer $hash", e)
+            }
+        }
+        // Shadow scoring runs apart, after the visible path, and can never delay or break it
+        scope.launch {
+            try {
+                shadowScorer.score(offer, hash, System.currentTimeMillis())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Shadow scoring failed", e)
             }
         }
     }

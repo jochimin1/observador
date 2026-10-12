@@ -8,6 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
+ * Version 7 (Fase 7D) adds `profit_model_versions`, `shadow_evaluations` and `calibration_runs`,
+ * and four nullable weight columns to `trips` (null = the original 35/30/20/15).
  * Version 6 (Fase 7C) adds the money tables: `financial_observations`, `trip_financial_summaries`
  * and `platform_earnings_snapshots`. Version 5 (Fase 7B) added `trips` and `ride_events`;
  * `detected_offers` is untouched. Schemas are
@@ -18,9 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         OfferEntity::class, TripEntity::class, RideEventEntity::class,
-        FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class
+        FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class,
+        ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,27 +34,29 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun financialDao(): FinancialDao
 
+    abstract fun intelligenceDao(): IntelligenceDao
+
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE detected_offers ADD COLUMN offer_hash TEXT NOT NULL DEFAULT ''"
                 )
                 // Populate hash using same format as UberOffer.offerHash()
-                database.execSQL(
+                db.execSQL(
                     "UPDATE detected_offers SET offer_hash = " +
                     "printf('%.2f-%.1f-%d-%.1f-%d', price, pickupKm, pickupMin, tripKm, tripMin)"
                 )
                 // Remove duplicates keeping the earliest record per hash
-                database.execSQL(
+                db.execSQL(
                     """DELETE FROM detected_offers
                        WHERE id NOT IN (
                            SELECT MIN(id) FROM detected_offers GROUP BY offer_hash
                        )"""
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS index_detected_offers_offer_hash " +
                     "ON detected_offers (offer_hash)"
                 )
@@ -59,15 +64,15 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Hash is no longer globally unique: the same offer can repeat on another day.
                 // Deduplication is now time-window based (see OfferDao.insertIfNotRecent)
-                database.execSQL("DROP INDEX IF EXISTS index_detected_offers_offer_hash")
-                database.execSQL(
+                db.execSQL("DROP INDEX IF EXISTS index_detected_offers_offer_hash")
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_detected_offers_offer_hash " +
                     "ON detected_offers (offer_hash)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_detected_offers_detectedAt " +
                     "ON detected_offers (detectedAt)"
                 )
@@ -75,11 +80,11 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // One-time cleanup of duplicates saved before time-window dedup existed.
                 // Keeps the earliest row per offer_hash within each 10-minute bucket, so an
                 // identical offer on another day or hours later is never touched.
-                database.execSQL(
+                db.execSQL(
                     """DELETE FROM detected_offers
                        WHERE id NOT IN (
                            SELECT MIN(id) FROM detected_offers
@@ -94,8 +99,8 @@ abstract class AppDatabase : RoomDatabase() {
          * RideEventEntity, so Room's schema check after the migration passes.
          */
         internal val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `trips` (`id` TEXT NOT NULL, `lifecycle_session_id` TEXT NOT NULL, " +
                         "`related_offer_hash` TEXT, `status` TEXT NOT NULL, `recovered` INTEGER NOT NULL, " +
                         "`started_from_known_offer` INTEGER NOT NULL, `accepted_at` INTEGER, " +
@@ -109,12 +114,12 @@ abstract class AppDatabase : RoomDatabase() {
                         "`setting_max_pickup_km` REAL, `setting_max_pickup_minutes` INTEGER, " +
                         "`setting_good_from` INTEGER, `setting_excellent_from` INTEGER, PRIMARY KEY(`id`))"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_trips_lifecycle_session_id` ON `trips` (`lifecycle_session_id`)"
                 )
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trips_status` ON `trips` (`status`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trips_created_at` ON `trips` (`created_at`)")
-                database.execSQL(
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trips_status` ON `trips` (`status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trips_created_at` ON `trips` (`created_at`)")
+                db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `ride_events` (`database_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`event_id` TEXT NOT NULL, `trip_id` TEXT NOT NULL, `lifecycle_session_id` TEXT NOT NULL, " +
                         "`event_type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `sequence` INTEGER NOT NULL, " +
@@ -123,10 +128,10 @@ abstract class AppDatabase : RoomDatabase() {
                         "`anomaly_code` TEXT, FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE CASCADE )"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_ride_events_event_id` ON `ride_events` (`event_id`)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_ride_events_trip_id_sequence` " +
                         "ON `ride_events` (`trip_id`, `sequence`)"
                 )
@@ -135,8 +140,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         /** Money tables only (Fase 7C); offers, trips and their events are untouched. Exact Room SQL. */
         internal val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `financial_observations` (`database_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`observation_id` TEXT NOT NULL, `trip_id` TEXT, `lifecycle_session_id` TEXT, `observed_at` INTEGER NOT NULL, " +
                         "`type` TEXT NOT NULL, `semantics` TEXT NOT NULL, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
@@ -145,16 +150,16 @@ abstract class AppDatabase : RoomDatabase() {
                         "`voids_observation_id` TEXT, `created_at` INTEGER NOT NULL, FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE SET NULL )"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_financial_observations_observation_id` ON `financial_observations` (`observation_id`)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_financial_observations_trip_id` ON `financial_observations` (`trip_id`)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_financial_observations_observed_at` ON `financial_observations` (`observed_at`)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `trip_financial_summaries` (`trip_id` TEXT NOT NULL, `currency_code` TEXT, " +
                         "`offered_amount_minor` INTEGER, `latest_absolute_minor` INTEGER, `effective_earnings_minor` INTEGER, " +
                         "`fare_minor` INTEGER NOT NULL, `tip_minor` INTEGER NOT NULL, `promotion_minor` INTEGER NOT NULL, " +
@@ -164,17 +169,61 @@ abstract class AppDatabase : RoomDatabase() {
                         "`updated_at` INTEGER NOT NULL, PRIMARY KEY(`trip_id`), FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE CASCADE )"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `platform_earnings_snapshots` (`database_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`snapshot_id` TEXT NOT NULL, `captured_at` INTEGER NOT NULL, `period_type` TEXT NOT NULL, " +
                         "`period_start` INTEGER, `period_end` INTEGER, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
                         "`confidence` REAL NOT NULL, `screen_type` TEXT, `evidence_codes` TEXT NOT NULL)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_platform_earnings_snapshots_snapshot_id` ON `platform_earnings_snapshots` (`snapshot_id`)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_platform_earnings_snapshots_captured_at` ON `platform_earnings_snapshots` (`captured_at`)"
+                )
+            }
+        }
+
+        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `setting_weight_km_pct` INTEGER")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `setting_weight_hour_pct` INTEGER")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `setting_weight_pickup_km_pct` INTEGER")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `setting_weight_pickup_min_pct` INTEGER")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `profit_model_versions` (`id` TEXT NOT NULL, `number` INTEGER NOT NULL, " +
+                        "`created_at` INTEGER NOT NULL, `source` TEXT NOT NULL, `algorithm_version` TEXT NOT NULL, " +
+                        "`min_rdp_per_km` REAL NOT NULL, `min_rdp_per_hour` REAL NOT NULL, `max_pickup_km` REAL NOT NULL, " +
+                        "`max_pickup_minutes` INTEGER NOT NULL, `weight_km_pct` INTEGER NOT NULL, `weight_hour_pct` INTEGER NOT NULL, " +
+                        "`weight_pickup_km_pct` INTEGER NOT NULL, `weight_pickup_min_pct` INTEGER NOT NULL, `good_from` INTEGER NOT NULL, " +
+                        "`excellent_from` INTEGER NOT NULL, `note` TEXT, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_profit_model_versions_number` ON `profit_model_versions` (`number`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `shadow_evaluations` (`evaluation_id` TEXT NOT NULL, `offer_hash` TEXT NOT NULL, " +
+                        "`evaluated_at` INTEGER NOT NULL, `active_version_id` TEXT NOT NULL, `active_score` INTEGER NOT NULL, " +
+                        "`active_category` TEXT NOT NULL, `candidate_version_id` TEXT NOT NULL, `candidate_score` INTEGER NOT NULL, " +
+                        "`candidate_category` TEXT NOT NULL, PRIMARY KEY(`evaluation_id`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_shadow_evaluations_offer_hash` ON `shadow_evaluations` (`offer_hash`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_shadow_evaluations_candidate_version_id` ON `shadow_evaluations` (`candidate_version_id`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `calibration_runs` (`run_id` TEXT NOT NULL, `created_at` INTEGER NOT NULL, " +
+                        "`period_start` INTEGER, `period_end` INTEGER NOT NULL, `total_trips` INTEGER NOT NULL, " +
+                        "`valid_samples` INTEGER NOT NULL, `training_n` INTEGER NOT NULL, `validation_n` INTEGER NOT NULL, " +
+                        "`base_version_id` TEXT, `candidate_version_id` TEXT, `current_training_rho` REAL, " +
+                        "`candidate_training_rho` REAL, `current_validation_rho` REAL, `candidate_validation_rho` REAL, " +
+                        "`status` TEXT NOT NULL, `flags` TEXT NOT NULL, `analysis_version` TEXT NOT NULL, " +
+                        "`algorithm_version` TEXT NOT NULL, PRIMARY KEY(`run_id`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_calibration_runs_created_at` ON `calibration_runs` (`created_at`)"
                 )
             }
         }
@@ -186,7 +235,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build().also { INSTANCE = it }
             }
     }

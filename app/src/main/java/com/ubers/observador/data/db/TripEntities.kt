@@ -56,7 +56,12 @@ data class TripEntity(
     @ColumnInfo(name = "setting_max_pickup_km") val settingMaxPickupKm: Double?,
     @ColumnInfo(name = "setting_max_pickup_minutes") val settingMaxPickupMinutes: Int?,
     @ColumnInfo(name = "setting_good_from") val settingGoodFrom: Int?,
-    @ColumnInfo(name = "setting_excellent_from") val settingExcellentFrom: Int?
+    @ColumnInfo(name = "setting_excellent_from") val settingExcellentFrom: Int?,
+    // Weights of the score (Fase 7D, DB 7). Null on older rows = the original 35/30/20/15
+    @ColumnInfo(name = "setting_weight_km_pct") val settingWeightKmPct: Int? = null,
+    @ColumnInfo(name = "setting_weight_hour_pct") val settingWeightHourPct: Int? = null,
+    @ColumnInfo(name = "setting_weight_pickup_km_pct") val settingWeightPickupKmPct: Int? = null,
+    @ColumnInfo(name = "setting_weight_pickup_min_pct") val settingWeightPickupMinPct: Int? = null
 )
 
 /**

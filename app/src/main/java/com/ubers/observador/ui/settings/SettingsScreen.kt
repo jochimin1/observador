@@ -52,7 +52,6 @@ import com.ubers.observador.domain.FieldResult
 import com.ubers.observador.domain.FieldValidation
 import com.ubers.observador.domain.ProfitEngine
 import com.ubers.observador.domain.QualityThresholds
-import com.ubers.observador.domain.ScoreBreakdown
 import com.ubers.observador.domain.SettingsLimits
 import com.ubers.observador.domain.formatNumber
 import com.ubers.observador.domain.models.UberOffer
@@ -143,7 +142,7 @@ fun SettingsScreen(
             )
             DecimalSettingCard(
                 title = "RD$/km mínimo",
-                weightPct = ScoreBreakdown.WEIGHT_KM_PCT,
+                weightPct = engine.weights.kmPct,
                 description = "Lo mínimo que quieres cobrar por cada kilómetro, sumando el trayecto hasta " +
                     "el pasajero y el viaje. Se calcula como precio ÷ km totales.",
                 hint = "RD$${formatNumber(engine.minRdpPerKm)}/km = 50 pts · " +
@@ -156,7 +155,7 @@ fun SettingsScreen(
             )
             DecimalSettingCard(
                 title = "RD$/hora mínimo",
-                weightPct = ScoreBreakdown.WEIGHT_HOUR_PCT,
+                weightPct = engine.weights.hourPct,
                 description = "Lo mínimo que quieres ganar por cada hora de tu tiempo, contando recogida y " +
                     "viaje. Un viaje corto pero lento en tráfico puede salir mal aquí.",
                 hint = "RD$${formatNumber(engine.minRdpPerHour)}/h = 50 pts · " +
@@ -169,7 +168,7 @@ fun SettingsScreen(
             )
             DecimalSettingCard(
                 title = "Recogida máx. km",
-                weightPct = ScoreBreakdown.WEIGHT_PICKUP_KM_PCT,
+                weightPct = engine.weights.pickupKmPct,
                 description = "Qué tan lejos aceptas ir a buscar al pasajero. Cuanto más cerca esté, mejor " +
                     "puntúa; en este valor o más lejos, esa parte da 0.",
                 hint = "0 km = 100 pts · ${formatNumber(engine.maxPickupKm / 2)} km = 50 pts · " +
@@ -182,7 +181,7 @@ fun SettingsScreen(
             )
             IntSettingCard(
                 title = "Recogida máx. min",
-                weightPct = ScoreBreakdown.WEIGHT_PICKUP_MIN_PCT,
+                weightPct = engine.weights.pickupMinPct,
                 description = "Cuántos minutos estás dispuesto a manejar hasta el pasajero. Funciona igual " +
                     "que los km: poco tiempo suma, y en este valor o más da 0.",
                 hint = "0 min = 100 pts · ${formatNumber(engine.maxPickupMin / 2.0)} min = 50 pts · " +

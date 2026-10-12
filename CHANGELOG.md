@@ -14,6 +14,42 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.9.0] - 2026-10-12
+
+Fase 7D: análisis del modelo. Mide si un score más alto trae de verdad mejores viajes, con tus
+viajes reales. Solo mide, explica y recomienda: nunca cambia el modelo sin tu confirmación.
+Sin viajes reales todavía, la pantalla dice "datos insuficientes".
+
+### Añadido
+- Pantalla "Análisis" (icono de barras en el inicio):
+  - calidad de datos y cobertura por métrica;
+  - estado del modelo con sus razones, y un hallazgo principal;
+  - "¿El score funciona?" (Spearman y tramos de score);
+  - predicción frente a realidad: tiempo, RD$/hora y dinero ofertado frente a real;
+  - categorías y matriz frente a tu objetivo de RD$/hora;
+  - mejores horas reales, por hora de aceptación y separadas de las de ofertas vistas;
+  - factores, decisiones, recomendación, modo sombra e historial de modelos.
+- Calibración con una cuadrícula pequeña de pesos (84 combinaciones):
+  - se ajusta con los viajes antiguos y se confirma con los recientes;
+  - rechaza el sobreajuste;
+  - no recomienda nada con menos de 30 viajes.
+- Modo sombra: el candidato puntúa en silencio las ofertas nuevas, sin cambiar lo que ves.
+  "Aplicar" solo aparece con 30 viajes con resultado y una mejora confirmada, y pide confirmación.
+  "Restaurar" vuelve exactamente al modelo anterior.
+- Versiones de modelo que nunca se editan: inicial, editado en Ajustes, aplicado tras sombra,
+  restaurado.
+- Base de datos versión 7 con migración explícita 6 → 7:
+  - tablas `profit_model_versions`, `shadow_evaluations` y `calibration_runs`;
+  - 4 columnas de pesos en `trips` (vacías = los pesos de siempre).
+- Datos de prueba de desarrollo con patrones conocidos: modelo que funciona, modelo que falla,
+  "la recogida pesa más" y sobreajuste.
+
+### Cambiado
+- Los pesos del score (35/30/20/15) pasan a ser ajustes del modelo con esos mismos valores por
+  defecto, así que **ningún score cambia** hasta que apliques un candidato. Ajustes y el
+  detalle de cada oferta muestran los pesos en uso.
+- Las pruebas de migración de Room abren la base con todas las migraciones posteriores.
+
 ## [1.8.0] - 2026-10-12
 
 Fase 7C: dinero real. Observador guarda lo que Uber muestra que ganaste después de un viaje,

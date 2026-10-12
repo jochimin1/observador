@@ -92,8 +92,20 @@ data class TripDecisionSnapshot(
     val maxPickupKm: Double,
     val maxPickupMinutes: Int,
     val goodFrom: Int,
-    val excellentFrom: Int
-)
+    val excellentFrom: Int,
+    /** Score weights in force (Fase 7D). Trips stored before 7D all used the defaults. */
+    val weights: com.ubers.observador.domain.ScoreWeights = com.ubers.observador.domain.ScoreWeights.DEFAULT
+) {
+    fun toProfitSettings() = com.ubers.observador.domain.ProfitSettingsSnapshot(
+        minRdpPerKm = minRdpPerKm,
+        minRdpPerHour = minRdpPerHour,
+        maxPickupKm = maxPickupKm,
+        maxPickupMinutes = maxPickupMinutes,
+        weights = weights,
+        goodFrom = goodFrom,
+        excellentFrom = excellentFrom
+    )
+}
 
 /**
  * A trip: the aggregate of its events. Three different identities: [id] (internal, never

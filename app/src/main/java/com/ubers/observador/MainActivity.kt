@@ -17,6 +17,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ubers.observador.service.ObservadorForegroundService
 import com.ubers.observador.service.UberAccessibilityService
 import com.ubers.observador.ui.dashboard.DashboardScreen
+import com.ubers.observador.ui.intelligence.IntelligenceScreen
 import com.ubers.observador.ui.settings.SettingsScreen
 import com.ubers.observador.ui.theme.ObservadorTheme
 
@@ -62,8 +63,12 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         composable("dashboard") {
             DashboardScreen(
                 onNavigateToSettings = { navController.navigate("settings") },
+                onNavigateToIntelligence = { navController.navigate("intelligence") },
                 accessibilityEnabled = accessibilityEnabled
             )
+        }
+        composable("intelligence") {
+            IntelligenceScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable("settings") {
             SettingsScreen(

@@ -83,6 +83,10 @@ interface TripDao {
     @Query("SELECT * FROM ride_events")
     suspend fun getAllEvents(): List<RideEventEntity>
 
+    /** Offer hashes that became a trip (accepted), for the offer decision summary (Fase 7D). */
+    @Query("SELECT DISTINCT related_offer_hash FROM trips WHERE related_offer_hash IS NOT NULL AND created_at >= :from")
+    suspend fun getAcceptedOfferHashesSince(from: Long): List<String>
+
     /** Trips completed in [from, to), for real earnings of a period (Fase 7C). */
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
     suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>

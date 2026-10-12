@@ -97,10 +97,10 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: () -> Unit) {
         }
 
         DetailSection("Cómo se armó el score") {
-            ScorePart("Pago por km", ScoreBreakdown.WEIGHT_KM_PCT, parts.km)
-            ScorePart("Pago por hora", ScoreBreakdown.WEIGHT_HOUR_PCT, parts.hour)
-            ScorePart("Distancia de recogida", ScoreBreakdown.WEIGHT_PICKUP_KM_PCT, parts.pickupKm)
-            ScorePart("Tiempo de recogida", ScoreBreakdown.WEIGHT_PICKUP_MIN_PCT, parts.pickupMin)
+            ScorePart("Pago por km", parts.weights.kmPct, parts.km)
+            ScorePart("Pago por hora", parts.weights.hourPct, parts.hour)
+            ScorePart("Distancia de recogida", parts.weights.pickupKmPct, parts.pickupKm)
+            ScorePart("Tiempo de recogida", parts.weights.pickupMinPct, parts.pickupMin)
             HorizontalDivider()
             DetailLine("Score final", "${o.score} · ${quality.label}", strong = true)
         }

@@ -1,5 +1,6 @@
 package com.ubers.observador.data.db
 
+import com.ubers.observador.domain.ScoreWeights
 import com.ubers.observador.domain.trips.Trip
 import com.ubers.observador.domain.trips.TripAnomalyCode
 import com.ubers.observador.domain.trips.TripDecisionSnapshot
@@ -42,7 +43,11 @@ fun Trip.toEntity() = TripEntity(
     settingMaxPickupKm = decision?.maxPickupKm,
     settingMaxPickupMinutes = decision?.maxPickupMinutes,
     settingGoodFrom = decision?.goodFrom,
-    settingExcellentFrom = decision?.excellentFrom
+    settingExcellentFrom = decision?.excellentFrom,
+    settingWeightKmPct = decision?.weights?.kmPct,
+    settingWeightHourPct = decision?.weights?.hourPct,
+    settingWeightPickupKmPct = decision?.weights?.pickupKmPct,
+    settingWeightPickupMinPct = decision?.weights?.pickupMinPct
 )
 
 fun TripEntity.toDomain() = Trip(
@@ -88,7 +93,8 @@ private fun TripEntity.decisionSnapshot(): TripDecisionSnapshot? {
         maxPickupKm = settingMaxPickupKm ?: return null,
         maxPickupMinutes = settingMaxPickupMinutes ?: return null,
         goodFrom = settingGoodFrom ?: return null,
-        excellentFrom = settingExcellentFrom ?: return null
+        excellentFrom = settingExcellentFrom ?: return null,
+        weights = ScoreWeights.of(settingWeightKmPct, settingWeightHourPct, settingWeightPickupKmPct, settingWeightPickupMinPct)
     )
 }
 

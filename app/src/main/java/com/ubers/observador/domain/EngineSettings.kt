@@ -10,5 +10,7 @@ data class EngineSettings(
     val minRdpPerKm: Double = 6.0,
     val minRdpPerHour: Double = 300.0,
     val maxPickupKm: Double = 6.0,
-    val maxPickupMin: Int = 12
+    val maxPickupMin: Int = 12,
+    /** Sub-score weights (Fase 7D); defaults are the original 35/30/20/15. */
+    val weights: ScoreWeights = ScoreWeights.DEFAULT
 )
