@@ -26,6 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.data.TripWithEvents
+import com.ubers.observador.domain.finance.TripFinancialSummary
+import com.ubers.observador.domain.money.Currencies
+import com.ubers.observador.domain.money.MoneyAmount
+import com.ubers.observador.domain.money.MoneyFormat
 import com.ubers.observador.domain.trips.Trip
 import com.ubers.observador.domain.trips.TripTimeline
 import java.time.Instant
@@ -48,8 +52,9 @@ private fun clock(ms: Long?, format: DateTimeFormatter = TIME): String =
 fun TripsDebugCard(viewModel: TripsDebugViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val selected by viewModel.selected.collectAsState()
+    val selectedMoney by viewModel.selectedMoney.collectAsState()
 
-    selected?.let { TimelineDialog(it, onDismiss = { viewModel.select(null) }) }
+    selected?.let { TimelineDialog(it, selectedMoney?.takeIf { m -> m.tripId == it.trip.id }, onDismiss = { viewModel.select(null) }) }
 
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -116,7 +121,7 @@ private fun TripRow(trip: Trip, eventCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TimelineDialog(data: TripWithEvents, onDismiss: () -> Unit) {
+private fun TimelineDialog(data: TripWithEvents, money: TripFinancialSummary?, onDismiss: () -> Unit) {
     val trip = data.trip
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -132,6 +137,7 @@ private fun TimelineDialog(data: TripWithEvents, onDismiss: () -> Unit) {
                         (trip.offer?.let { " · score original ${it.scoreAtDetection}" } ?: ""),
                     style = MaterialTheme.typography.bodySmall
                 )
+                MoneyBlock(trip, money)
                 HorizontalDivider()
                 data.events.forEach { e ->
                     Text(
@@ -145,6 +151,34 @@ private fun TimelineDialog(data: TripWithEvents, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
     )
+}
+
+/** Offered vs real (Fase 7C). The offer is a reference; real money only from what Uber showed later. */
+@Composable
+private fun MoneyBlock(trip: Trip, money: TripFinancialSummary?) {
+    HorizontalDivider()
+    val offered = money?.offeredAmount
+        ?: trip.offer?.offeredAmount?.let { MoneyAmount.fromLegacyDouble(it, Currencies.DOP) }
+    val lines = ArrayList<String>()
+    lines += "Ofertado: " + (offered?.let { MoneyFormat.format(it) } ?: "—")
+    lines += "Real: " + (money?.effectiveEarnings?.let { MoneyFormat.format(it) } ?: "no observado")
+    money?.differenceFromOffer()?.let { (diff, pct) ->
+        lines += "Diferencia: ${MoneyFormat.format(diff, signed = true)} (${if (pct.signum() > 0) "+" else ""}$pct%)"
+    }
+    if (money != null) {
+        val cur = money.currencyCode ?: Currencies.DOP
+        fun part(label: String, minor: Long) = if (minor != 0L) "$label ${MoneyFormat.format(MoneyAmount(minor, cur))}" else null
+        listOfNotNull(
+            part("tarifa", money.fare), part("propina", money.tip), part("promoción", money.promotion),
+            part("ajuste", money.adjustment), part("cancelación", money.cancellationFee), part("otros", money.other)
+        ).takeIf { it.isNotEmpty() }?.let { lines += "Desglose: " + it.joinToString(" · ") }
+        lines += "Estado: ${money.completeness.name} · ${money.observationCount} cantidades" +
+            (if (money.pendingReviewCount > 0) " · ${money.pendingReviewCount} por revisar" else "") +
+            (if (money.anomalies.isNotEmpty()) " · ⚠ " + money.anomalies.joinToString { it.name } else "")
+    } else {
+        lines += "Estado: UNKNOWN · ningún importe visto"
+    }
+    lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
 
 private fun shortId(id: String): String = if (id.length <= HASH_HEAD + 2) id else id.take(HASH_HEAD + 2) + "…"

@@ -10,17 +10,15 @@ import com.ubers.observador.domain.trips.TripEventInput
 import com.ubers.observador.domain.trips.TripPersistenceMetrics
 import com.ubers.observador.domain.trips.TripPersistenceResult
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
 /**
- * The single writer of trips (Fase 7B). Lifecycle events go into one queue and are written one
+ * The single writer of trips (Fase 7B). Lifecycle events go into the shared [PersistenceQueue]
+ * (also used for money, Fase 7C) and are written one
  * at a time, in order, so two quick events (arrived, then started) can never interleave. A
  * database error is logged and retried with the same eventId, which makes the retry safe: an
  * event already stored is ignored. Errors never reach the accessibility service, and the ride
@@ -29,33 +27,15 @@ import kotlinx.coroutines.launch
 class TripPersistenceCoordinator(
     private val repository: TripRepository,
     private val settings: AppSettings,
-    scope: CoroutineScope
+    private val queue: PersistenceQueue
 ) {
-
-    private sealed interface Job {
-        data class Persist(val input: TripEventInput) : Job
-        data class Restore(val onDone: (Trip?) -> Unit) : Job
-    }
-
-    private val queue = Channel<Job>(Channel.UNLIMITED)
 
     private val _metrics = MutableStateFlow(TripPersistenceMetrics())
     val metrics: StateFlow<TripPersistenceMetrics> = _metrics.asStateFlow()
 
-    init {
-        scope.launch {
-            for (job in queue) {
-                when (job) {
-                    is Job.Persist -> persistWithRetry(job.input)
-                    is Job.Restore -> runRestore(job.onDone)
-                }
-            }
-        }
-    }
-
     /** Queues the events that concern trips; offers and session-less events are skipped. */
     fun submit(events: List<RideLifecycleEvent>) {
-        events.mapNotNull(TripEventInput::from).forEach { queue.trySend(Job.Persist(it)) }
+        events.mapNotNull(TripEventInput::from).forEach { input -> queue.enqueue { persistWithRetry(input) } }
     }
 
     /**
@@ -64,7 +44,7 @@ class TripPersistenceCoordinator(
      * lifecycle never waits forever.
      */
     fun restore(onDone: (Trip?) -> Unit) {
-        queue.trySend(Job.Restore(onDone))
+        queue.enqueue { runRestore(onDone) }
     }
 
     private suspend fun runRestore(onDone: (Trip?) -> Unit) {

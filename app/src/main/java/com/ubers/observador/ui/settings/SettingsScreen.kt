@@ -298,6 +298,7 @@ fun SettingsScreen(
                 )
                 LifecycleDebugCard()
                 TripsDebugCard()
+                FinanceDebugCard()
             }
 
             // Which build is installed, to match a bug or a screenshot with CHANGELOG.md

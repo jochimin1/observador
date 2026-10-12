@@ -8,14 +8,19 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Version 5 (Fase 7B) adds `trips` and `ride_events`; `detected_offers` is untouched. Schemas are
+ * Version 6 (Fase 7C) adds the money tables: `financial_observations`, `trip_financial_summaries`
+ * and `platform_earnings_snapshots`. Version 5 (Fase 7B) added `trips` and `ride_events`;
+ * `detected_offers` is untouched. Schemas are
  * exported to app/schemas from version 5 on (4.json was rebuilt from the generated v4 code) so
  * MigrationTestHelper can check every step. Never fallbackToDestructiveMigration: a failed
  * migration rolls back and keeps the data.
  */
 @Database(
-    entities = [OfferEntity::class, TripEntity::class, RideEventEntity::class],
-    version = 5,
+    entities = [
+        OfferEntity::class, TripEntity::class, RideEventEntity::class,
+        FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class
+    ],
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,6 +28,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun offerDao(): OfferDao
 
     abstract fun tripDao(): TripDao
+
+    abstract fun financialDao(): FinancialDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -126,6 +133,52 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Money tables only (Fase 7C); offers, trips and their events are untouched. Exact Room SQL. */
+        internal val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `financial_observations` (`database_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`observation_id` TEXT NOT NULL, `trip_id` TEXT, `lifecycle_session_id` TEXT, `observed_at` INTEGER NOT NULL, " +
+                        "`type` TEXT NOT NULL, `semantics` TEXT NOT NULL, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
+                        "`scope` TEXT NOT NULL, `confidence` REAL NOT NULL, `source` TEXT NOT NULL, `screen_type` TEXT, " +
+                        "`evidence_codes` TEXT NOT NULL, `link_confidence` TEXT NOT NULL, `breakdown_group_id` TEXT, " +
+                        "`voids_observation_id` TEXT, `created_at` INTEGER NOT NULL, FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE SET NULL )"
+                )
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_financial_observations_observation_id` ON `financial_observations` (`observation_id`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_financial_observations_trip_id` ON `financial_observations` (`trip_id`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_financial_observations_observed_at` ON `financial_observations` (`observed_at`)"
+                )
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `trip_financial_summaries` (`trip_id` TEXT NOT NULL, `currency_code` TEXT, " +
+                        "`offered_amount_minor` INTEGER, `latest_absolute_minor` INTEGER, `effective_earnings_minor` INTEGER, " +
+                        "`fare_minor` INTEGER NOT NULL, `tip_minor` INTEGER NOT NULL, `promotion_minor` INTEGER NOT NULL, " +
+                        "`adjustment_minor` INTEGER NOT NULL, `cancellation_fee_minor` INTEGER NOT NULL, `other_minor` INTEGER NOT NULL, " +
+                        "`completeness` TEXT NOT NULL, `anomaly_codes` TEXT NOT NULL, `observation_count` INTEGER NOT NULL, " +
+                        "`pending_review_count` INTEGER NOT NULL, `first_observed_at` INTEGER, `last_observed_at` INTEGER, " +
+                        "`updated_at` INTEGER NOT NULL, PRIMARY KEY(`trip_id`), FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `platform_earnings_snapshots` (`database_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`snapshot_id` TEXT NOT NULL, `captured_at` INTEGER NOT NULL, `period_type` TEXT NOT NULL, " +
+                        "`period_start` INTEGER, `period_end` INTEGER, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
+                        "`confidence` REAL NOT NULL, `screen_type` TEXT, `evidence_codes` TEXT NOT NULL)"
+                )
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_platform_earnings_snapshots_snapshot_id` ON `platform_earnings_snapshots` (`snapshot_id`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_platform_earnings_snapshots_captured_at` ON `platform_earnings_snapshots` (`captured_at`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -133,7 +186,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build().also { INSTANCE = it }
             }
     }

@@ -82,4 +82,8 @@ interface TripDao {
 
     @Query("SELECT * FROM ride_events")
     suspend fun getAllEvents(): List<RideEventEntity>
+
+    /** Trips completed in [from, to), for real earnings of a period (Fase 7C). */
+    @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
+    suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>
 }

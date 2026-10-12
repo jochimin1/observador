@@ -6,6 +6,7 @@ import android.os.Looper
 import android.util.Log
 import com.ubers.observador.BuildConfig
 import com.ubers.observador.data.AppSettings
+import com.ubers.observador.data.FinancialRepository
 import com.ubers.observador.data.TripRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.lifecycle.LifecycleDiagnostics
@@ -15,9 +16,13 @@ import com.ubers.observador.domain.lifecycle.RideLifecycleContext
 import com.ubers.observador.domain.lifecycle.RideLifecyclePipeline
 import com.ubers.observador.domain.lifecycle.ScreenClassification
 import com.ubers.observador.domain.lifecycle.ScreenSnapshot
+import com.ubers.observador.domain.lifecycle.SkipReason
 import com.ubers.observador.domain.lifecycle.SnapshotSanitizer
 import com.ubers.observador.domain.lifecycle.TransitionResult
 import com.ubers.observador.domain.lifecycle.UberScreenClassifier
+import com.ubers.observador.domain.finance.FinancialDetector
+import com.ubers.observador.domain.finance.FinancialMetrics
+import com.ubers.observador.domain.finance.FinancialScreenType
 import com.ubers.observador.domain.trips.Trip
 import com.ubers.observador.domain.trips.TripPersistenceMetrics
 import com.ubers.observador.domain.trips.TripRestorePolicy
@@ -61,6 +66,13 @@ object RideLifecycleMonitor {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var coordinator: TripPersistenceCoordinator? = null
+    private var money: FinancialPersistenceCoordinator? = null
+    private val financialDetector = FinancialDetector()
+    private var lastMoneyTextsKey: Int? = null
+    private val _financialMetrics = MutableStateFlow(FinancialMetrics())
+
+    /** Counters of the money writer, for the debug panel. */
+    val financialMetrics: StateFlow<FinancialMetrics> = _financialMetrics.asStateFlow()
     private val _tripMetrics = MutableStateFlow(TripPersistenceMetrics())
 
     // Screens are not interpreted until the open trip is restored, so a ride under way can never
@@ -82,13 +94,19 @@ object RideLifecycleMonitor {
         if (coordinator != null) return
         val app = context.applicationContext
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val database = AppDatabase.getInstance(app)
+        // Trips and money share one queue: a trip's money is always written after the trip
+        val queue = PersistenceQueue(scope)
         val writer = TripPersistenceCoordinator(
-            repository = TripRepository(AppDatabase.getInstance(app)),
+            repository = TripRepository(database),
             settings = AppSettings(app),
-            scope = scope
+            queue = queue
         )
+        val moneyWriter = FinancialPersistenceCoordinator(FinancialRepository(database), queue)
         coordinator = writer
+        money = moneyWriter
         scope.launch { writer.metrics.collect { _tripMetrics.value = it } }
+        scope.launch { moneyWriter.metrics.collect { _financialMetrics.value = it } }
         writer.restore { trip -> mainHandler.post { onRestored(trip) } }
     }
 
@@ -109,8 +127,31 @@ object RideLifecycleMonitor {
         if (BuildConfig.DEBUG) lastSnapshot = snapshot
         log(result)
         coordinator?.submit(result.events)
+        observeMoney(snapshot, result)
         publish(snapshot.timestampMs)
         return result
+    }
+
+    /**
+     * Fase 7C: reads money from the same snapshot. Skipped for exact repaints (the same texts give
+     * the same amounts) and while the lifecycle is still confirming a screen, so an earnings screen is
+     * read once the trip is known to be COMPLETED and can be linked to it.
+     */
+    private fun observeMoney(snapshot: ScreenSnapshot, result: PipelineResult) {
+        val writer = money ?: return
+        val classification = result.classification ?: return
+        if (result.recheckAfterMs != null) return
+        // The lifecycle fingerprint masks digits, so an amount changing in place looks like a
+        // repaint to it; money compares the exact texts instead (kept only as a hash, in memory)
+        val textsKey = snapshot.texts.hashCode()
+        if (result.skipped == SkipReason.DUPLICATE_SNAPSHOT && result.events.isEmpty() && textsKey == lastMoneyTextsKey) return
+        lastMoneyTextsKey = textsKey
+        val detection = financialDetector.detect(snapshot, classification.type, pipeline.context, snapshot.timestampMs, java.time.ZoneId.systemDefault())
+        if (detection.classification.type == FinancialScreenType.UNKNOWN) {
+            writer.countUnknownScreen()
+        } else {
+            writer.submit(detection)
+        }
     }
 
     @Synchronized

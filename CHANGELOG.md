@@ -14,6 +14,35 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.8.0] - 2026-10-12
+
+Fase 7C: dinero real. Observador guarda lo que Uber muestra que ganaste después de un viaje,
+aparte del precio ofertado. Las etiquetas de las pantallas de dinero de Uber son provisionales:
+validación con capturas reales pendiente. La pantalla principal no cambia todavía.
+
+### Añadido
+- Dinero en enteros (`Long`, centavos: RD$1,978.38 = 197838); nunca `Double` ni `Float`. El
+  texto y `BigDecimal` solo aparecen al leer la pantalla y al mostrar.
+- Lector de importes dominicano (`RD$`, `DOP`, `US$`): nunca devuelve 0 por error; separadores
+  dudosos ("1.234,56") o dos importes juntos quedan como ambiguos, no se adivinan.
+- Base de datos versión 6 con migración explícita 5 → 6: `financial_observations` (cada importe
+  visto, nunca se edita), `trip_financial_summaries` (resumen reconstruible por viaje) y
+  `platform_earnings_snapshots` (lo que Uber dice del día o la semana).
+- Total efectivo = último total absoluto + sumas posteriores. Un total nuevo reemplaza la base y
+  absorbe la propina ya vista (100, +20, total 120 = 120, nunca 140). Los componentes solo
+  forman el desglose. Sin total visto, la ganancia queda desconocida aunque se sepa el precio
+  ofertado.
+- Una cantidad se vincula a un viaje solo si aparece al terminar ese mismo viaje (10 minutos);
+  si no, queda "pendiente de vincular" y no se suma a ningún viaje.
+- Ajustes → Herramientas de prueba (solo desarrollo): "Dinero detectado" con contadores,
+  últimas cantidades, ingreso real de la jornada con cobertura, dato de Uber y conciliación,
+  datos de prueba y reconstrucción de resúmenes. La línea de tiempo de cada viaje muestra
+  ofertado frente a real.
+
+### Cambiado
+- Viajes y dinero se escriben en una sola cola, en orden: el dinero de un viaje nunca llega
+  antes que el viaje.
+
 ## [1.7.0] - 2026-10-12
 
 Fase 7B: registro persistente de viajes. Los eventos del ciclo de la 7A se guardan y forman
