@@ -232,12 +232,15 @@ fun DashboardScreen(
                 .padding(padding)
         ) {
             // Fixed above the list: whether Observador is reading Uber is the first thing to know
+            val observing by viewModel.observerEnabled.collectAsState()
             ServiceStatusBar(
                 enabled = accessibilityEnabled,
+                paused = !observing,
                 lastOfferAt = state.lastRealOfferAt,
                 nowMillis = state.nowMillis,
                 loading = state.loading,
-                onEnable = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                onEnable = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                onToggle = { viewModel.setObserverEnabled(!observing) }
             )
             LazyColumn(
                 modifier = Modifier
@@ -318,18 +321,36 @@ fun DashboardScreen(
     }
 }
 
-/** Green when Observador is reading Uber (with the time of the last real offer), red with a fix when not. */
+/**
+ * Green when Observador is reading Uber (with the time of the last real offer), amber-ish when the
+ * driver paused it (one tap to resume), red with a fix when the accessibility service is off.
+ */
 @Composable
 private fun ServiceStatusBar(
     enabled: Boolean,
+    paused: Boolean,
     lastOfferAt: Long?,
     nowMillis: Long,
     loading: Boolean,
-    onEnable: () -> Unit
+    onEnable: () -> Unit,
+    onToggle: () -> Unit
 ) {
-    val container = if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer
-    val content = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
-    val dot = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val reading = enabled && !paused
+    val container = when {
+        !enabled -> MaterialTheme.colorScheme.errorContainer
+        paused -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
+    val content = when {
+        !enabled -> MaterialTheme.colorScheme.onErrorContainer
+        paused -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    val dot = when {
+        !enabled -> MaterialTheme.colorScheme.error
+        paused -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
     Surface(color = container, contentColor = content, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -347,12 +368,17 @@ private fun ServiceStatusBar(
                     .semantics(mergeDescendants = true) {}
             ) {
                 Text(
-                    text = if (enabled) "Leyendo ofertas" else "Inactivo",
+                    text = when {
+                        !enabled -> "Inactivo"
+                        paused -> "En pausa"
+                        else -> "Leyendo ofertas"
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
                 val detail = when {
                     !enabled -> "Observador no está leyendo Uber."
+                    paused -> "No se leen ofertas ni viajes hasta que reanudes."
                     loading -> null
                     lastOfferAt == null -> "Aún no ha llegado ninguna oferta."
                     else -> "Última oferta ${TimeAgo.format(nowMillis, lastOfferAt)}"
@@ -361,8 +387,10 @@ private fun ServiceStatusBar(
                     Text(text = detail, style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (!enabled) {
-                Button(onClick = onEnable) { Text("Activar") }
+            when {
+                !enabled -> Button(onClick = onEnable) { Text("Activar") }
+                paused -> Button(onClick = onToggle) { Text("Reanudar") }
+                reading -> OutlinedButton(onClick = onToggle) { Text("Pausar") }
             }
         }
     }

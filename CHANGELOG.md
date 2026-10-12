@@ -14,6 +14,26 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.10.0] - 2026-10-12
+
+Pausa y perfiles de ajustes. Incluye todo lo de la 1.9.0.
+
+### Añadido
+- Interruptor "Observador activo / en pausa":
+  - está en la barra de estado del inicio (botón "Pausar" / "Reanudar"), arriba en Ajustes y en
+    la notificación;
+  - en pausa no se lee nada de Uber: ni ofertas, ni tarjeta, ni avisos, ni viajes, ni dinero;
+  - si se pausa durante un viaje, ese viaje queda como interrumpido;
+  - por defecto está activo, así que actualizar la app no cambia nada.
+- Perfiles en Ajustes: guarda los ajustes actuales con un nombre ("Día", "Noche", "Lluvia"...) y
+  aplícalos de un toque.
+  - Hasta 10 perfiles. Se pueden actualizar, renombrar y borrar.
+  - Ajustes muestra qué perfil está en uso y si lo cambiaste después.
+  - Un perfil guarda costos, mínimos, pesos y cortes del score, y cómo se muestran las ofertas.
+    No guarda el inicio de la jornada.
+  - Aplicar un perfil cambia todos los valores de una vez. Si tus valores actuales no están en
+    ningún perfil, pide confirmación antes de reemplazarlos.
+
 ## [1.9.0] - 2026-10-12
 
 Fase 7D: análisis del modelo. Mide si un score más alto trae de verdad mejores viajes, con tus

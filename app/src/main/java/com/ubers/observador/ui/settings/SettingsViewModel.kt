@@ -14,6 +14,10 @@ import com.ubers.observador.domain.models.UberOffer
 import com.ubers.observador.service.UberAccessibilityService
 import com.ubers.observador.domain.EngineSettings
 import com.ubers.observador.domain.QualityThresholds
+import com.ubers.observador.domain.ProfileValues
+import com.ubers.observador.domain.SettingsProfile
+import com.ubers.observador.domain.SettingsProfiles
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +40,19 @@ data class SettingsUiState(
 ) {
     /** Effective cut-offs: EXCELENTE is always above BUENO even if the raw values cross. */
     val thresholds: QualityThresholds get() = QualityThresholds.of(minScore, excellentScore)
+}
+
+/** Saved profiles and which one, if any, matches the values in use. */
+data class ProfilesUiState(
+    val profiles: List<SettingsProfile> = emptyList(),
+    val activeId: String? = null,
+    val current: ProfileValues? = null
+) {
+    /** The profile whose values are exactly the ones in use. */
+    val inUse: SettingsProfile? get() = current?.let { SettingsProfiles.matching(profiles, it, activeId) }
+
+    /** The last applied profile, if its values were edited since (shown as "modificado"). */
+    val edited: SettingsProfile? get() = if (inUse != null) null else profiles.firstOrNull { it.id == activeId }
 }
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -78,6 +95,84 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateGraceWindow(v: Int) = viewModelScope.launch { appSettings.updateGraceWindow(v) }
     fun updateExcellentScore(v: Int) = viewModelScope.launch { appSettings.updateExcellentScore(v) }
     fun updateWorkdayStartHour(v: Int) = viewModelScope.launch { appSettings.updateWorkdayStartHour(v) }
+
+    // ---- Master switch ----
+
+    val observerEnabled: StateFlow<Boolean> = appSettings.observerEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateObserverEnabled(enabled) }
+
+    // ---- Profiles ----
+
+    val profiles: StateFlow<ProfilesUiState> = combine(
+        appSettings.profiles,
+        appSettings.activeProfileId,
+        appSettings.profileValues
+    ) { list, activeId, current -> ProfilesUiState(list, activeId, current) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfilesUiState())
+
+    private val _profileMessage = MutableStateFlow<String?>(null)
+    val profileMessage: StateFlow<String?> = _profileMessage.asStateFlow()
+
+    fun clearProfileMessage() {
+        _profileMessage.value = null
+    }
+
+    /** Saves the values in use now as a new profile, which becomes the active one. */
+    fun saveNewProfile(name: String) = viewModelScope.launch {
+        val list = appSettings.profiles.first()
+        val values = appSettings.profileValues.first()
+        _profileMessage.value = when (val r = SettingsProfiles.create(list, name, values, { UUID.randomUUID().toString() })) {
+            is SettingsProfiles.Result.Ok -> {
+                appSettings.saveProfiles(r.profiles, r.profile.id)
+                "Perfil \"${r.profile.name}\" guardado."
+            }
+            is SettingsProfiles.Result.Error -> r.message
+        }
+    }
+
+    /** Replaces a profile's values with the ones in use now (after the driver confirms). */
+    fun overwriteProfile(id: String) = viewModelScope.launch {
+        val list = appSettings.profiles.first()
+        _profileMessage.value = when (val r = SettingsProfiles.overwrite(list, id, appSettings.profileValues.first())) {
+            is SettingsProfiles.Result.Ok -> {
+                appSettings.saveProfiles(r.profiles, r.profile.id)
+                "Perfil \"${r.profile.name}\" actualizado con los valores actuales."
+            }
+            is SettingsProfiles.Result.Error -> r.message
+        }
+    }
+
+    fun renameProfile(id: String, name: String) = viewModelScope.launch {
+        val list = appSettings.profiles.first()
+        _profileMessage.value = when (val r = SettingsProfiles.rename(list, id, name)) {
+            is SettingsProfiles.Result.Ok -> {
+                appSettings.saveProfiles(r.profiles, appSettings.activeProfileId.first())
+                "Ahora se llama \"${r.profile.name}\"."
+            }
+            is SettingsProfiles.Result.Error -> r.message
+        }
+    }
+
+    fun deleteProfile(id: String) = viewModelScope.launch {
+        val list = appSettings.profiles.first()
+        val name = list.firstOrNull { it.id == id }?.name ?: return@launch
+        val active = appSettings.activeProfileId.first()?.takeIf { it != id }
+        appSettings.saveProfiles(SettingsProfiles.delete(list, id), active)
+        _profileMessage.value = "Perfil \"$name\" borrado. Tus ajustes actuales no cambian."
+    }
+
+    /** Loads every value of the profile at once. A profile with a value out of range is refused. */
+    fun applyProfile(id: String) = viewModelScope.launch {
+        val profile = appSettings.profiles.first().firstOrNull { it.id == id } ?: return@launch
+        _profileMessage.value = if (!profile.values.isValid) {
+            "Este perfil tiene un valor fuera de rango y no se aplicó."
+        } else {
+            appSettings.applyProfile(profile)
+            "Perfil \"${profile.name}\" aplicado."
+        }
+    }
 
     // ---- Overlay preview ----
 

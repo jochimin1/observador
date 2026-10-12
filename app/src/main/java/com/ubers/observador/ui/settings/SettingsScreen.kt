@@ -92,6 +92,22 @@ fun SettingsScreen(
         ) {
             Spacer(Modifier.height(4.dp))
 
+            val observing by viewModel.observerEnabled.collectAsState()
+            ObserverSwitchCard(enabled = observing, onChange = { viewModel.setObserverEnabled(it) })
+
+            val profiles by viewModel.profiles.collectAsState()
+            val profileMessage by viewModel.profileMessage.collectAsState()
+            ProfilesCard(
+                state = profiles,
+                message = profileMessage,
+                onClearMessage = { viewModel.clearProfileMessage() },
+                onSaveNew = { viewModel.saveNewProfile(it) },
+                onApply = { viewModel.applyProfile(it) },
+                onOverwrite = { viewModel.overwriteProfile(it) },
+                onRename = { id, name -> viewModel.renameProfile(id, name) },
+                onDelete = { viewModel.deleteProfile(it) }
+            )
+
             SectionHeader("Costos operativos")
             DecimalSettingCard(
                 title = "Precio del combustible",

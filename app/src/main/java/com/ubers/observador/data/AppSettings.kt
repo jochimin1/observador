@@ -9,9 +9,12 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ubers.observador.domain.EngineSettings
+import com.ubers.observador.domain.ProfileValues
 import com.ubers.observador.domain.ProfitSettingsSnapshot
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.ScoreWeights
+import com.ubers.observador.domain.SettingsProfile
+import com.ubers.observador.domain.SettingsProfileCodec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -39,6 +42,9 @@ class AppSettings(private val context: Context) {
         private val KEY_WEIGHT_PICKUP_KM = intPreferencesKey("weight_pickup_km_pct")
         private val KEY_WEIGHT_PICKUP_MIN = intPreferencesKey("weight_pickup_min_pct")
         private val KEY_SHADOW_MODEL = stringPreferencesKey("shadow_model_version_id")
+        private val KEY_OBSERVER_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("observer_enabled")
+        private val KEY_PROFILES = stringPreferencesKey("settings_profiles")
+        private val KEY_ACTIVE_PROFILE = stringPreferencesKey("active_profile_id")
 
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
@@ -83,6 +89,69 @@ class AppSettings(private val context: Context) {
             goodFrom = QualityThresholds.of(prefs[KEY_MIN_SCORE] ?: 60, prefs[KEY_EXCELLENT_SCORE] ?: 80).goodFrom,
             excellentFrom = QualityThresholds.of(prefs[KEY_MIN_SCORE] ?: 60, prefs[KEY_EXCELLENT_SCORE] ?: 80).excellentFrom
         )
+    }
+
+    /**
+     * Master switch. When false Observador reads nothing from Uber: no offers, no overlay, no
+     * notifications, no trips, no money. Default true, so updating the app changes nothing.
+     */
+    val observerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_OBSERVER_ENABLED] ?: true }
+
+    suspend fun updateObserverEnabled(value: Boolean) = context.dataStore.edit { it[KEY_OBSERVER_ENABLED] = value }
+
+    /** Saved settings profiles (see SettingsProfileCodec). A broken entry is skipped, never fatal. */
+    val profiles: Flow<List<SettingsProfile>> = context.dataStore.data.map { SettingsProfileCodec.decode(it[KEY_PROFILES]) }
+
+    /** The profile last applied or saved, to show "Perfil: Noche" (and whether it was edited since). */
+    val activeProfileId: Flow<String?> = context.dataStore.data.map { it[KEY_ACTIVE_PROFILE] }
+
+    suspend fun saveProfiles(profiles: List<SettingsProfile>, activeId: String?) = context.dataStore.edit {
+        it[KEY_PROFILES] = SettingsProfileCodec.encode(profiles)
+        if (activeId == null) it.remove(KEY_ACTIVE_PROFILE) else it[KEY_ACTIVE_PROFILE] = activeId
+    }
+
+    /** The values a profile would save, exactly as stored now (manual cost per km, not the derived one). */
+    val profileValues: Flow<ProfileValues> = context.dataStore.data.map { prefs ->
+        val d = ProfileValues.DEFAULTS
+        ProfileValues(
+            fuelPricePerGallon = prefs[KEY_FUEL_PRICE_PER_GALLON] ?: d.fuelPricePerGallon,
+            kmPerGallon = prefs[KEY_KM_PER_GALLON] ?: d.kmPerGallon,
+            manualCostPerKm = prefs[KEY_COST_PER_KM] ?: d.manualCostPerKm,
+            minRdpPerKm = prefs[KEY_MIN_RDP_PER_KM] ?: d.minRdpPerKm,
+            minRdpPerHour = prefs[KEY_MIN_RDP_PER_HOUR] ?: d.minRdpPerHour,
+            maxPickupKm = prefs[KEY_MAX_PICKUP_KM] ?: d.maxPickupKm,
+            maxPickupMin = prefs[KEY_MAX_PICKUP_MIN] ?: d.maxPickupMin,
+            goodFrom = prefs[KEY_MIN_SCORE] ?: d.goodFrom,
+            excellentFrom = prefs[KEY_EXCELLENT_SCORE] ?: d.excellentFrom,
+            weights = ScoreWeights.of(prefs[KEY_WEIGHT_KM], prefs[KEY_WEIGHT_HOUR], prefs[KEY_WEIGHT_PICKUP_KM], prefs[KEY_WEIGHT_PICKUP_MIN]),
+            showOverlay = prefs[KEY_SHOW_OVERLAY] ?: d.showOverlay,
+            overlaySeconds = prefs[KEY_OVERLAY_DURATION] ?: d.overlaySeconds,
+            graceSeconds = prefs[KEY_GRACE_WINDOW] ?: d.graceSeconds,
+            mode = prefs[KEY_MODE] ?: d.mode
+        )
+    }
+
+    /** Applies a whole profile in one edit, so no offer is ever judged with half of two profiles. */
+    suspend fun applyProfile(profile: SettingsProfile) = context.dataStore.edit {
+        val v = profile.values
+        it[KEY_FUEL_PRICE_PER_GALLON] = v.fuelPricePerGallon
+        it[KEY_KM_PER_GALLON] = v.kmPerGallon
+        it[KEY_COST_PER_KM] = v.manualCostPerKm
+        it[KEY_MIN_RDP_PER_KM] = v.minRdpPerKm
+        it[KEY_MIN_RDP_PER_HOUR] = v.minRdpPerHour
+        it[KEY_MAX_PICKUP_KM] = v.maxPickupKm
+        it[KEY_MAX_PICKUP_MIN] = v.maxPickupMin
+        it[KEY_MIN_SCORE] = v.goodFrom
+        it[KEY_EXCELLENT_SCORE] = v.excellentFrom
+        it[KEY_WEIGHT_KM] = v.weights.kmPct
+        it[KEY_WEIGHT_HOUR] = v.weights.hourPct
+        it[KEY_WEIGHT_PICKUP_KM] = v.weights.pickupKmPct
+        it[KEY_WEIGHT_PICKUP_MIN] = v.weights.pickupMinPct
+        it[KEY_SHOW_OVERLAY] = v.showOverlay
+        it[KEY_OVERLAY_DURATION] = v.overlaySeconds
+        it[KEY_GRACE_WINDOW] = v.graceSeconds
+        it[KEY_MODE] = v.mode
+        it[KEY_ACTIVE_PROFILE] = profile.id
     }
 
     /** The model version scored silently next to the active one, or null when no shadow test runs. */

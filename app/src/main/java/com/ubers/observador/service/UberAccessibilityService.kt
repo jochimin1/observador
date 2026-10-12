@@ -39,6 +39,9 @@ class UberAccessibilityService : AccessibilityService() {
     private lateinit var notifier: OfferNotifier
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** False until the stored switch is read, and whenever the driver pauses Observador. */
+    @Volatile private var observing = false
     private var debounceRunnable: Runnable? = null
     private var absenceRunnable: Runnable? = null
     private var recheckRunnable: Runnable? = null
@@ -74,8 +77,29 @@ class UberAccessibilityService : AccessibilityService() {
         notifier = OfferNotifier(applicationContext)
         instance = this
         RideLifecycleMonitor.start(applicationContext)
-        RideLifecycleMonitor.onServiceConnected()
+        // The on/off switch decides when the lifecycle counts as connected (first value comes at once)
+        scope.launch {
+            settings.observerEnabled.collect { enabled -> mainHandler.post { setObserving(enabled) } }
+        }
         Log.d(TAG, "Service connected")
+    }
+
+    /**
+     * The master switch. Paused, nothing is read from Uber: no offers, overlay, notifications,
+     * trips or money. A ride open at that moment ends as interrupted (its end was not seen), the
+     * same as when the service is lost. Main thread only.
+     */
+    private fun setObserving(enabled: Boolean) {
+        if (enabled == observing) return
+        observing = enabled
+        if (enabled) {
+            RideLifecycleMonitor.onServiceConnected()
+            Log.d(TAG, "Observador activo")
+        } else {
+            resetState()
+            RideLifecycleMonitor.onServiceLost()
+            Log.d(TAG, "Observador en pausa")
+        }
     }
 
     /** Shows [analysis] in the overlay as if it came from a real offer. Main thread only. */
@@ -85,6 +109,7 @@ class UberAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (!observing) return
         if (event.packageName != UBER_DRIVER_PACKAGE) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -98,6 +123,7 @@ class UberAccessibilityService : AccessibilityService() {
 
     /** Reads the tree once; the offer parser and the ride lifecycle both work from that copy. */
     private fun readScreen() {
+        if (!observing) return
         // Null root means the window tree isn't ready: unknown, not "card gone"
         val root = rootInActiveWindow ?: return
         val snapshot = try {
@@ -236,7 +262,8 @@ class UberAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         resetState()
-        RideLifecycleMonitor.onServiceLost()
+        if (observing) RideLifecycleMonitor.onServiceLost()
+        observing = false
         if (instance === this) instance = null
         job.cancel()
     }
