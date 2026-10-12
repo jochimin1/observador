@@ -47,7 +47,7 @@ class TripPersistenceCoordinator(
             for (job in queue) {
                 when (job) {
                     is Job.Persist -> persistWithRetry(job.input)
-                    is Job.Restore -> restore(job.onDone)
+                    is Job.Restore -> runRestore(job.onDone)
                 }
             }
         }
@@ -67,7 +67,7 @@ class TripPersistenceCoordinator(
         queue.trySend(Job.Restore(onDone))
     }
 
-    private suspend fun restore(onDone: (Trip?) -> Unit) {
+    private suspend fun runRestore(onDone: (Trip?) -> Unit) {
         val active = try {
             val plan = repository.restoreOpenTrip(System.currentTimeMillis())
             _metrics.value = _metrics.value.after(plan.write)

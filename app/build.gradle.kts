@@ -44,7 +44,7 @@ android {
     // Room schema history (app/schemas), packaged for MigrationTestHelper in instrumented tests
     sourceSets {
         getByName("androidTest") {
-            assets.srcDir("$projectDir/schemas")
+            assets.directories.add("$projectDir/schemas")
         }
     }
 }
