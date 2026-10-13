@@ -123,6 +123,22 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setMaintenanceNotification(on: Boolean) = viewModelScope.launch { appSettings.updateMaintenanceNotification(on) }
 
+    // ---- Goals (Fase 8C) ----
+
+    val goals: StateFlow<com.ubers.observador.domain.earnings.GoalSettings> = appSettings.goals
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.ubers.observador.domain.earnings.GoalSettings())
+
+    fun setDailyGoalPesos(pesos: Int) = viewModelScope.launch { appSettings.updateDailyGoal(pesos * 100L) }
+
+    fun setWeeklyGoalPesos(pesos: Int) = viewModelScope.launch { appSettings.updateWeeklyGoal(pesos * 100L) }
+
+    fun setWeekStart(day: java.time.DayOfWeek) = viewModelScope.launch { appSettings.updateWeekStart(day) }
+
+    fun setGoalNotification(on: Boolean) = viewModelScope.launch {
+        appSettings.updateGoalNotification(on)
+        if (on) com.ubers.observador.service.GoalNotifier.check(getApplication())
+    }
+
     // ---- Kilometres with GPS (Fase 8E) ----
 
     val distanceEnabled: StateFlow<Boolean> = appSettings.distanceEnabled

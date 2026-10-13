@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
         com.ubers.observador.ui.AppPermissions.refresh(this)
         // Oil and other reminders (Fase 8B): checked when the app opens, notified once per level
         lifecycleScope.launch { com.ubers.observador.service.MaintenanceNotifier.check(this@MainActivity) }
+        // "Meta alcanzada" (Fase 8C), only if the driver turned it on
+        lifecycleScope.launch { com.ubers.observador.service.GoalNotifier.check(this@MainActivity) }
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -73,9 +75,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** The main destinations, one per tab of the bottom bar. Ganancias arrives with Fase 8C. */
+/** The main destinations, one per tab of the bottom bar (decision 7: five tabs at the bottom). */
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
     HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
+    EARNINGS("earnings", "Ganancias", R.drawable.ic_savings, R.drawable.ic_savings_fill),
     EXPENSES("expenses", "Gastos", R.drawable.ic_receipt_long, R.drawable.ic_receipt_long_fill),
     ANALYSIS("intelligence", "Análisis", R.drawable.ic_analytics, R.drawable.ic_analytics_fill),
     SETTINGS("settings", "Ajustes", R.drawable.ic_settings, R.drawable.ic_settings_fill)
@@ -114,7 +117,10 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
         ) {
             composable(Tab.HOME.route) {
-                DashboardScreen(accessibilityEnabled = accessibilityEnabled)
+                DashboardScreen(accessibilityEnabled = accessibilityEnabled, onOpenEarnings = { open(Tab.EARNINGS) })
+            }
+            composable(Tab.EARNINGS.route) {
+                com.ubers.observador.ui.earnings.EarningsScreen()
             }
             composable(Tab.EXPENSES.route) {
                 com.ubers.observador.ui.expenses.ExpensesScreen()

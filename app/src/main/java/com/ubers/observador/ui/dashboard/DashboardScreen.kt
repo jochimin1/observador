@@ -66,6 +66,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun DashboardScreen(
     accessibilityEnabled: Boolean,
+    onOpenEarnings: (() -> Unit)? = null,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -222,6 +223,10 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
+                item {
+                    // Fase 8C: today's goal, only when the driver set one
+                    com.ubers.observador.ui.earnings.GoalStrip(onOpen = onOpenEarnings, modifier = Modifier.padding(bottom = 16.dp))
+                }
                 item {
                     SummaryCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
                 }

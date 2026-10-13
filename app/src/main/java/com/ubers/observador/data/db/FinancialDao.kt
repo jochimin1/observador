@@ -32,6 +32,20 @@ interface FinancialDao {
     @Query("SELECT * FROM financial_observations WHERE trip_id IS NULL AND observed_at >= :from AND observed_at < :to ORDER BY observed_at")
     suspend fun getUnassignedBetween(from: Long, to: Long): List<FinancialObservationEntity>
 
+    /** VOID rows cancelling unassigned amounts seen in [from, to), whenever they were written (Fase 8C). */
+    @Query(
+        "SELECT * FROM financial_observations WHERE voids_observation_id IN " +
+            "(SELECT observation_id FROM financial_observations WHERE trip_id IS NULL AND observed_at >= :from AND observed_at < :to)"
+    )
+    suspend fun getVoidsForUnassignedBetween(from: Long, to: Long): List<FinancialObservationEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM financial_observations WHERE voids_observation_id = :id)")
+    suspend fun isVoided(id: String): Boolean
+
+    /** Everything written by hand (copies and voids), to list the assignments that can be undone. */
+    @Query("SELECT * FROM financial_observations WHERE source = 'MANUAL' ORDER BY observed_at DESC")
+    fun observeManual(): Flow<List<FinancialObservationEntity>>
+
     @Query("SELECT * FROM financial_observations WHERE trip_id IS NULL ORDER BY observed_at DESC")
     fun observeUnassigned(): Flow<List<FinancialObservationEntity>>
 

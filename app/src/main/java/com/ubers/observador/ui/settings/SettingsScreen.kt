@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
@@ -256,6 +257,44 @@ fun SettingsScreen(
                 mode = distanceMode,
                 onEnabled = { viewModel.setDistanceEnabled(it) },
                 onMode = { viewModel.setDistanceMode(it) }
+            )
+
+            SectionHeader("Ganancias y metas", R.drawable.ic_flag)
+            val goals by viewModel.goals.collectAsState()
+            IntSettingCard(
+                title = "Meta diaria",
+                description = "En pesos, sobre el ingreso bruto real confirmado de la jornada. Pon 0 para no usarla. " +
+                    "Un perfil no la cambia.",
+                value = (goals.dailyMinor / 100).toInt(),
+                min = 0,
+                max = (com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR / 100).toInt(),
+                suffix = "RD$",
+                onValid = { viewModel.setDailyGoalPesos(it) }
+            )
+            IntSettingCard(
+                title = "Meta semanal",
+                description = "En pesos, para la semana completa. Ganancias te dice cuánto sería por jornada en los días que quedan. Pon 0 para no usarla.",
+                value = (goals.weeklyMinor / 100).toInt(),
+                min = 0,
+                max = (com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR / 100).toInt(),
+                suffix = "RD$",
+                onValid = { viewModel.setWeeklyGoalPesos(it) }
+            )
+            SettingCard(
+                title = "La semana empieza el",
+                description = "A tu hora de inicio de jornada. Cambia la semana de Ganancias y la meta semanal."
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(java.time.DayOfWeek.MONDAY to "Lunes", java.time.DayOfWeek.SUNDAY to "Domingo").forEach { (day, label) ->
+                        FilterChip(selected = goals.weekStart == day, onClick = { viewModel.setWeekStart(day) }, label = { Text(label) })
+                    }
+                }
+            }
+            SwitchSettingCard(
+                title = "Aviso de meta alcanzada",
+                description = "Una notificación cuando llegas a tu meta del día o de la semana, una vez. Apagado hasta que lo actives.",
+                checked = goals.notify,
+                onChange = { viewModel.setGoalNotification(it) }
             )
 
             SectionHeader("Gastos y mantenimiento", R.drawable.ic_receipt_long)

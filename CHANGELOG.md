@@ -14,6 +14,51 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.15.0] - 2026-10-13
+
+Fase 8C: ganancias, metas y asignación manual. Incluye todo lo de la 1.14.0. La base de datos no
+cambia (sigue en 10).
+
+### Añadido
+- Pestaña «Ganancias» en la barra de abajo (ahora son cinco: Inicio, Ganancias, Gastos, Análisis
+  y Ajustes), con Hoy, Semana y Mes y flechas para ver periodos anteriores. La semana empieza el
+  lunes a tu hora de inicio de jornada; en Ajustes se puede cambiar a domingo.
+- Ingreso bruto real del periodo con su cobertura («12 de 14 viajes con dinero confirmado»); con
+  cobertura menor de 100 % dice «al menos». Desglose de propinas, promociones, ajustes y otros
+  ingresos. Las ofertas nunca cuentan.
+- Tiempo en línea, ocupación y ganancia por hora (8A); km por GPS y ganancia por km (8E); gastos
+  de trabajo (8B) y, en semana y mes, la ganancia neta. El día no muestra neto (decisión 4).
+- «Uber dice»: la referencia de Uber del periodo y la conciliación (coincide, diferencia,
+  incompleto o periodo distinto). Nunca se ajusta para que cuadre.
+- En semana y mes, barras por jornada con el mejor día y un punto en los días con viajes sin
+  dinero confirmado.
+- Lista de viajes realizados: hora, ofertado frente a real, diferencia y estado del dinero. Al
+  tocar uno se ve su línea de tiempo y el dinero que Observador vio.
+- Aviso arriba mientras las etiquetas de dinero de Uber no estén confirmadas con un viaje real.
+- Metas diaria y semanal en RD$ (en Ganancias con «Editar» y en Ajustes; un perfil no las cambia):
+  barra de progreso con el ingreso real confirmado y «Te faltan RD$X». «A tu ritmo de hoy, unas X
+  en línea» solo con 30 minutos en línea y 2 viajes con dinero confirmado hoy. La meta semanal
+  dice cuánto sería por jornada en los días que quedan (una división, no un pronóstico).
+- Franja pequeña con la meta en Inicio; al tocarla abre Ganancias.
+- Aviso opcional «meta alcanzada», una vez por día o semana. Apagado hasta que lo actives.
+- «Pendientes de vincular»: cada cantidad vista sin viaje tiene «Asignar a un viaje» (viajes
+  terminados de esa jornada y la anterior, el más cercano primero, con diálogo de confirmación que
+  muestra cómo queda el viaje) y «No es mío». Nada se edita: se guarda una anulación y una copia
+  vinculada (fuente MANUAL) en una sola transacción, y el resumen del viaje se reconstruye. Si el
+  viaje ya tiene otro total, el diálogo lo advierte. «Asignadas a mano» permite deshacer.
+
+### Cambiado
+- El ingreso de un periodo tiene en cuenta las anulaciones escritas días después de la cantidad
+  anulada.
+
+### Pruebas
+- 19 pruebas JVM nuevas (`EarningsTest`): periodos con inicio a las 4:00 y semana de lunes o
+  domingo, suma de barras igual al total, «al menos», lo pendiente nunca sumado, ritmo solo con
+  datos mínimos y cálculo exacto, reparto semanal, asignación con propina tras total (una sola
+  vez), total sobre otro total, viaje no terminado rechazado, deshacer y «no es mío».
+- Prueba instrumentada `ManualAssignmentRepositoryTest` en Room: asignar, doble toque, deshacer y
+  «no es mío», sin desviaciones del resumen.
+
 ## [1.14.0] - 2026-10-13
 
 Fase 8B: gastos reales. Incluye todo lo de la 1.13.0. Base de datos 9 → 10 (solo añade cuatro

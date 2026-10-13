@@ -149,7 +149,7 @@ object RideLifecycleMonitor {
             settings = AppSettings(app),
             queue = queue
         )
-        val moneyWriter = FinancialPersistenceCoordinator(FinancialRepository(database), queue)
+        val moneyWriter = FinancialPersistenceCoordinator(FinancialRepository(database), queue) { GoalNotifier.check(app) }
         val sessions = OnlineSessionCoordinator(OnlineRepository(database), queue)
         coordinator = writer
         money = moneyWriter

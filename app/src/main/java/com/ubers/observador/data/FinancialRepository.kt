@@ -18,6 +18,13 @@ import com.ubers.observador.domain.finance.TripFinancialAggregator
 import com.ubers.observador.domain.finance.TripFinancialSummary
 import com.ubers.observador.domain.money.Currencies
 import com.ubers.observador.domain.money.MoneyAmount
+import com.ubers.observador.domain.WorkdayClock
+import com.ubers.observador.domain.earnings.AssignCheck
+import com.ubers.observador.domain.earnings.AssignRejection
+import com.ubers.observador.domain.earnings.ManualAssignment
+import com.ubers.observador.domain.finance.FinancialObservationType
+import com.ubers.observador.domain.finance.FinancialSource
+import com.ubers.observador.domain.trips.Trip
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -26,6 +33,14 @@ import kotlinx.coroutines.flow.map
  * written in one Room transaction, so the summary can never disagree with the ledger; and the
  * summary can always be rebuilt from the ledger alone ([rebuildTripFinancialSummary]).
  */
+/** Inputs of one Ganancias period (Fase 8C). */
+data class EarningsInputs(
+    val completedTrips: List<Trip>,
+    val summaries: Map<String, TripFinancialSummary>,
+    /** Unassigned amounts seen in the period plus every void that cancels them. */
+    val unassigned: List<FinancialObservation>
+)
+
 class FinancialRepository(private val db: AppDatabase) {
 
     private val money = db.financialDao()
@@ -108,8 +123,87 @@ class FinancialRepository(private val db: AppDatabase) {
                     effectiveEarnings = null, completeness = FinancialCompleteness.UNKNOWN
                 )
             }
-            EarningsPeriods.summarize(currencyCode, summaries, money.getUnassignedBetween(from, to).map { it.toDomain() })
+            EarningsPeriods.summarize(currencyCode, summaries, unassignedWithVoids(from, to))
         }
+
+    // ---------------------------------------------------------------- Fase 8C: Ganancias
+
+    /** What Ganancias needs for [from, to), read in one transaction so it is consistent. */
+    suspend fun earningsInputs(from: Long, to: Long, currencyCode: String = Currencies.DOP): EarningsInputs = db.withTransaction {
+        val completed = trips.getTripsCompletedBetween(from, to).map { it.toDomain() }
+        val ids = completed.map { it.id }
+        val summaries = if (ids.isEmpty()) emptyMap() else money.getSummaries(ids).associate { it.tripId to it.toDomain(currencyCode) }
+        EarningsInputs(completed, summaries, unassignedWithVoids(from, to))
+    }
+
+    fun observeManual(): Flow<List<FinancialObservation>> = money.observeManual().map { l -> l.map { it.toDomain() } }
+
+    /** A trip's own observations and the voids that cancel them (its money history). */
+    suspend fun tripObservations(tripId: String): List<FinancialObservation> = db.withTransaction {
+        (money.getObservationsForTrip(tripId) + money.getVoidsForTrip(tripId)).map { it.toDomain() }
+    }
+
+    /** Completed trips the amount may belong to: its working day and the one before, closest first. */
+    suspend fun assignmentCandidates(observationId: String, clock: WorkdayClock): List<Pair<Trip, TripFinancialSummary?>> = db.withTransaction {
+        val o = money.getObservation(observationId)?.toDomain() ?: return@withTransaction emptyList()
+        val day = clock.workdayOf(o.observedAtMs)
+        val pool = trips.getTripsCompletedBetween(clock.startOf(day.minusDays(1)), clock.startOf(day.plusDays(1))).map { it.toDomain() }
+        val candidates = ManualAssignment.candidates(o, pool, clock)
+        val summaries = if (candidates.isEmpty()) emptyMap() else money.getSummaries(candidates.map { it.id }).associateBy { it.tripId }
+        candidates.map { it to summaries[it.id]?.toDomain(Currencies.DOP) }
+    }
+
+    /** The checks and the preview of the confirmation dialog, without writing anything. */
+    suspend fun previewAssignment(observationId: String, tripId: String): AssignCheck = db.withTransaction { checkAssignment(observationId, tripId) }
+
+    /**
+     * Puts an unassigned amount on a trip: the VOID of the original and the linked copy are
+     * written in one transaction, then the trip's summary is rebuilt. Checked again inside the
+     * transaction, so a double tap or a stale screen cannot assign twice.
+     */
+    suspend fun assignToTrip(observationId: String, tripId: String, nowMs: Long): AssignCheck = db.withTransaction {
+        val check = checkAssignment(observationId, tripId)
+        if (check is AssignCheck.Ok) {
+            val original = requireNotNull(money.getObservation(observationId)).toDomain()
+            ManualAssignment.assign(original, tripId, nowMs).forEach { persistObservation(it, nowMs) }
+        }
+        check
+    }
+
+    /** Voids a manual copy and writes the amount again without a trip. False if it was already undone. */
+    suspend fun undoAssignment(copyId: String, nowMs: Long): Boolean = db.withTransaction {
+        val copy = money.getObservation(copyId)?.toDomain()
+        if (copy == null || copy.tripId == null || copy.source != FinancialSource.MANUAL || money.isVoided(copyId)) {
+            false
+        } else {
+            val original = ManualAssignment.originalIdOf(copy)?.let { money.getObservation(it)?.toDomain() }
+            ManualAssignment.undo(copy, original, nowMs).forEach { persistObservation(it, nowMs) }
+            true
+        }
+    }
+
+    /** "No es mío / mal leído": only a VOID. False if the amount is gone or not unassigned. */
+    suspend fun rejectObservation(observationId: String, nowMs: Long): Boolean = db.withTransaction {
+        val o = money.getObservation(observationId)?.toDomain()
+        if (o == null || o.tripId != null || o.type == FinancialObservationType.VOID || money.isVoided(observationId)) {
+            false
+        } else {
+            persistObservation(ManualAssignment.reject(o, nowMs), nowMs)
+            true
+        }
+    }
+
+    private suspend fun checkAssignment(observationId: String, tripId: String): AssignCheck {
+        val o = money.getObservation(observationId)?.toDomain() ?: return AssignCheck.Rejected(AssignRejection.NOT_PENDING)
+        val trip = trips.getById(tripId)?.toDomain() ?: return AssignCheck.Rejected(AssignRejection.TRIP_NOT_COMPLETED)
+        val offered = trip.offer?.offeredAmount?.let { MoneyAmount.fromLegacyDouble(it, Currencies.DOP) }
+        val history = (money.getObservationsForTrip(tripId) + money.getVoidsForTrip(tripId)).map { it.toDomain() }
+        return ManualAssignment.check(o, money.isVoided(observationId), trip, offered, history)
+    }
+
+    private suspend fun unassignedWithVoids(from: Long, to: Long): List<FinancialObservation> =
+        (money.getUnassignedBetween(from, to) + money.getVoidsForUnassignedBetween(from, to))
+            .distinctBy { it.observationId }.map { it.toDomain() }
 
     /** Debug only: removes TEST money (ids starting with [prefix]); real money is never touched. */
     suspend fun deleteTestData(prefix: String) = db.withTransaction {

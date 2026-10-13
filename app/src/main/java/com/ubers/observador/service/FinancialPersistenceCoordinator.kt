@@ -22,7 +22,9 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class FinancialPersistenceCoordinator(
     private val repository: FinancialRepository,
-    private val queue: PersistenceQueue
+    private val queue: PersistenceQueue,
+    /** Called after an amount is stored (the goal notification of Fase 8C). Failures are contained. */
+    private val onStored: suspend () -> Unit = {}
 ) {
 
     private val _metrics = MutableStateFlow(FinancialMetrics())
@@ -43,6 +45,15 @@ class FinancialPersistenceCoordinator(
         retrying("observation ${observation.observationId}") {
             val result = repository.persistObservation(observation, System.currentTimeMillis())
             _metrics.value = _metrics.value.afterPersist(result)
+            if (result is FinancialPersistResult.Stored) {
+                try {
+                    onStored()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "After-store hook failed", e)
+                }
+            }
             if (BuildConfig.DEBUG) {
                 // Amounts are sensitive: logged in debug builds only, with codes and ids, never screen text
                 val trip = (result as? FinancialPersistResult.Stored)?.tripId ?: "unassigned"

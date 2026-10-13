@@ -57,6 +57,14 @@ class AppSettings(private val context: Context) {
         private fun notifiedKey(type: com.ubers.observador.domain.expenses.ExpenseType) =
             stringPreferencesKey("maintenance_notified_${type.storageKey.lowercase()}")
 
+        // Fase 8C: goals. Not part of profiles
+        private val KEY_DAILY_GOAL = androidx.datastore.preferences.core.longPreferencesKey("daily_goal_minor")
+        private val KEY_WEEKLY_GOAL = androidx.datastore.preferences.core.longPreferencesKey("weekly_goal_minor")
+        private val KEY_GOAL_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("goal_notification")
+        private val KEY_WEEK_START = stringPreferencesKey("week_start_day")
+        private val KEY_GOAL_NOTIFIED_DAY = stringPreferencesKey("goal_notified_day")
+        private val KEY_GOAL_NOTIFIED_WEEK = stringPreferencesKey("goal_notified_week")
+
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
         const val MODE_OBSERVER = "OBSERVER"
@@ -112,6 +120,34 @@ class AppSettings(private val context: Context) {
         it[KEY_OBSERVER_ENABLED] = value
         // Pausing also ends a measurement started with the button (decision 12: pause stops the GPS)
         if (!value) it[KEY_DISTANCE_MANUAL] = false
+    }
+
+    /** Daily and weekly goals, the week start and the notification (Fase 8C). */
+    val goals: Flow<com.ubers.observador.domain.earnings.GoalSettings> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.earnings.GoalSettings(
+            dailyMinor = (prefs[KEY_DAILY_GOAL] ?: 0L).coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR),
+            weeklyMinor = (prefs[KEY_WEEKLY_GOAL] ?: 0L).coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR),
+            notify = prefs[KEY_GOAL_NOTIFICATION] ?: false,
+            weekStart = if (prefs[KEY_WEEK_START] == java.time.DayOfWeek.SUNDAY.name) java.time.DayOfWeek.SUNDAY else java.time.DayOfWeek.MONDAY
+        )
+    }
+
+    suspend fun updateDailyGoal(minor: Long) = context.dataStore.edit { it[KEY_DAILY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
+
+    suspend fun updateWeeklyGoal(minor: Long) = context.dataStore.edit { it[KEY_WEEKLY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
+
+    suspend fun updateGoalNotification(value: Boolean) = context.dataStore.edit { it[KEY_GOAL_NOTIFICATION] = value }
+
+    suspend fun updateWeekStart(day: java.time.DayOfWeek) = context.dataStore.edit {
+        it[KEY_WEEK_START] = if (day == java.time.DayOfWeek.SUNDAY) day.name else java.time.DayOfWeek.MONDAY.name
+    }
+
+    /** The day and week ("2026-10-13") whose "meta alcanzada" was already notified, so it is sent once. */
+    val goalNotified: Flow<Pair<String?, String?>> = context.dataStore.data.map { it[KEY_GOAL_NOTIFIED_DAY] to it[KEY_GOAL_NOTIFIED_WEEK] }
+
+    suspend fun markGoalNotified(day: String?, week: String?) = context.dataStore.edit { prefs ->
+        day?.let { prefs[KEY_GOAL_NOTIFIED_DAY] = it }
+        week?.let { prefs[KEY_GOAL_NOTIFIED_WEEK] = it }
     }
 
     /** Share of the motorbike used for work, 0-100 (decision 8: one % for everything, 100 by default). */
