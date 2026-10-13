@@ -14,6 +14,36 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.16.0] - 2026-10-13
+
+Fase 8D: reporte semanal y exportación. Incluye todo lo de la 1.15.0. La base de datos no
+cambia (sigue en 10).
+
+### Añadido
+- «Resumen de la semana» en Ganancias (vista Semana): comparación con la semana anterior solo si
+  las dos tienen al menos 80 % de viajes con dinero confirmado (si no, «No comparable: falta
+  dinero de algunos viajes»), tiempo en línea y ocupación, ganancia por hora, gastos, neto y meta
+  semanal cumplida o no. Usa las mismas cifras de Ganancias; no tiene fórmulas propias.
+- Aviso opcional «Tu resumen de la semana está listo» al empezar la semana nueva (15 minutos
+  después de tu hora de inicio), con una alarma de Android que se vuelve a programar al reiniciar
+  el teléfono, al actualizar la app o al cambiar la hora. Apagado hasta que lo actives en Ajustes.
+  Al tocarlo abre Ganancias en la semana que terminó.
+- Exportar desde Ganancias (el periodo que estás viendo), desde Gastos (el mes) y desde el menú ⋮
+  del inicio (lleva a Ganancias): viajes y ganancias (CSV y JSON), gastos (CSV y JSON), resumen por
+  jornada (CSV) y resumen del periodo (PDF de una página). Se guarda con el selector de archivos o
+  se comparte.
+- Importes exactos en decimal a partir de los centavos («1978.38»), siempre con columna de
+  moneda; CSV con BOM para Excel. Sin datos personales: ids internos, fechas, importes y códigos.
+- El PDF se dibuja con la herramienta de PDF de Android (sin librerías nuevas) y siempre lleva la
+  nota «Resumen generado por Observador con lo que registró de la app de Uber. No es un documento
+  oficial de Uber.»
+
+### Pruebas
+- 12 pruebas JVM nuevas (`ReportsTest`): decimales exactos, CSV con BOM y comillas, JSON válido,
+  real vacío cuando no hay dinero confirmado (nunca el ofertado), sin datos personales, filas por
+  jornada que suman el total, comparación con 80 %, alarma del lunes y líneas del PDF con la nota.
+- Prueba instrumentada `ReportExportTest`: CSV de gastos desde Room y PDF real de Android.
+
 ## [1.15.0] - 2026-10-13
 
 Fase 8C: ganancias, metas y asignación manual. Incluye todo lo de la 1.14.0. La base de datos no

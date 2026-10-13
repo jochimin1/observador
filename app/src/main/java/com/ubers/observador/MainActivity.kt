@@ -2,6 +2,7 @@ package com.ubers.observador
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
@@ -22,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
@@ -48,10 +50,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestPermissionsIfNeeded()
         ObservadorForegroundService.start(this)
+        handleOpen(intent)
         setContent {
             ObservadorTheme {
                 ObservadorNavHost(accessibilityEnabled = accessibilityEnabled)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleOpen(intent)
+    }
+
+    /** A notification asked to open a screen (Fase 8D: the weekly summary). */
+    private fun handleOpen(intent: Intent?) {
+        intent?.getStringExtra(com.ubers.observador.ui.AppNavigation.EXTRA_OPEN)?.let {
+            com.ubers.observador.ui.AppNavigation.pending.value = it
+            intent.removeExtra(com.ubers.observador.ui.AppNavigation.EXTRA_OPEN)
         }
     }
 
@@ -64,6 +80,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { com.ubers.observador.service.MaintenanceNotifier.check(this@MainActivity) }
         // "Meta alcanzada" (Fase 8C), only if the driver turned it on
         lifecycleScope.launch { com.ubers.observador.service.GoalNotifier.check(this@MainActivity) }
+        // The weekly summary alarm (Fase 8D), set again in case the system dropped it
+        lifecycleScope.launch { com.ubers.observador.service.WeeklyReportNotifier.reschedule(this@MainActivity) }
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -94,6 +112,11 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true
+    }
+    // A notification asked for a screen: switch tab; the screen itself consumes the request
+    val pendingOpen by com.ubers.observador.ui.AppNavigation.pending.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pendingOpen) {
+        if (pendingOpen == com.ubers.observador.ui.AppNavigation.OPEN_LAST_WEEK && current != Tab.EARNINGS.route) open(Tab.EARNINGS)
     }
     Scaffold(
         bottomBar = {

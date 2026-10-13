@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -81,6 +82,26 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
     private val distances = DistanceRepository(db)
     private val money = FinancialRepository(db)
     private val settings = AppSettings(app)
+
+    private val reports = com.ubers.observador.data.export.ReportData(db)
+
+    /** Save or share the month's expenses (Fase 8D). */
+    val exporter = com.ubers.observador.ui.components.ReportExporter(app, viewModelScope)
+
+    fun saveFile(file: com.ubers.observador.data.export.ReportFile) = exporter.save { output(file) }
+
+    fun shareFile(file: com.ubers.observador.data.export.ReportFile) = exporter.share { output(file) }
+
+    private suspend fun output(file: com.ubers.observador.data.export.ReportFile): com.ubers.observador.data.export.ReportOutput {
+        val st = state.value
+        val now = System.currentTimeMillis()
+        val window = com.ubers.observador.domain.earnings.EarningsWindows.of(
+            com.ubers.observador.domain.earnings.EarningsRange.MONTH,
+            if (st.period == ExpensePeriod.THIS_MONTH) 0 else -1,
+            now, st.clock
+        )
+        return reports.build(file, window, st.clock, now, settings.workSharePct.first())
+    }
 
     private val period = MutableStateFlow(ExpensePeriod.THIS_MONTH)
     private val filter = MutableStateFlow(ExpenseFilter.ALL)

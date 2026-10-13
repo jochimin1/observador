@@ -296,6 +296,14 @@ fun SettingsScreen(
                 checked = goals.notify,
                 onChange = { viewModel.setGoalNotification(it) }
             )
+            val weeklyNotice by viewModel.weeklyReportNotification.collectAsState()
+            SwitchSettingCard(
+                title = "Aviso del resumen semanal",
+                description = "«Tu resumen de la semana está listo» al empezar la semana nueva, con el ingreso real de la que terminó. " +
+                    "Apagado hasta que lo actives.",
+                checked = weeklyNotice,
+                onChange = { viewModel.setWeeklyReportNotification(it) }
+            )
 
             SectionHeader("Gastos y mantenimiento", R.drawable.ic_receipt_long)
             val workShare by viewModel.workSharePct.collectAsState()

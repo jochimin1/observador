@@ -86,6 +86,8 @@ data class EarningsUiState(
     val uberCapturedAt: Long? = null,
     val goals: GoalsUi = GoalsUi(),
     val manual: List<ManualAssignmentRow> = emptyList(),
+    /** Only for a week (Fase 8D), compared with the one before when both have 80 % coverage. */
+    val weekly: com.ubers.observador.domain.reports.WeeklyReport? = null,
     val clock: WorkdayClock = WorkdayClock(AppSettings.DEFAULT_WORKDAY_START_HOUR, ZoneId.systemDefault()),
     val currency: String = Currencies.DOP
 )
@@ -118,6 +120,10 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     private val expenses = ExpenseRepository(db)
     private val distances = DistanceRepository(db)
     private val settings = AppSettings(app)
+    private val reports = com.ubers.observador.data.export.ReportData(db)
+
+    /** Save or share the files of the period on screen (Fase 8D). */
+    val exporter = com.ubers.observador.ui.components.ReportExporter(app, viewModelScope)
 
     private val selection = MutableStateFlow(EarningsRange.DAY to 0)
 
@@ -182,6 +188,12 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
             }?.takeIf { it.capturedAtMs >= window.startMs && it.capturedAtMs < window.endMs }
             val reconciliation = snapshot?.let { Reconciler.reconcile(report.summary, window.startMs, window.endMs, it) }
             val tripIds = report.trips.map { it.tripId }.toSet()
+            val weekly = if (i.range != EarningsRange.WEEK) null else try {
+                reports.weekly(window, clock, now, i.config.goals.weeklyMinor, i.config.workShare)
+            } catch (e: Exception) {
+                Log.e(TAG, "Weekly summary failed", e)
+                null
+            }
             EarningsUiState(
                 loading = false,
                 range = i.range,
@@ -195,6 +207,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 uberCapturedAt = snapshot?.capturedAtMs,
                 goals = goals(i.config.goals, clock, now, if (i.range == EarningsRange.DAY && i.offset == 0) report to onlineSummary else null),
                 manual = ManualAssignment.live(i.changes.manual).filter { it.tripId in tripIds },
+                weekly = weekly,
                 clock = clock
             )
         } catch (e: Exception) {
@@ -230,6 +243,23 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     fun next() {
         selection.value = selection.value.let { it.first to minOf(0, it.second + 1) }
     }
+
+    /** The weekly summary notification opens the week that ended. */
+    fun showLastWeek() {
+        selection.value = EarningsRange.WEEK to -1
+    }
+
+    // ---- Export (Fase 8D) ----
+
+    private suspend fun output(file: com.ubers.observador.data.export.ReportFile): com.ubers.observador.data.export.ReportOutput {
+        val st = state.value
+        val window = st.report?.window ?: error("No period loaded")
+        return reports.build(file, window, st.clock, System.currentTimeMillis(), settings.workSharePct.first())
+    }
+
+    fun saveFile(file: com.ubers.observador.data.export.ReportFile) = exporter.save { output(file) }
+
+    fun shareFile(file: com.ubers.observador.data.export.ReportFile) = exporter.share { output(file) }
 
     fun setDailyGoal(minor: Long) = viewModelScope.launch { settings.updateDailyGoal(minor) }
 

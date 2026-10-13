@@ -193,6 +193,16 @@ fun DashboardScreen(
                                     showExportDialog = true
                                 }
                             )
+                            if (onOpenEarnings != null) {
+                                // Fase 8D: trips, expenses, per-day summary and PDF are exported from Ganancias, by period
+                                DropdownMenuItem(
+                                    text = { Text("Exportar viajes, gastos y resumen…") },
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenEarnings()
+                                    }
+                                )
+                            }
                         }
                     }
                 }

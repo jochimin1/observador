@@ -64,6 +64,9 @@ class AppSettings(private val context: Context) {
         private val KEY_WEEK_START = stringPreferencesKey("week_start_day")
         private val KEY_GOAL_NOTIFIED_DAY = stringPreferencesKey("goal_notified_day")
         private val KEY_GOAL_NOTIFIED_WEEK = stringPreferencesKey("goal_notified_week")
+        // Fase 8D: "Tu resumen de la semana está listo" (decision 10: off until turned on)
+        private val KEY_WEEKLY_REPORT_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("weekly_report_notification")
+        private val KEY_WEEKLY_REPORT_NOTIFIED = stringPreferencesKey("weekly_report_notified")
 
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
@@ -149,6 +152,16 @@ class AppSettings(private val context: Context) {
         day?.let { prefs[KEY_GOAL_NOTIFIED_DAY] = it }
         week?.let { prefs[KEY_GOAL_NOTIFIED_WEEK] = it }
     }
+
+    /** The Monday notification with the summary of the week that ended (Fase 8D). Off by default. */
+    val weeklyReportNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFICATION] ?: false }
+
+    suspend fun updateWeeklyReportNotification(value: Boolean) = context.dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFICATION] = value }
+
+    /** First day ("2026-10-05") of the last week whose summary was notified, so it is sent once. */
+    val weeklyReportNotified: Flow<String?> = context.dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFIED] }
+
+    suspend fun markWeeklyReportNotified(weekKey: String) = context.dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFIED] = weekKey }
 
     /** Share of the motorbike used for work, 0-100 (decision 8: one % for everything, 100 by default). */
     val workSharePct: Flow<Int> = context.dataStore.data.map { it[KEY_WORK_SHARE] ?: 100 }

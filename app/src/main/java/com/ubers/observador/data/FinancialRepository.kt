@@ -136,6 +136,12 @@ class FinancialRepository(private val db: AppDatabase) {
         EarningsInputs(completed, summaries, unassignedWithVoids(from, to))
     }
 
+    /** Stored summaries of [tripIds] (Fase 8D exports), read in chunks under SQLite's variable limit. */
+    suspend fun summariesFor(tripIds: List<String>, currencyCode: String = Currencies.DOP): Map<String, TripFinancialSummary> =
+        db.withTransaction {
+            tripIds.distinct().chunked(500).flatMap { ids -> money.getSummaries(ids) }.associate { it.tripId to it.toDomain(currencyCode) }
+        }
+
     fun observeManual(): Flow<List<FinancialObservation>> = money.observeManual().map { l -> l.map { it.toDomain() } }
 
     /** A trip's own observations and the voids that cancel them (its money history). */

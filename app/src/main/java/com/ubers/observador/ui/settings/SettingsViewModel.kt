@@ -132,7 +132,18 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setWeeklyGoalPesos(pesos: Int) = viewModelScope.launch { appSettings.updateWeeklyGoal(pesos * 100L) }
 
-    fun setWeekStart(day: java.time.DayOfWeek) = viewModelScope.launch { appSettings.updateWeekStart(day) }
+    fun setWeekStart(day: java.time.DayOfWeek) = viewModelScope.launch {
+        appSettings.updateWeekStart(day)
+        com.ubers.observador.service.WeeklyReportNotifier.reschedule(getApplication())
+    }
+
+    val weeklyReportNotification: StateFlow<Boolean> = appSettings.weeklyReportNotification
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setWeeklyReportNotification(on: Boolean) = viewModelScope.launch {
+        appSettings.updateWeeklyReportNotification(on)
+        com.ubers.observador.service.WeeklyReportNotifier.reschedule(getApplication())
+    }
 
     fun setGoalNotification(on: Boolean) = viewModelScope.launch {
         appSettings.updateGoalNotification(on)

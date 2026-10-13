@@ -107,6 +107,17 @@ fun ExpensesScreen(viewModel: ExpensesViewModel = viewModel()) {
     var form by remember { mutableStateOf<Form?>(null) }
     var menu by remember { mutableStateOf(false) }
     var confirmSuggestion by remember { mutableStateOf<SettingsSuggestion?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    com.ubers.observador.ui.components.ReportExportEffects(viewModel.exporter, snackbar)
+    if (exporting) {
+        com.ubers.observador.ui.components.ReportExportDialog(
+            periodLabel = "Gastos de ${state.from?.format(MONTH) ?: state.period.label.lowercase()}",
+            files = listOf(com.ubers.observador.data.export.ReportFile.EXPENSES_CSV, com.ubers.observador.data.export.ReportFile.EXPENSES_JSON),
+            onSave = { viewModel.saveFile(it); exporting = false },
+            onShare = { viewModel.shareFile(it); exporting = false },
+            onDismiss = { exporting = false }
+        )
+    }
     val timeline = state.overview.timeline
 
     LaunchedEffect(Unit) {
@@ -143,7 +154,16 @@ fun ExpensesScreen(viewModel: ExpensesViewModel = viewModel()) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Gastos") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Gastos") },
+                actions = {
+                    IconButton(onClick = { exporting = true }) {
+                        Icon(painterResource(R.drawable.ic_download), contentDescription = "Exportar gastos del mes")
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             Box {

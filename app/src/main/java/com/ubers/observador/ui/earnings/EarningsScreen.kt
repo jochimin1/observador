@@ -116,6 +116,27 @@ fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
     val snackbar = remember { SnackbarHostState() }
     var rejecting by remember { mutableStateOf<FinancialObservation?>(null) }
     var editingGoals by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+
+    com.ubers.observador.ui.components.ReportExportEffects(viewModel.exporter, snackbar)
+    // The weekly summary notification: open the week that ended
+    val pendingOpen by com.ubers.observador.ui.AppNavigation.pending.collectAsState()
+    LaunchedEffect(pendingOpen) {
+        if (pendingOpen == com.ubers.observador.ui.AppNavigation.OPEN_LAST_WEEK) {
+            viewModel.showLastWeek()
+            com.ubers.observador.ui.AppNavigation.pending.value = null
+        }
+    }
+    if (exporting) {
+        val window = state.report?.window
+        com.ubers.observador.ui.components.ReportExportDialog(
+            periodLabel = window?.let { "${EarningsFormat.windowLabel(it)} (${EarningsFormat.windowDates(it)})" } ?: state.range.label,
+            files = com.ubers.observador.data.export.ReportFile.entries,
+            onSave = { viewModel.saveFile(it); exporting = false },
+            onShare = { viewModel.shareFile(it); exporting = false },
+            onDismiss = { exporting = false }
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(it) }
@@ -157,7 +178,16 @@ fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Ganancias") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Ganancias") },
+                actions = {
+                    IconButton(onClick = { exporting = true }, enabled = state.report != null) {
+                        Icon(painterResource(R.drawable.ic_download), contentDescription = "Exportar este periodo")
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         LazyColumn(
@@ -172,6 +202,7 @@ fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
                 item { Text(if (state.loading) "Cargando…" else "No se pudo calcular este periodo.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 item { IncomeCard(report) }
+                state.weekly?.let { w -> item { WeeklyCard(w) } }
                 item { GoalsCard(state.goals, onEdit = { editingGoals = true }) }
                 if (report.window.range != EarningsRange.DAY) item { BarsCard(report) }
                 item { TimeCard(state.online, state.km, report.summary.totalObservedEarnings, report.summary.confirmedTripCount) }
@@ -300,6 +331,51 @@ private fun IncomeCard(report: EarningsReport) {
                 "${s.pendingReviewCount} cantidad(es) sin sumar: pendientes de vincular o por revisar. Están abajo, nunca dentro del total.",
                 tint = MaterialTheme.colorScheme.tertiary
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- weekly summary (8D)
+
+@Composable
+private fun WeeklyCard(w: com.ubers.observador.domain.reports.WeeklyReport) {
+    SectionCard(
+        title = "Resumen de la semana",
+        icon = R.drawable.ic_summarize,
+        subtitle = "Con las mismas cifras de esta pantalla",
+        badgeContainer = MaterialTheme.colorScheme.secondaryContainer,
+        badgeContent = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        val c = w.comparison
+        if (c != null) {
+            val up = c.differenceMinor >= 0
+            StatTile(
+                if (up) R.drawable.ic_trending_up else R.drawable.ic_trending_down,
+                "Frente a la semana anterior",
+                MoneyFormat.format(MoneyAmount(c.differenceMinor, w.income.currencyCode), signed = true) +
+                    (c.percent?.let { " (${if (it.signum() > 0) "+" else ""}${it.toPlainString()} %)" } ?: ""),
+                Modifier.fillMaxWidth(),
+                detail = "La semana anterior: ${rd(c.previousIncomeMinor)}",
+                accent = if (up) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+            )
+        } else {
+            InfoLine(R.drawable.ic_info, w.notComparable ?: com.ubers.observador.domain.reports.WeeklyReports.NOT_COMPARABLE_MONEY)
+        }
+        StatRow { m ->
+            StatTile(R.drawable.ic_timer, "En línea", w.onlineMs?.let { OnlineFormat.duration(it) } ?: "—", m, detail = w.busyPercent?.let { "ocupado $it %" })
+            StatTile(R.drawable.ic_trending_up, "Por hora en línea", w.perHourMinor?.let { rd(it) + "/h" } ?: "—", m)
+        }
+        StatRow { m ->
+            StatTile(R.drawable.ic_receipt_long, "Gastos", w.expensesWorkMinor?.let { rd(it) } ?: "—", m)
+            StatTile(
+                R.drawable.ic_account_balance_wallet, "Neto", w.netMinor?.let { rd(it) } ?: "—", m,
+                detail = if (EarningsFormat.isMinimum(w.income)) "parcial" else null
+            )
+        }
+        when (w.goalReached) {
+            true -> InfoLine(R.drawable.ic_check_circle, "Meta semanal cumplida (${rd(w.goalMinor ?: 0)}).", tint = MaterialTheme.colorScheme.tertiary)
+            false -> InfoLine(R.drawable.ic_flag, "Meta semanal no cumplida: ${rd(w.income.totalObservedEarnings)} de ${rd(w.goalMinor ?: 0)}.")
+            null -> Unit
         }
     }
 }
