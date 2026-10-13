@@ -55,6 +55,10 @@ interface OfferDao {
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :from AND detectedAt < :to")
     suspend fun getBetween(from: Long, to: Long): List<OfferEntity>
 
+    /** When offers were seen in [from, to): all the online metrics need (Fase 8A). */
+    @Query("SELECT detectedAt FROM detected_offers WHERE detectedAt >= :from AND detectedAt < :to ORDER BY detectedAt")
+    suspend fun getDetectedTimesBetween(from: Long, to: Long): List<Long>
+
     @Query("DELETE FROM detected_offers WHERE detectedAt >= :from AND detectedAt < :to")
     suspend fun deleteBetween(from: Long, to: Long): Int
 

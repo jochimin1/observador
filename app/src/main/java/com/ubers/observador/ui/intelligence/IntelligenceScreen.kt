@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.BuildConfig
+import com.ubers.observador.R
+import com.ubers.observador.ui.components.SectionCard
 import com.ubers.observador.data.debug.IntelligenceTestSeeder
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.ProfitModelVersion
@@ -78,7 +80,7 @@ private fun date(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefaul
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun IntelligenceScreen(onNavigateBack: () -> Unit, viewModel: IntelligenceViewModel = viewModel()) {
+fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val message by viewModel.message.collectAsState()
     var confirmPromote by remember { mutableStateOf(false) }
@@ -107,7 +109,7 @@ fun IntelligenceScreen(onNavigateBack: () -> Unit, viewModel: IntelligenceViewMo
         topBar = {
             TopAppBar(
                 title = { Text("Análisis") },
-                navigationIcon = { TextButton(onClick = onNavigateBack) { Text("← Volver") } }
+                navigationIcon = { onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } } }
             )
         }
     ) { padding ->
@@ -190,13 +192,27 @@ fun IntelligenceScreen(onNavigateBack: () -> Unit, viewModel: IntelligenceViewMo
     }
 }
 
+/** Each card's icon, by title: the same kit as the home screen (SectionCard). */
+private val CARD_ICONS = mapOf(
+    "Qué puede y qué no puede saber" to R.drawable.ic_info,
+    "Calidad de datos" to R.drawable.ic_fact_check,
+    "Estado del modelo" to R.drawable.ic_monitor_heart,
+    "¿El score funciona?" to R.drawable.ic_leaderboard,
+    "Predicción vs realidad" to R.drawable.ic_compare_arrows,
+    "Categorías (reglas de aquel momento)" to R.drawable.ic_category,
+    "Mejores horas reales" to R.drawable.ic_schedule,
+    "Factores y su relación con el resultado" to R.drawable.ic_analytics,
+    "Ofertas y decisiones" to R.drawable.ic_swap_horiz,
+    "Recomendación" to R.drawable.ic_lightbulb,
+    "Modelo en sombra" to R.drawable.ic_contrast,
+    "Historial de modelos" to R.drawable.ic_history,
+    "Datos de prueba (solo desarrollo)" to R.drawable.ic_science
+)
+
 @Composable
 private fun Card(title: String, content: @Composable () -> Unit) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, modifier = Modifier.semantics { heading() })
-            content()
-        }
+    SectionCard(title = title, icon = CARD_ICONS[title] ?: R.drawable.ic_analytics) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
     }
 }
 

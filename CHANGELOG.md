@@ -14,6 +14,50 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.11.0] - 2026-10-12
+
+Fase 8A: tiempo en línea, y una cara nueva para toda la app. Incluye todo lo de la 1.10.0.
+Base de datos 7 → 8 (solo añade una tabla; no cambia nada de lo guardado).
+
+### Añadido
+- Tiempo en línea: Observador sabe cuándo estás conectado a Uber.
+  - Lee cuatro señales con el texto completo, sin acentos ni mayúsculas: «Estás conectado» y
+    «DESCONECTARSE» (en línea), «Estás desconectado» y «Conectarse» (fuera de línea). Las
+    pantallas de oferta, recogida, espera y viaje también cuentan como «en línea».
+  - Un cambio se confirma con dos lecturas a 500 ms o más; una pantalla de viaje con confianza
+    alta lo confirma al momento. Una lectura con señales de los dos lados no cuenta.
+  - Cada sesión guarda dos cifras: tiempo confirmado y tiempo posible. Un rato de hasta 30 min
+    sin ver Uber cuenta como en línea; uno más largo solo cuenta en «hasta …».
+  - El inicio es exacto si antes se vio «fuera de línea»; si no, es un mínimo («al menos»).
+  - Pausar Observador cierra la sesión. Tras reiniciar el teléfono o la app, la sesión sigue si
+    Uber vuelve a verse antes de 30 min; si no, se cierra en la última señal.
+  - «Última vez visto en línea» se guarda como máximo una vez por minuto, por batería.
+  - Mientras hay una sesión abierta, si Uber no avisa de cambios en 5 min, Observador vuelve a
+    mirar la pantalla una vez (un mapa quieto con «Estás conectado» sigue contando).
+- Tarjeta «Tiempo en línea» en el inicio, con el mismo periodo que el resumen: tiempo
+  confirmado (y «hasta …» si hubo huecos), ocupado frente a esperando, % de ocupación, ofertas
+  por hora en línea, minutos hasta la primera oferta, espera entre viajes y ganancia por hora en
+  línea, siempre con su cobertura («Parcial: 3 de 5 viajes con dinero»).
+- Barra de estado: segunda línea «En línea en Uber · 1 h 25 min», «Uber sin ver desde hace …» o
+  «Desconectado de Uber». No se confunde con «En pausa».
+- La cifra «DOP … · HOY» de arriba del mapa se guarda como referencia de Uber del día, solo si la
+  etiqueta «HOY» está junto al importe. Nunca se suma como ingreso; como no se sabe dónde empieza
+  y termina el «hoy» de Uber, la conciliación dice «periodo distinto».
+- Panel de prueba «Sesiones en línea» (solo desarrollo): estado, sesión abierta, huecos, últimos
+  cambios, sesiones TEST- y «Copiar lectura».
+
+### Cambiado
+- Navegación con barra abajo: Inicio, Análisis y Ajustes.
+- Tema propio de Observador (claro y oscuro) en lugar de los colores del fondo de pantalla.
+- Iconos en toda la app (Material Symbols Rounded, licencia Apache 2.0): tarjetas con icono en
+  el inicio, Análisis y Ajustes; resumen con mosaicos; barra de estado con icono y botones
+  Pausar/Reanudar con icono.
+
+### Pendiente de validar en el teléfono
+- Las cuatro señales salen de capturas de imagen; falta confirmar con «Copiar lectura» que el
+  árbol de accesibilidad dice lo mismo.
+- La pastilla «HOY»: si el importe y la etiqueta van en el mismo elemento o separados.
+
 ## [1.10.0] - 2026-10-12
 
 Pausa y perfiles de ajustes. Incluye todo lo de la 1.9.0.

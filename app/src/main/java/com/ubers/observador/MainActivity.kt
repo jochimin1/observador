@@ -7,7 +7,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -56,24 +67,54 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** The main destinations, one per tab of the bottom bar. Ganancias and Gastos arrive with Fase 8C and 8B. */
+private enum class Tab(val route: String, val label: String, @DrawableRes val icon: Int, @DrawableRes val selectedIcon: Int) {
+    HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
+    ANALYSIS("intelligence", "Análisis", R.drawable.ic_analytics, R.drawable.ic_analytics_fill),
+    SETTINGS("settings", "Ajustes", R.drawable.ic_settings, R.drawable.ic_settings_fill)
+}
+
 @Composable
 private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "dashboard") {
-        composable("dashboard") {
-            DashboardScreen(
-                onNavigateToSettings = { navController.navigate("settings") },
-                onNavigateToIntelligence = { navController.navigate("intelligence") },
-                accessibilityEnabled = accessibilityEnabled
-            )
+    val backStack by navController.currentBackStackEntryAsState()
+    val current = backStack?.destination?.route
+    fun open(tab: Tab) = navController.navigate(tab.route) {
+        // One copy of each tab; coming back keeps its scroll and state
+        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                Tab.entries.forEach { tab ->
+                    val selected = current == tab.route
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = { open(tab) },
+                        icon = { Icon(painterResource(if (selected) tab.selectedIcon else tab.icon), contentDescription = null) },
+                        label = { Text(tab.label) }
+                    )
+                }
+            }
         }
-        composable("intelligence") {
-            IntelligenceScreen(onNavigateBack = { navController.popBackStack() })
-        }
-        composable("settings") {
-            SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = Tab.HOME.route,
+            // Only the bottom bar's height: each screen draws its own top bar
+            modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
+        ) {
+            composable(Tab.HOME.route) {
+                DashboardScreen(accessibilityEnabled = accessibilityEnabled)
+            }
+            composable(Tab.ANALYSIS.route) {
+                IntelligenceScreen(onNavigateBack = null)
+            }
+            composable(Tab.SETTINGS.route) {
+                SettingsScreen(onNavigateBack = null)
+            }
         }
     }
 }

@@ -50,7 +50,13 @@ import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
 import com.ubers.observador.domain.TimeAgo
 import com.ubers.observador.domain.formatNumber
+import com.ubers.observador.domain.online.OnlineStatusKind
+import com.ubers.observador.domain.online.OnlineStatusLine
+import com.ubers.observador.ui.components.IconBadge
+import com.ubers.observador.ui.components.IconSectionHeader
 import com.ubers.observador.ui.components.QualityBar
+import com.ubers.observador.ui.components.SectionCard
+import com.ubers.observador.ui.components.StatTile
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -59,8 +65,6 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onNavigateToSettings: () -> Unit,
-    onNavigateToIntelligence: () -> Unit = {},
     accessibilityEnabled: Boolean,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -68,6 +72,7 @@ fun DashboardScreen(
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val bestHours by viewModel.bestHours.collectAsState()
     val bestHoursPeriod by viewModel.selectedBestHoursPeriod.collectAsState()
+    val online by viewModel.online.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -201,12 +206,6 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("Observador") },
                 actions = {
-                    IconButton(onClick = onNavigateToIntelligence) {
-                        Icon(painterResource(R.drawable.ic_analytics), contentDescription = "Análisis")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(painterResource(R.drawable.ic_settings), contentDescription = "Ajustes")
-                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "Más opciones")
@@ -239,6 +238,7 @@ fun DashboardScreen(
                 lastOfferAt = state.lastRealOfferAt,
                 nowMillis = state.nowMillis,
                 loading = state.loading,
+                online = online.status,
                 onEnable = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                 onToggle = { viewModel.setObserverEnabled(!observing) }
             )
@@ -250,6 +250,9 @@ fun DashboardScreen(
             ) {
                 item {
                     SummaryCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
+                }
+                item {
+                    OnlineCard(state = online, modifier = Modifier.padding(top = 16.dp))
                 }
                 item {
                     BestHoursSection(
@@ -265,10 +268,10 @@ fun DashboardScreen(
                     )
                 }
                 item {
-                    Text(
+                    IconSectionHeader(
                         text = "Ofertas por jornada",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 20.dp)
+                        icon = R.drawable.ic_calendar_month,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
                 if (state.summary.count > 0) {
@@ -324,6 +327,7 @@ fun DashboardScreen(
 /**
  * Green when Observador is reading Uber (with the time of the last real offer), amber-ish when the
  * driver paused it (one tap to resume), red with a fix when the accessibility service is off.
+ * A second line (Fase 8A) says whether Uber itself is online; it never stands in for the pause.
  */
 @Composable
 private fun ServiceStatusBar(
@@ -332,24 +336,26 @@ private fun ServiceStatusBar(
     lastOfferAt: Long?,
     nowMillis: Long,
     loading: Boolean,
+    online: OnlineStatusLine?,
     onEnable: () -> Unit,
     onToggle: () -> Unit
 ) {
     val reading = enabled && !paused
+    val scheme = MaterialTheme.colorScheme
     val container = when {
-        !enabled -> MaterialTheme.colorScheme.errorContainer
-        paused -> MaterialTheme.colorScheme.tertiaryContainer
-        else -> MaterialTheme.colorScheme.secondaryContainer
+        !enabled -> scheme.errorContainer
+        paused -> scheme.tertiaryContainer
+        else -> scheme.secondaryContainer
     }
     val content = when {
-        !enabled -> MaterialTheme.colorScheme.onErrorContainer
-        paused -> MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.onSecondaryContainer
+        !enabled -> scheme.onErrorContainer
+        paused -> scheme.onTertiaryContainer
+        else -> scheme.onSecondaryContainer
     }
-    val dot = when {
-        !enabled -> MaterialTheme.colorScheme.error
-        paused -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
+    val (badge, badgeColor) = when {
+        !enabled -> R.drawable.ic_sensors_off to scheme.error
+        paused -> R.drawable.ic_pause_circle to scheme.tertiary
+        else -> R.drawable.ic_sensors to scheme.primary
     }
     Surface(color = container, contentColor = content, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -357,15 +363,12 @@ private fun ServiceStatusBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(dot, CircleShape)
-            )
+            IconBadge(badge, container = badgeColor, content = scheme.surface, size = 34.dp)
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .semantics(mergeDescendants = true) {}
+                    .semantics(mergeDescendants = true) {},
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
                     text = when {
@@ -386,12 +389,47 @@ private fun ServiceStatusBar(
                 if (detail != null) {
                     Text(text = detail, style = MaterialTheme.typography.bodySmall)
                 }
+                // Uber's own state only means something while Observador is reading it
+                if (reading && online != null) OnlineStatusRow(online)
             }
             when {
                 !enabled -> Button(onClick = onEnable) { Text("Activar") }
-                paused -> Button(onClick = onToggle) { Text("Reanudar") }
-                reading -> OutlinedButton(onClick = onToggle) { Text("Pausar") }
+                paused -> Button(onClick = onToggle) {
+                    Icon(painterResource(R.drawable.ic_play_circle), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Reanudar")
+                }
+                reading -> OutlinedButton(onClick = onToggle) {
+                    Icon(painterResource(R.drawable.ic_pause_circle), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Pausar")
+                }
             }
+        }
+    }
+}
+
+/** "En línea en Uber · 1 h 25 min" in a small pill, colored by state. */
+@Composable
+private fun OnlineStatusRow(line: OnlineStatusLine) {
+    val scheme = MaterialTheme.colorScheme
+    val (icon, tint) = when (line.kind) {
+        OnlineStatusKind.ONLINE -> R.drawable.ic_two_wheeler to scheme.primary
+        OnlineStatusKind.NOT_SEEN_LATELY -> R.drawable.ic_hourglass_top to scheme.tertiary
+        OnlineStatusKind.OFFLINE -> R.drawable.ic_two_wheeler to scheme.outline
+    }
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = scheme.surface.copy(alpha = 0.6f),
+        modifier = Modifier.padding(top = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            Text(line.text, style = MaterialTheme.typography.labelMedium, color = scheme.onSurface)
         }
     }
 }
@@ -403,42 +441,40 @@ private fun SummaryCard(
     onSelect: (StatsPeriod) -> Unit
 ) {
     val summary = state.summary
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    SectionCard(
+        title = "Resumen de ofertas",
+        icon = R.drawable.ic_leaderboard,
+        subtitle = "Lo que Uber te ofreció, con tus ajustes de hoy"
+    ) {
+        // Scrolls sideways if a large system font makes the chips wider than the screen
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Resumen", style = MaterialTheme.typography.titleMedium)
-            // Scrolls sideways if a large system font makes the chips wider than the screen
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StatsPeriod.entries.forEach { period ->
-                    FilterChip(
-                        selected = period == selected,
-                        onClick = { onSelect(period) },
-                        label = { Text(period.label) }
-                    )
-                }
-            }
-            when {
-                state.loading -> Unit
-                summary.count == 0 -> Text(
-                    text = "Sin ofertas en este periodo.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            StatsPeriod.entries.forEach { period ->
+                FilterChip(
+                    selected = period == selected,
+                    onClick = { onSelect(period) },
+                    label = { Text(period.label) }
                 )
-                else -> {
-                    SummaryTiles(state)
-                    CategoryMix(summary)
-                }
+            }
+        }
+        when {
+            state.loading -> Unit
+            summary.count == 0 -> Text(
+                text = "Sin ofertas en este periodo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SummaryTiles(state)
+                CategoryMix(summary)
             }
         }
     }
 }
 
-/** Four numbers in a 2x2 grid; one column when the system font is very large. */
+/** Four numbers in a 2x2 grid of icon tiles; one column when the system font is very large. */
 @Composable
 private fun SummaryTiles(state: DashboardUiState) {
     val summary = state.summary
@@ -452,22 +488,23 @@ private fun SummaryTiles(state: DashboardUiState) {
     val (hourNote, hourColor) = versusMin(summary.medianRdpPerHour, state.engineSettings.minRdpPerHour)
     val best = summary.best
     val tiles = listOf(
-        TileData("Ofertas vistas", "${summary.count}", null, Color.Unspecified),
-        TileData("RD$/km mediana", "%.2f".format(summary.medianRdpPerKm), kmNote, kmColor),
-        TileData("RD$/h mediana", "%.0f".format(summary.medianRdpPerHour), hourNote, hourColor),
+        TileData(R.drawable.ic_notifications_active, "Ofertas vistas", "${summary.count}", null, Color.Unspecified),
+        TileData(R.drawable.ic_route, "RD$/km mediana", "%.2f".format(summary.medianRdpPerKm), kmNote, kmColor),
+        TileData(R.drawable.ic_speed, "RD$/h mediana", "%.0f".format(summary.medianRdpPerHour), hourNote, hourColor),
         TileData(
+            icon = R.drawable.ic_trending_up,
             label = "Mejor oferta",
             value = if (best != null) "RD$%.2f".format(best.price) else "-",
             note = best?.let { "score ${it.score} · ${state.thresholds.classify(it.score).label}" },
             noteColor = Color.Unspecified
         )
     )
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (LocalDensity.current.fontScale > LARGE_FONT_SCALE) {
             tiles.forEach { t -> SummaryTile(t, Modifier.fillMaxWidth()) }
         } else {
             tiles.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     pair.forEach { t -> SummaryTile(t, Modifier.weight(1f)) }
                 }
             }
@@ -475,27 +512,19 @@ private fun SummaryTiles(state: DashboardUiState) {
     }
 }
 
-private data class TileData(val label: String, val value: String, val note: String?, val noteColor: Color)
+private data class TileData(val icon: Int, val label: String, val value: String, val note: String?, val noteColor: Color)
 
 @Composable
 private fun SummaryTile(tile: TileData, modifier: Modifier) {
-    val (label, value, note, noteColor) = tile
-    // One stop for TalkBack: "RD$/km mediana, 14.25, sobre tu mínimo de 6"
-    Column(modifier = modifier.semantics(mergeDescendants = true) {}) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (note != null) {
-            Text(
-                text = note,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (noteColor == Color.Unspecified) MaterialTheme.colorScheme.onSurfaceVariant else noteColor
-            )
-        }
-    }
+    // One stop for TalkBack: "RD$/km mediana: 14.25, sobre tu mínimo de 6"
+    StatTile(
+        icon = tile.icon,
+        label = tile.label,
+        value = tile.value,
+        modifier = modifier,
+        detail = tile.note,
+        detailColor = tile.noteColor
+    )
 }
 
 /** The MALO / BUENO / EXCELENTE bar with count and percentage under each part. */

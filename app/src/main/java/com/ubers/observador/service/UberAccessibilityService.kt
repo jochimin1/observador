@@ -45,11 +45,18 @@ class UberAccessibilityService : AccessibilityService() {
     private var debounceRunnable: Runnable? = null
     private var absenceRunnable: Runnable? = null
     private var recheckRunnable: Runnable? = null
+    private var keepAliveRunnable: Runnable? = null
 
     companion object {
         private const val TAG = "UberA11y"
         private const val UBER_DRIVER_PACKAGE = RideLifecycleMonitor.UBER_DRIVER_PACKAGE
         private const val DEBOUNCE_MS = 300L
+
+        /**
+         * Fase 8A: while an online session is open, the screen is read again after this long without
+         * events, so a still map with "Estás conectado" keeps the session seen. One read every 5 min.
+         */
+        private const val KEEP_ALIVE_MS = 5 * 60_000L
 
         /** Set while the service is connected; lets the app's UI reach the service-backed overlay. */
         @Volatile
@@ -97,7 +104,7 @@ class UberAccessibilityService : AccessibilityService() {
             Log.d(TAG, "Observador activo")
         } else {
             resetState()
-            RideLifecycleMonitor.onServiceLost()
+            RideLifecycleMonitor.onObserverPaused()
             Log.d(TAG, "Observador en pausa")
         }
     }
@@ -135,6 +142,7 @@ class UberAccessibilityService : AccessibilityService() {
         val offer: UberOffer? =
             if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parse(snapshot.texts) else null
         observeLifecycle(snapshot, offer?.offerHash())
+        scheduleKeepAlive()
 
         if (offer == null) {
             scheduleAbsenceCheck()
@@ -171,6 +179,19 @@ class UberAccessibilityService : AccessibilityService() {
         }
         recheckRunnable = recheck
         mainHandler.postDelayed(recheck, delayMs)
+    }
+
+    /** Re-reads after a quiet spell while connected; any read (event or not) pushes it back. */
+    private fun scheduleKeepAlive() {
+        keepAliveRunnable?.let { mainHandler.removeCallbacks(it) }
+        keepAliveRunnable = null
+        if (!RideLifecycleMonitor.hasOpenOnlineSession) return
+        val read = Runnable {
+            keepAliveRunnable = null
+            readScreen()
+        }
+        keepAliveRunnable = read
+        mainHandler.postDelayed(read, KEEP_ALIVE_MS)
     }
 
     /** Confirms the card is really gone (not a flicker) before ending the session. */
@@ -248,6 +269,8 @@ class UberAccessibilityService : AccessibilityService() {
         debounceRunnable = null
         recheckRunnable?.let { mainHandler.removeCallbacks(it) }
         recheckRunnable = null
+        keepAliveRunnable?.let { mainHandler.removeCallbacks(it) }
+        keepAliveRunnable = null
         cancelAbsenceCheck()
         tracker.reset()
         if (::overlayManager.isInitialized) overlayManager.dismiss()

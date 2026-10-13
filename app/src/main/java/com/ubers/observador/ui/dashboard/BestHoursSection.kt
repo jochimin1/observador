@@ -1,5 +1,8 @@
 package com.ubers.observador.ui.dashboard
 
+import com.ubers.observador.R
+import com.ubers.observador.ui.components.SectionCard
+
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -57,16 +60,15 @@ fun BestHoursSection(
 ) {
     val use24Hour = DateFormat.is24HourFormat(LocalContext.current)
     val stats = state.stats
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Mejores horas para salir",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() }
-            )
+    SectionCard(
+        title = "Mejores horas para salir",
+        icon = R.drawable.ic_trending_up,
+        subtitle = "Cuándo pagan mejor las ofertas que ves",
+        badgeContainer = MaterialTheme.colorScheme.tertiaryContainer,
+        badgeContent = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = modifier
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

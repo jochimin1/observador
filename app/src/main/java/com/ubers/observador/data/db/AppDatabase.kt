@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
+ * Version 8 (Fase 8A) adds `online_sessions`: when the driver was connected to Uber, as seen.
  * Version 7 (Fase 7D) adds `profit_model_versions`, `shadow_evaluations` and `calibration_runs`,
  * and four nullable weight columns to `trips` (null = the original 35/30/20/15).
  * Version 6 (Fase 7C) adds the money tables: `financial_observations`, `trip_financial_summaries`
@@ -21,9 +22,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         OfferEntity::class, TripEntity::class, RideEventEntity::class,
         FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class,
-        ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class
+        ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class,
+        OnlineSessionEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,6 +37,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun financialDao(): FinancialDao
 
     abstract fun intelligenceDao(): IntelligenceDao
+
+    abstract fun onlineDao(): OnlineDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -228,6 +232,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `online_sessions` (`id` TEXT NOT NULL, `started_at` INTEGER NOT NULL, " +
+                        "`start_kind` TEXT NOT NULL, `last_online_seen_at` INTEGER NOT NULL, `ended_at` INTEGER, " +
+                        "`possible_end_at` INTEGER, `end_reason` TEXT, `unobserved_ms` INTEGER NOT NULL, `gaps` TEXT NOT NULL, " +
+                        "`anomaly_codes` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_online_sessions_started_at` ON `online_sessions` (`started_at`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_online_sessions_ended_at` ON `online_sessions` (`ended_at`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -235,7 +256,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build().also { INSTANCE = it }
             }
     }

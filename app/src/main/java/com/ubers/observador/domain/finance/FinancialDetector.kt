@@ -11,7 +11,8 @@ import com.ubers.observador.domain.money.MoneyParser
 import java.time.Instant
 import java.time.ZoneId
 
-enum class FinancialScreenType { TRIP_EARNINGS, TIP_NOTICE, DAILY_EARNINGS_SUMMARY, WEEKLY_EARNINGS_SUMMARY, UNKNOWN }
+/** UBER_TODAY_PILL (Fase 8A) is the "DOP … · HOY" figure above the map; see UberTodayPillDetector. */
+enum class FinancialScreenType { TRIP_EARNINGS, TIP_NOTICE, DAILY_EARNINGS_SUMMARY, WEEKLY_EARNINGS_SUMMARY, UBER_TODAY_PILL, UNKNOWN }
 
 /** One label rule: what an amount next to these words is. */
 data class MoneyLabel(val phrases: List<String>, val type: FinancialObservationType, val semantics: AmountSemantics)

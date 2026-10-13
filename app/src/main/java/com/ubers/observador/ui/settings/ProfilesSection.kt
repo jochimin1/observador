@@ -28,24 +28,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ubers.observador.R
 import com.ubers.observador.domain.SettingsProfile
+import com.ubers.observador.ui.components.SectionCard
 import com.ubers.observador.domain.SettingsProfiles
 import com.ubers.observador.domain.formatNumber
 
 /** The master switch: same state as the dashboard bar and the notification button. */
 @Composable
 fun ObserverSwitchCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (enabled) "Observador activo" else "Observador en pausa",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(checked = enabled, onCheckedChange = onChange)
-            }
+    SectionCard(
+        title = if (enabled) "Observador activo" else "Observador en pausa",
+        icon = if (enabled) R.drawable.ic_sensors else R.drawable.ic_pause_circle,
+        badgeContainer = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+        badgeContent = if (enabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+        action = { Switch(checked = enabled, onCheckedChange = onChange) }
+    ) {
+        Column {
             Text(
                 text = "En pausa no se leen ofertas ni viajes: sin tarjeta, sin avisos y sin registros. " +
                     "Si pausas durante un viaje, ese viaje queda como interrumpido. También puedes " +
@@ -124,9 +123,14 @@ fun ProfilesCard(
         )
     }
 
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Perfiles", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+    SectionCard(
+        title = "Perfiles",
+        icon = R.drawable.ic_bookmarks,
+        subtitle = "Tus ajustes guardados con nombre",
+        badgeContainer = MaterialTheme.colorScheme.secondaryContainer,
+        badgeContent = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val inUse = state.inUse
             val edited = state.edited
             Text(

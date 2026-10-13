@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
+import com.ubers.observador.data.OnlineRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.data.debug.TestOfferSeeder
@@ -26,6 +27,9 @@ import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
 import com.ubers.observador.domain.StatsPeriod
 import com.ubers.observador.domain.WorkdayClock
+import com.ubers.observador.domain.online.OnlineFormat
+import com.ubers.observador.domain.online.OnlineStatusLine
+import com.ubers.observador.domain.online.OnlineSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -43,6 +47,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,6 +86,15 @@ data class BestHoursUiState(
     val loading: Boolean = true
 )
 
+/** Fase 8A: time online in the period of the summary chips, and the open session for the status bar. */
+data class OnlineUiState(
+    val period: StatsPeriod = StatsPeriod.TODAY,
+    val summary: OnlineSummary = OnlineSummary(),
+    /** Null until the first answer, so "Desconectado" is not flashed while loading. */
+    val status: OnlineStatusLine? = null,
+    val loading: Boolean = true
+)
+
 /** Offers just deleted, kept exactly as stored so "Deshacer" can put them back. */
 data class DeletedOffers(val message: String, val offers: List<OfferEntity>)
 
@@ -98,6 +112,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.getInstance(app)
     private val repository = OfferRepository(db)
     private val settings = AppSettings(app)
+    private val onlineRepository = OnlineRepository(db)
 
     private val _exportEvents = MutableSharedFlow<ExportEvent>(extraBufferCapacity = 1)
     val exportEvents: SharedFlow<ExportEvent> = _exportEvents.asSharedFlow()
@@ -299,6 +314,28 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BestHoursUiState())
+
+    // ---- Time online (Fase 8A) ----
+
+    // Same window as the summary chips. Recomputed on every stored change (a sighting is written
+    // at most once a minute) and every minute, so the open session keeps counting
+    val online: StateFlow<OnlineUiState> = window
+        .flatMapLatest { w ->
+            val from = w.since ?: 0L
+            combine(onlineRepository.observeBetween(from, Long.MAX_VALUE), onlineRepository.observeOpen(), clockNow) { sessions, open, _ ->
+                sessions to open
+            }.mapLatest { (sessions, open) ->
+                val now = System.currentTimeMillis()
+                OnlineUiState(
+                    period = w.period,
+                    summary = onlineRepository.summarize(sessions, from, now, now),
+                    status = OnlineFormat.status(open, now),
+                    loading = false
+                )
+            }
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnlineUiState())
 
     // ---- Deleting, with undo ----
 

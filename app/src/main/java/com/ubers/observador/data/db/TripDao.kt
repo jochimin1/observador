@@ -88,6 +88,13 @@ interface TripDao {
     suspend fun getAcceptedOfferHashesSince(from: Long): List<String>
 
     /** Trips completed in [from, to), for real earnings of a period (Fase 7C). */
+    /** Trips that may overlap [from, to): started before its end and last seen after its start (Fase 8A). */
+    @Query(
+        "SELECT * FROM trips WHERE created_at < :to AND " +
+            "COALESCE(completed_at, cancelled_at, interrupted_at, updated_at) >= :from ORDER BY created_at"
+    )
+    suspend fun getTripsTouching(from: Long, to: Long): List<TripEntity>
+
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
     suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>
 }

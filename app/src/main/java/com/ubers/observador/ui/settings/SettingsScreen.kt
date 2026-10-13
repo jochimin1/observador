@@ -1,5 +1,8 @@
 package com.ubers.observador.ui.settings
 
+import androidx.annotation.DrawableRes
+import com.ubers.observador.R
+import com.ubers.observador.ui.components.IconSectionHeader
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,7 +67,7 @@ private val ExampleOffer = UberOffer(price = 75.50, pickupKm = 1.8, pickupMin = 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateBack: (() -> Unit)?,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -77,7 +80,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Ajustes") },
                 navigationIcon = {
-                    TextButton(onClick = onNavigateBack) { Text("← Volver") }
+                    onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } }
                 }
             )
         }
@@ -108,7 +111,7 @@ fun SettingsScreen(
                 onDelete = { viewModel.deleteProfile(it) }
             )
 
-            SectionHeader("Costos operativos")
+            SectionHeader("Costos operativos", R.drawable.ic_local_gas_station)
             DecimalSettingCard(
                 title = "Precio del combustible",
                 description = "Lo que pagas por galón de gasolina. Junto con el rendimiento, la app calcula " +
@@ -149,7 +152,7 @@ fun SettingsScreen(
                 )
             }
 
-            SectionHeader("Umbrales mínimos")
+            SectionHeader("Umbrales mínimos", R.drawable.ic_tune)
             Text(
                 text = "Dile a la app qué es un buen viaje para ti. No bloquean ofertas: solo cambian " +
                     "el score de 0 a 100.",
@@ -210,7 +213,7 @@ fun SettingsScreen(
             )
             ExampleCard(settings = engine, thresholds = thresholds)
 
-            SectionHeader("Categorías de score")
+            SectionHeader("Categorías de score", R.drawable.ic_category)
             SettingCard(
                 title = "Colores del viaje",
                 description = "El score se traduce en tres categorías para que decidas de un vistazo, " +
@@ -243,7 +246,7 @@ fun SettingsScreen(
                 onValid = { viewModel.updateExcellentScore(it) }
             )
 
-            SectionHeader("Jornada")
+            SectionHeader("Jornada", R.drawable.ic_calendar_month)
             IntSettingCard(
                 title = "Inicio de la jornada",
                 description = "Hora en que empieza tu día de trabajo, en formato de 24 horas (16 = 4 pm). " +
@@ -257,7 +260,7 @@ fun SettingsScreen(
                 onValid = { viewModel.updateWorkdayStartHour(it) }
             )
 
-            SectionHeader("Overlay")
+            SectionHeader("Overlay", R.drawable.ic_layers)
             SettingCard(
                 title = "Mostrar tarjeta sobre Uber",
                 description = "Muestra una tarjeta pequeña encima de la app de Uber con el precio, los km, " +
@@ -284,7 +287,7 @@ fun SettingsScreen(
             val overlayMessage by viewModel.overlayTestMessage.collectAsState()
             OverlayPreviewCard(message = overlayMessage, onTest = { viewModel.showTestOverlay() })
 
-            SectionHeader("Detección")
+            SectionHeader("Detección", R.drawable.ic_filter_alt)
             IntSettingCard(
                 title = "Ventana anti-duplicados",
                 description = "Uber a veces redibuja la misma oferta varias veces. Si llega una idéntica " +
@@ -296,7 +299,7 @@ fun SettingsScreen(
                 onValid = { viewModel.updateGraceWindow(it) }
             )
 
-            SectionHeader("Modo de operación")
+            SectionHeader("Modo de operación", R.drawable.ic_toggle_on)
             ModeSelector(
                 current = state.mode,
                 goodFrom = thresholds.goodFrom,
@@ -305,13 +308,14 @@ fun SettingsScreen(
 
             if (BuildConfig.DEBUG) {
                 val testMessage by viewModel.testDataMessage.collectAsState()
-                SectionHeader("Herramientas de prueba")
+                SectionHeader("Herramientas de prueba", R.drawable.ic_science)
                 TestDataCard(
                     message = testMessage,
                     onLoad = { viewModel.loadTestOffers() },
                     onClear = { viewModel.clearTestOffers() }
                 )
                 LifecycleDebugCard()
+                OnlineDebugCard()
                 TripsDebugCard()
                 FinanceDebugCard()
             }
@@ -413,13 +417,8 @@ private fun costHint(costPerKm: Double): String {
 }
 
 @Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 10.dp)
-    )
+private fun SectionHeader(text: String, @DrawableRes icon: Int) {
+    IconSectionHeader(text = text, icon = icon)
 }
 
 /**
