@@ -41,6 +41,10 @@ class DistanceRepository(private val db: AppDatabase) {
     fun observeDay(workday: LocalDate): Flow<DayDistance> =
         dao.observeWorkday(workday.toString()).map { rows -> DayDistance.of(workday, rows.map { it.toDomain() }) }
 
+    suspend fun getAll(): List<DistanceSegment> = dao.getAllSegments().map { it.toDomain() }
+
+    fun observeAll(): Flow<List<DistanceSegment>> = dao.observeAllSegments().map { l -> l.map { it.toDomain() } }
+
     fun observeRecent(limit: Int): Flow<List<DistanceSegment>> = dao.observeRecent(limit).map { l -> l.map { it.toDomain() } }
 
     fun observeTripDistance(tripId: String): Flow<TripDistance?> =

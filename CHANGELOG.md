@@ -14,6 +14,38 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.14.0] - 2026-10-13
+
+Fase 8B: gastos reales. Incluye todo lo de la 1.13.0. Base de datos 9 → 10 (solo añade cuatro
+tablas).
+
+### Añadido
+- Pestaña «Gastos» en la barra de abajo, con botón «+» y cuatro formularios:
+  - Tanqueo: galones (o precio por galón), total, odómetro opcional y «tanque lleno».
+  - Gasto: mantenimiento (aceite, gomas, cadena o kit, frenos, otro) con odómetro opcional, o
+    gasto suelto (lavado, parqueo o peaje, multa, otro).
+  - Gasto fijo: cuota del motor, plan de datos, seguro u otro; semanal, quincenal o mensual,
+    con fecha de inicio y de fin opcional. Se reparte por día.
+  - Odómetro: para actualizarlo sin tanquear; «cambié de odómetro o de motor» empieza una cuenta
+    nueva.
+- Límites de los campos: galones de 0.1 a 20, importe de RD$1 a RD$100,000, odómetro de 0 a
+  9,999,999 km. Si el odómetro baja, se avisa y solo se guarda si confirmas el cambio.
+- Resumen del mes (este mes o el pasado): combustible, mantenimiento, fijos y sueltos, el total,
+  la parte de trabajo y la ganancia neta = ingreso real confirmado − gastos de trabajo, con su
+  cobertura. Sin ingreso real no hay neto.
+- Rendimiento real por el método de tanque lleno: km/galón y costo de combustible por km (último
+  tramo y mediana de los últimos 5). Sin odómetro usa los km del GPS (8E), marcados «aprox.».
+  Nunca a través de un cambio de odómetro.
+- Sugerencia para Ajustes con 3 tramos o más, con botón «Usar en Ajustes» y confirmación. Solo
+  cambia el costo de combustible de cada oferta; el score no cambia.
+- Mantenimiento: aviso cuando falta el 10 % del intervalo o menos, y en rojo si ya pasó. El
+  odómetro actual suma los km del GPS desde la última lectura (estimado). Notificación (encendida
+  por defecto) al abrir la app y al anotar algo, una sola vez por cambio y nivel.
+- Lista de registros con filtro, tocar para editar y deslizar para borrar con «Deshacer».
+- Ajustes → «Gastos y mantenimiento»: parte de trabajo (100 % por defecto), intervalos de aceite,
+  cadena, gomas y frenos (ninguno viene puesto), y el aviso.
+- Panel de prueba «Gastos (prueba)» con registros TEST-gasto-.
+
 ## [1.13.0] - 2026-10-13
 
 El inicio pasa a mostrar los viajes que hiciste, y Análisis gana la espera entre viajes.

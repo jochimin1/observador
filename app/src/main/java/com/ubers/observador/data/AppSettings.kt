@@ -49,6 +49,13 @@ class AppSettings(private val context: Context) {
         private val KEY_DISTANCE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("distance_enabled")
         private val KEY_DISTANCE_MODE = stringPreferencesKey("distance_mode")
         private val KEY_DISTANCE_MANUAL = androidx.datastore.preferences.core.booleanPreferencesKey("distance_manual")
+        // Fase 8B: expenses. Not part of profiles
+        private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
+        private val KEY_MAINTENANCE_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("maintenance_notification")
+        private fun intervalKey(type: com.ubers.observador.domain.expenses.ExpenseType) =
+            androidx.datastore.preferences.core.longPreferencesKey("maintenance_interval_km_${type.storageKey.lowercase()}")
+        private fun notifiedKey(type: com.ubers.observador.domain.expenses.ExpenseType) =
+            stringPreferencesKey("maintenance_notified_${type.storageKey.lowercase()}")
 
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
@@ -106,6 +113,34 @@ class AppSettings(private val context: Context) {
         // Pausing also ends a measurement started with the button (decision 12: pause stops the GPS)
         if (!value) it[KEY_DISTANCE_MANUAL] = false
     }
+
+    /** Share of the motorbike used for work, 0-100 (decision 8: one % for everything, 100 by default). */
+    val workSharePct: Flow<Int> = context.dataStore.data.map { it[KEY_WORK_SHARE] ?: 100 }
+
+    suspend fun updateWorkSharePct(value: Int) = context.dataStore.edit {
+        it[KEY_WORK_SHARE] = value.coerceIn(com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MIN, com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MAX)
+    }
+
+    /** Reminder interval per maintenance kind, in km; 0 = no reminder. None comes preset (it depends on the bike and the oil). */
+    val maintenanceIntervals: Flow<Map<com.ubers.observador.domain.expenses.ExpenseType, Long>> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.expenses.ExpenseType.REMINDABLE.associateWith { prefs[intervalKey(it)] ?: 0L }
+    }
+
+    suspend fun updateMaintenanceInterval(type: com.ubers.observador.domain.expenses.ExpenseType, km: Long) =
+        context.dataStore.edit { it[intervalKey(type)] = km.coerceIn(0, com.ubers.observador.domain.expenses.ExpenseLimits.INTERVAL_MAX_KM) }
+
+    /** Decision 10: the maintenance notification is on by default. */
+    val maintenanceNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_MAINTENANCE_NOTIFICATION] ?: true }
+
+    suspend fun updateMaintenanceNotification(value: Boolean) = context.dataStore.edit { it[KEY_MAINTENANCE_NOTIFICATION] = value }
+
+    /** What was last notified per kind ("change id:level"), so the same warning is not repeated. */
+    val maintenanceNotified: Flow<Map<com.ubers.observador.domain.expenses.ExpenseType, String>> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.expenses.ExpenseType.REMINDABLE.mapNotNull { t -> prefs[notifiedKey(t)]?.let { t to it } }.toMap()
+    }
+
+    suspend fun markMaintenanceNotified(type: com.ubers.observador.domain.expenses.ExpenseType, key: String) =
+        context.dataStore.edit { it[notifiedKey(type)] = key }
 
     /** "Medir km con GPS" (Fase 8E). Not part of profiles. */
     val distanceEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_ENABLED] ?: false }

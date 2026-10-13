@@ -4,6 +4,8 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,6 +60,8 @@ class MainActivity : ComponentActivity() {
         accessibilityEnabled = UberAccessibilityService.isEnabled(this)
         // The driver may have changed the location permission in system settings
         com.ubers.observador.ui.AppPermissions.refresh(this)
+        // Oil and other reminders (Fase 8B): checked when the app opens, notified once per level
+        lifecycleScope.launch { com.ubers.observador.service.MaintenanceNotifier.check(this@MainActivity) }
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -69,9 +73,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** The main destinations, one per tab of the bottom bar. Ganancias and Gastos arrive with Fase 8C and 8B. */
+/** The main destinations, one per tab of the bottom bar. Ganancias arrives with Fase 8C. */
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
     HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
+    EXPENSES("expenses", "Gastos", R.drawable.ic_receipt_long, R.drawable.ic_receipt_long_fill),
     ANALYSIS("intelligence", "Análisis", R.drawable.ic_analytics, R.drawable.ic_analytics_fill),
     SETTINGS("settings", "Ajustes", R.drawable.ic_settings, R.drawable.ic_settings_fill)
 }
@@ -110,6 +115,9 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         ) {
             composable(Tab.HOME.route) {
                 DashboardScreen(accessibilityEnabled = accessibilityEnabled)
+            }
+            composable(Tab.EXPENSES.route) {
+                com.ubers.observador.ui.expenses.ExpensesScreen()
             }
             composable(Tab.ANALYSIS.route) {
                 IntelligenceScreen(onNavigateBack = null)

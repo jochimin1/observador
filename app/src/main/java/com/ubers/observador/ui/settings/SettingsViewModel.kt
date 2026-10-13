@@ -103,6 +103,26 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateObserverEnabled(enabled) }
 
+    // ---- Expenses (Fase 8B) ----
+
+    val workSharePct: StateFlow<Int> = appSettings.workSharePct
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 100)
+
+    val maintenanceIntervals: StateFlow<Map<com.ubers.observador.domain.expenses.ExpenseType, Long>> = appSettings.maintenanceIntervals
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    val maintenanceNotification: StateFlow<Boolean> = appSettings.maintenanceNotification
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setWorkSharePct(v: Int) = viewModelScope.launch { appSettings.updateWorkSharePct(v) }
+
+    fun setMaintenanceInterval(type: com.ubers.observador.domain.expenses.ExpenseType, km: Int) = viewModelScope.launch {
+        appSettings.updateMaintenanceInterval(type, km.toLong())
+        com.ubers.observador.service.MaintenanceNotifier.check(getApplication())
+    }
+
+    fun setMaintenanceNotification(on: Boolean) = viewModelScope.launch { appSettings.updateMaintenanceNotification(on) }
+
     // ---- Kilometres with GPS (Fase 8E) ----
 
     val distanceEnabled: StateFlow<Boolean> = appSettings.distanceEnabled

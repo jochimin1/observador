@@ -73,7 +73,7 @@ class Migration4To5Test {
         createVersion4WithOffers()
         val room = Room.databaseBuilder(context, AppDatabase::class.java, DB)
             // Room opens at the latest version, so every later step is needed too
-            .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
             .build()
         assertEquals(2, room.offerDao().getSince(0).size)
         assertTrue(room.tripDao().getAllTrips().isEmpty())

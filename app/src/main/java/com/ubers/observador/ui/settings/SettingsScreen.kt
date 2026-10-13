@@ -258,6 +258,43 @@ fun SettingsScreen(
                 onMode = { viewModel.setDistanceMode(it) }
             )
 
+            SectionHeader("Gastos y mantenimiento", R.drawable.ic_receipt_long)
+            val workShare by viewModel.workSharePct.collectAsState()
+            val intervals by viewModel.maintenanceIntervals.collectAsState()
+            val maintenanceNotice by viewModel.maintenanceNotification.collectAsState()
+            IntSettingCard(
+                title = "Parte de trabajo",
+                description = "Qué parte de los gastos de la moto es por trabajar con Uber. Si también la usas para " +
+                    "lo tuyo, baja este número: la ganancia neta resta solo esa parte, y siempre verás el total al lado.",
+                value = workShare,
+                min = com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MIN,
+                max = com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MAX,
+                suffix = "%",
+                onValid = { viewModel.setWorkSharePct(it) }
+            )
+            com.ubers.observador.domain.expenses.ExpenseType.REMINDABLE.forEach { type ->
+                IntSettingCard(
+                    title = "Cambio de ${type.label.lowercase()} cada",
+                    description = if (type == com.ubers.observador.domain.expenses.ExpenseType.OIL) {
+                        "Cada cuántos km cambias el aceite, según tu motor y el aceite que usas. Te avisamos cuando " +
+                            "falte el 10 % o menos. Pon 0 para no recibir aviso."
+                    } else {
+                        "Opcional. Pon 0 para no recibir aviso."
+                    },
+                    value = (intervals[type] ?: 0L).toInt(),
+                    min = 0,
+                    max = com.ubers.observador.domain.expenses.ExpenseLimits.INTERVAL_MAX_KM.toInt(),
+                    suffix = "km",
+                    onValid = { viewModel.setMaintenanceInterval(type, it) }
+                )
+            }
+            SwitchSettingCard(
+                title = "Aviso de mantenimiento",
+                description = "Una notificación cuando se acerca o pasa un cambio. Se revisa al abrir la app y al anotar un odómetro.",
+                checked = maintenanceNotice,
+                onChange = { viewModel.setMaintenanceNotification(it) }
+            )
+
             SectionHeader("Jornada", R.drawable.ic_calendar_month)
             IntSettingCard(
                 title = "Inicio de la jornada",
@@ -329,6 +366,7 @@ fun SettingsScreen(
                 LifecycleDebugCard()
                 OnlineDebugCard()
                 DistanceDebugCard()
+                ExpenseDebugCard()
                 TripsDebugCard()
                 FinanceDebugCard()
             }
@@ -773,3 +811,16 @@ private data class ModeOption(
     val description: String,
     val enabled: Boolean
 )
+
+@Composable
+private fun SwitchSettingCard(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    androidx.compose.material3.OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange)
+        }
+    }
+}

@@ -203,3 +203,24 @@ object DistanceFormat {
     /** Share of [part] in [whole], 0-100, half up; null for an empty whole. */
     fun percent(part: Long, whole: Long): Int? = if (whole <= 0) null else ((part * 200 + whole) / (whole * 2)).toInt()
 }
+
+/** GPS kilometres over a span of time, for 8B (km per gallon without odometer, estimated odometer). */
+object DistanceTotals {
+
+    /**
+     * Measured km of the stretches between [fromMs] and [toMs]. A stretch only partly inside
+     * counts in proportion to its time inside: an estimate, so callers label it "aprox. por GPS".
+     */
+    fun kmBetween(segments: List<DistanceSegment>, fromMs: Long, toMs: Long, nowMs: Long): Long {
+        if (toMs <= fromMs) return 0
+        var mm = 0.0
+        segments.forEach { s ->
+            val end = s.endedAt ?: maxOf(s.updatedAt, minOf(nowMs, toMs))
+            val span = end - s.startedAt
+            val overlap = minOf(end, toMs) - maxOf(s.startedAt, fromMs)
+            if (overlap <= 0) return@forEach
+            mm += if (span <= 0) 0.0 else s.measuredMm.toDouble() * overlap / span
+        }
+        return Math.round(mm / 1_000_000.0)
+    }
+}

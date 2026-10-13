@@ -667,43 +667,6 @@ private fun ListControls(
 
 /** Swipe a row to the left to delete it; the snackbar offers "Deshacer". */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
-    // confirmValueChange works on every Material 3 version this project may resolve to;
-    // newer ones prefer SwipeToDismissBox(onDismiss = …) and only warn about this overload
-    @Suppress("DEPRECATION")
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else {
-                false
-            }
-        }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Text(
-                    text = "Borrar",
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    ) {
-        content()
-    }
-}
 
 /**
  * One offer, readable at a glance: colour stripe, price and RD$/km in large type, the time only

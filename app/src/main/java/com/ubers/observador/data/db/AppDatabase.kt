@@ -8,6 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
+ * Version 10 (Fase 8B) adds `fuel_entries`, `expense_entries`, `recurring_costs` and
+ * `odometer_readings`: what the driver spends, written by hand.
  * Version 9 (Fase 8E) adds `distance_segments` and `trip_distances`: kilometres as totals only,
  * never positions.
  * Version 8 (Fase 8A) adds `online_sessions`: when the driver was connected to Uber, as seen.
@@ -25,9 +27,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OfferEntity::class, TripEntity::class, RideEventEntity::class,
         FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class,
         ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class,
-        OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class
+        OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
+        FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,6 +46,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun onlineDao(): OnlineDao
 
     abstract fun distanceDao(): DistanceDao
+
+    abstract fun expenseDao(): ExpenseDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -280,6 +285,37 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `fuel_entries` (`id` TEXT NOT NULL, `at` INTEGER NOT NULL, " +
+                        "`gallons_milli` INTEGER NOT NULL, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
+                        "`odometer_km` INTEGER, `full_tank` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, " +
+                        "`updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_fuel_entries_at` ON `fuel_entries` (`at`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `expense_entries` (`id` TEXT NOT NULL, `at` INTEGER NOT NULL, " +
+                        "`type` TEXT NOT NULL, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, " +
+                        "`odometer_km` INTEGER, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_entries_at` ON `expense_entries` (`at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_entries_type` ON `expense_entries` (`type`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `recurring_costs` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, " +
+                        "`amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `frequency` TEXT NOT NULL, " +
+                        "`starts_on` TEXT NOT NULL, `ends_on` TEXT, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `odometer_readings` (`id` TEXT NOT NULL, `at` INTEGER NOT NULL, " +
+                        "`km` INTEGER NOT NULL, `is_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, " +
+                        "`updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_odometer_readings_at` ON `odometer_readings` (`at`)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -287,7 +323,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build().also { INSTANCE = it }
             }
     }

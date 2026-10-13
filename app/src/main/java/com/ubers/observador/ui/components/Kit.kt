@@ -228,3 +228,39 @@ fun StackedBar(parts: List<Pair<Long, Color>>, description: String, modifier: Mo
         }
     }
 }
+
+/** Swipe left to delete, with a red "Borrar" behind. Callers offer "Deshacer" right after. */
+@Composable
+fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    // confirmValueChange works on every Material 3 version this project may resolve to;
+    // newer ones prefer SwipeToDismissBox(onDismiss = …) and only warn about this overload
+    @Suppress("DEPRECATION")
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+                true
+            } else {
+                false
+            }
+        }
+    )
+    androidx.compose.material3.SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(text = "Borrar", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
+            }
+        }
+    ) {
+        content()
+    }
+}
