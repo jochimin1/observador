@@ -140,6 +140,7 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                 state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 state.failed || report == null -> Body("No se pudo calcular el análisis. Tus datos no se tocaron.")
                 else -> {
+                    state.waits?.let { WaitsCard(it) }
                     DataQuality(report, state.usesTestData)
                     ModelState(report, state.active)
                     if (report.quality.usableForHourly == 0) {

@@ -9,6 +9,7 @@ import com.ubers.observador.data.FinancialRepository
 import com.ubers.observador.data.IntelligenceRepository
 import com.ubers.observador.data.TripRepository
 import com.ubers.observador.data.db.AppDatabase
+import com.ubers.observador.data.db.toDomain
 import com.ubers.observador.data.debug.IntelligenceTestSeeder
 import com.ubers.observador.data.debug.TripTestSeeder
 import com.ubers.observador.domain.ProfitModelVersion
@@ -50,6 +51,8 @@ data class IntelligenceUiState(
     val targetHourly: Double? = null,
     /** TEST- trips are in the period: candidates built from them can never be applied. */
     val usesTestData: Boolean = false,
+    /** Time between trips in the period (from a trip's end to accepting the next). */
+    val waits: com.ubers.observador.domain.online.WaitSummary? = null,
     val failed: Boolean = false
 )
 
@@ -107,6 +110,13 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         val candidate = shadowId?.let { repo.version(it) }
         val evaluations = candidate?.let { repo.shadowEvaluations(it.id) } ?: emptyList()
         val usesTest = dataset.samples.any { it.tripId.startsWith(TripTestSeeder.PREFIX) }
+        val periodTrips = db.tripDao().getTripsTouching(from, now + 1).map { it.toDomain() }
+        val sessions = com.ubers.observador.data.OnlineRepository(db).getBetween(from, now + 1)
+        val waits = withContext(Dispatchers.Default) {
+            com.ubers.observador.domain.online.TripWaits.summarize(
+                com.ubers.observador.domain.online.TripWaits.of(periodTrips, sessions, now), zone
+            )
+        }
         val report = withContext(Dispatchers.Default) {
             // Fase 5's market (offers seen) by 2-hour slot, passed apart and only compared, never mixed
             val market = offers.groupBy { Instant.ofEpochMilli(it.detectedAt).atZone(zone).hour / 2 }
@@ -143,7 +153,8 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
             previous = ModelVersionRules.previous(versions),
             shadowCandidate = candidate,
             targetHourly = profit.minRdpPerHour,
-            usesTestData = usesTest
+            usesTestData = usesTest,
+            waits = waits
         )
     } catch (e: Exception) {
         Log.e(TAG, "Analysis failed", e)

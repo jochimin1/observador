@@ -63,7 +63,7 @@ fun BestHoursSection(
     SectionCard(
         title = "Mejores horas para salir",
         icon = R.drawable.ic_trending_up,
-        subtitle = "Cuándo pagan mejor las ofertas que ves",
+        subtitle = "Cuándo pagaron mejor los viajes que hiciste",
         badgeContainer = MaterialTheme.colorScheme.tertiaryContainer,
         badgeContent = MaterialTheme.colorScheme.onTertiaryContainer,
         modifier = modifier
@@ -83,7 +83,7 @@ fun BestHoursSection(
             }
             when {
                 state.loading -> Unit
-                stats.totalOffers == 0 -> Note("Necesitamos más ofertas para identificar tus mejores horas.")
+                stats.totalOffers == 0 -> Note("Necesitamos más viajes realizados para identificar tus mejores horas.")
                 else -> {
                     val best = stats.bestSlot
                     if (best == null) {
@@ -108,7 +108,7 @@ fun BestHoursSection(
                         TopSlots(stats.rankedSlots, use24Hour, onSelectSlot)
                     }
                     Text(
-                        text = "Basado en ofertas vistas durante los últimos ${state.period.label}. " +
+                        text = "Basado en tus viajes realizados de los últimos ${state.period.label}. " +
                             "Toca una franja para ver el detalle.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -263,7 +263,7 @@ fun SlotDetailSheet(slot: TimeSlotStats, isBest: Boolean, onDismiss: () -> Unit)
                 )
             }
             if (slot.offerCount == 0) {
-                Note("No llegaron ofertas en esta franja durante el periodo.")
+                Note("No hiciste viajes en esta franja durante el periodo.")
             } else {
                 if (!slot.isValid) {
                     Surface(
@@ -271,7 +271,7 @@ fun SlotDetailSheet(slot: TimeSlotStats, isBest: Boolean, onDismiss: () -> Unit)
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "Pocos datos: con menos de ${SampleConfidence.LOW_FROM} ofertas estos números " +
+                            text = "Pocos datos: con menos de ${SampleConfidence.LOW_FROM} viajes estos números " +
                                 "pueden cambiar mucho, y la franja no compite en el ranking.",
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(12.dp)
@@ -281,8 +281,8 @@ fun SlotDetailSheet(slot: TimeSlotStats, isBest: Boolean, onDismiss: () -> Unit)
                 SlotDetailLines(slot)
             }
             Text(
-                text = "Mercado observado: ofertas que te llegaron en esta franja, calculadas con tus " +
-                    "ajustes actuales. No son ganancias.",
+                text = "Tus viajes realizados en esta franja, con lo que prometía su oferta y tus " +
+                    "ajustes actuales. No es el dinero real cobrado.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -301,9 +301,9 @@ private fun SlotDetailLines(slot: TimeSlotStats) {
     DetailLine("Excelentes", percent(slot.excellentRate))
     DetailLine("Recogida típica", "%.1f km · %d min".format(slot.medianPickupKm ?: 0.0, (slot.medianPickupMinutes ?: 0.0).roundToInt()))
     HorizontalDivider()
-    DetailLine("Frecuencia", "%.1f ofertas/h".format(slot.offersPerHour))
+    DetailLine("Frecuencia", "%.1f viajes/h".format(slot.offersPerHour))
     slot.minutesPerOffer?.let { DetailLine("Ritmo", "≈ 1 cada ${minutes(it)} min") }
-    DetailLine("Días con ofertas", "${slot.activeDays}")
+    DetailLine("Días con viajes", "${slot.activeDays}")
     DetailLine("Confianza", slot.confidence.level)
     HorizontalDivider()
     DetailLine(
@@ -318,7 +318,7 @@ private fun SlotDetailLines(slot: TimeSlotStats) {
 private fun hourly(value: Double?) = "RD$${(value ?: 0.0).roundToInt()}"
 private fun perKm(value: Double?) = "RD$%.2f".format(value ?: 0.0)
 private fun percent(rate: Double) = "${(rate * 100).roundToInt()}%"
-private fun offers(count: Int) = if (count == 1) "1 oferta" else "$count ofertas"
+private fun offers(count: Int) = if (count == 1) "1 viaje" else "$count viajes"
 private fun minutes(value: Double) = if (value < 10) "%.1f".format(value) else "${value.roundToInt()}"
 
 private val MIN_TOUCH = 48.dp

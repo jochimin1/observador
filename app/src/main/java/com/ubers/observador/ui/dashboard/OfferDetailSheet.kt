@@ -36,7 +36,7 @@ private val DETAIL_TIME_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM · h:mm 
 /** Bottom panel with the why behind one offer. Closes by swiping down or with Back. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit, onDelete: () -> Unit) {
+fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit, onDelete: (() -> Unit)? = null) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         OfferDetailContent(detail, onDelete)
@@ -44,7 +44,7 @@ fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit, onDelete: () ->
 }
 
 @Composable
-private fun OfferDetailContent(detail: OfferDetail, onDelete: () -> Unit) {
+private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
     val o = detail.offer
     val quality = detail.quality
     val parts = detail.breakdown
@@ -106,15 +106,17 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: () -> Unit) {
         }
 
         Text(
-            text = "Calculado con tus ajustes actuales. La exportación guarda los valores del momento " +
-                "en que se detectó la oferta.",
+            text = "Lo que prometía la oferta de este viaje, calculado con tus ajustes actuales. " +
+                "El dinero real llega con la pantalla Ganancias.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         // Also reachable without the swipe gesture, and from TalkBack
-        TextButton(onClick = onDelete) {
-            Text(text = "Borrar esta oferta", color = MaterialTheme.colorScheme.error)
+        onDelete?.let { delete ->
+            TextButton(onClick = delete) {
+                Text(text = "Borrar esta oferta", color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }

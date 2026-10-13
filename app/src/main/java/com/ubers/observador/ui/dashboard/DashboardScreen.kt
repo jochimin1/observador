@@ -123,7 +123,6 @@ fun DashboardScreen(
         }
     }
 
-    var dayToDelete by remember { mutableStateOf<DayGroup?>(null) }
 
     // The tapped time slot stays highlighted after its panel closes; looked up by hour, so the
     // panel follows new offers and a change of period while it is open
@@ -158,33 +157,7 @@ fun DashboardScreen(
     if (selectedOffer != null) {
         OfferDetailSheet(
             detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
-            onDismiss = { selectedOfferId = null },
-            onDelete = {
-                viewModel.deleteOffer(selectedOffer.id)
-                selectedOfferId = null
-            }
-        )
-    }
-
-    dayToDelete?.let { day ->
-        AlertDialog(
-            onDismissRequest = { dayToDelete = null },
-            title = { Text("Borrar jornada") },
-            text = {
-                Text(
-                    "Se borrarán las ${day.count} ofertas de la jornada " +
-                        "\"${dayLabel(day.date, state.currentWorkday)}\". Tendrás unos segundos para deshacerlo."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteWorkday(day.date)
-                    dayToDelete = null
-                }) { Text("Borrar", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { dayToDelete = null }) { Text("Cancelar") }
-            }
+            onDismiss = { selectedOfferId = null }
         )
     }
 
@@ -278,7 +251,7 @@ fun DashboardScreen(
                 }
                 item {
                     IconSectionHeader(
-                        text = "Ofertas por jornada",
+                        text = "Viajes por jornada",
                         icon = R.drawable.ic_calendar_month,
                         modifier = Modifier.padding(top = 8.dp)
                     )
@@ -297,10 +270,10 @@ fun DashboardScreen(
                         Text(
                             text = when {
                                 state.summary.count > 0 && state.filter != CategoryFilter.ALL ->
-                                    "No hay ofertas ${state.filter.quality?.label} en este periodo."
+                                    "No hay viajes ${state.filter.quality?.label} en este periodo."
                                 state.period == StatsPeriod.ALL ->
-                                    "Aún no hay ofertas registradas.\nActiva el servicio de accesibilidad y abre Uber Driver."
-                                else -> "No hay ofertas en este periodo."
+                                    "Aún no hay viajes realizados.\nAparecen cuando Observador ve un viaje de principio a fin."
+                                else -> "No hay viajes realizados en este periodo."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -312,19 +285,15 @@ fun DashboardScreen(
                             DayHeader(
                                 day = day,
                                 currentWorkday = state.currentWorkday,
-                                filtered = state.filter != CategoryFilter.ALL,
-                                onDeleteDay = { dayToDelete = day }
+                                filtered = state.filter != CategoryFilter.ALL
                             )
                         }
                         items(day.offers, key = { it.id }) { offer ->
-                            SwipeToDelete(onDelete = { viewModel.deleteOffer(offer.id) }) {
-                                OfferRow(
-                                    offer = offer,
-                                    thresholds = state.thresholds,
-                                    onClick = { selectedOfferId = offer.id },
-                                    onDelete = { viewModel.deleteOffer(offer.id) }
-                                )
-                            }
+                            OfferRow(
+                                offer = offer,
+                                thresholds = state.thresholds,
+                                onClick = { selectedOfferId = offer.id }
+                            )
                         }
                     }
                 }
@@ -451,9 +420,9 @@ private fun SummaryCard(
 ) {
     val summary = state.summary
     SectionCard(
-        title = "Resumen de ofertas",
+        title = "Viajes realizados",
         icon = R.drawable.ic_leaderboard,
-        subtitle = "Lo que Uber te ofreció, con tus ajustes de hoy"
+        subtitle = "Solo los viajes que hiciste, juzgados con tus ajustes de hoy"
     ) {
         // Scrolls sideways if a large system font makes the chips wider than the screen
         Row(
@@ -471,7 +440,7 @@ private fun SummaryCard(
         when {
             state.loading -> Unit
             summary.count == 0 -> Text(
-                text = "Sin ofertas en este periodo.",
+                text = "Sin viajes realizados en este periodo.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -497,12 +466,12 @@ private fun SummaryTiles(state: DashboardUiState) {
     val (hourNote, hourColor) = versusMin(summary.medianRdpPerHour, state.engineSettings.minRdpPerHour)
     val best = summary.best
     val tiles = listOf(
-        TileData(R.drawable.ic_notifications_active, "Ofertas vistas", "${summary.count}", null, Color.Unspecified),
+        TileData(R.drawable.ic_two_wheeler, "Viajes", "${summary.count}", null, Color.Unspecified),
         TileData(R.drawable.ic_route, "RD$/km mediana", "%.2f".format(summary.medianRdpPerKm), kmNote, kmColor),
         TileData(R.drawable.ic_speed, "RD$/h mediana", "%.0f".format(summary.medianRdpPerHour), hourNote, hourColor),
         TileData(
             icon = R.drawable.ic_trending_up,
-            label = "Mejor oferta",
+            label = "Mejor viaje",
             value = if (best != null) "RD$%.2f".format(best.price) else "-",
             note = best?.let { "score ${it.score} · ${state.thresholds.classify(it.score).label}" },
             noteColor = Color.Unspecified
@@ -635,12 +604,10 @@ private fun dayLabel(date: LocalDate, currentWorkday: LocalDate?): String = when
 private fun DayHeader(
     day: DayGroup,
     currentWorkday: LocalDate?,
-    filtered: Boolean,
-    onDeleteDay: () -> Unit
+    filtered: Boolean
 ) {
-    var menu by remember { mutableStateOf(false) }
-    // With a filter on, say how many of the day's offers are shown: "3 de 12 ofertas"
-    val count = if (filtered) "${day.offers.size} de ${day.count} ofertas" else "${day.count} ofertas"
+    // With a filter on, say how many of the day's trips are shown: "3 de 12 viajes"
+    val count = if (filtered) "${day.offers.size} de ${day.count} viajes" else "${day.count} ${if (day.count == 1) "viaje" else "viajes"}"
     Row(
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -656,20 +623,6 @@ private fun DayHeader(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        Box {
-            IconButton(onClick = { menu = true }) {
-                Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "Opciones de la jornada")
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text("Borrar esta jornada") },
-                    onClick = {
-                        menu = false
-                        onDeleteDay()
-                    }
-                )
-            }
         }
     }
 }
@@ -760,8 +713,7 @@ private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit)
 private fun OfferRow(
     offer: OfferEntity,
     thresholds: QualityThresholds,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     val time = remember(offer.detectedAt) {
         Instant.ofEpochMilli(offer.detectedAt).atZone(ZoneId.systemDefault()).format(OFFER_TIME_FORMAT)
@@ -774,8 +726,6 @@ private fun OfferRow(
                 .height(IntrinsicSize.Min)
                 .background(MaterialTheme.colorScheme.background)
                 .clickable(onClickLabel = "Ver detalle", onClick = onClick)
-                // Swiping is not available to TalkBack users; this action is
-                .semantics { customActions = listOf(CustomAccessibilityAction("Borrar oferta") { onDelete(); true }) }
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

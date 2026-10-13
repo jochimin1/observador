@@ -46,6 +46,8 @@ class OnlineRepository(private val db: AppDatabase) {
     fun observeBetween(from: Long, to: Long): Flow<List<OnlineSession>> =
         dao.observeBetween(from, to).map { list -> list.map { it.toDomain() } }
 
+    suspend fun getBetween(from: Long, to: Long): List<OnlineSession> = dao.getBetween(from, to).map { it.toDomain() }
+
     fun observeRecent(limit: Int): Flow<List<OnlineSession>> = dao.observeRecent(limit).map { list -> list.map { it.toDomain() } }
 
     fun observeCount(): Flow<Int> = dao.observeCount()

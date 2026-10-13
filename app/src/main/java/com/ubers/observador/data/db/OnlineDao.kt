@@ -31,6 +31,12 @@ interface OnlineDao {
     )
     fun observeBetween(from: Long, to: Long): Flow<List<OnlineSessionEntity>>
 
+    @Query(
+        "SELECT * FROM online_sessions WHERE started_at < :to AND " +
+            "(ended_at IS NULL OR COALESCE(possible_end_at, ended_at) >= :from) ORDER BY started_at"
+    )
+    suspend fun getBetween(from: Long, to: Long): List<OnlineSessionEntity>
+
     @Query("SELECT * FROM online_sessions ORDER BY started_at DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<OnlineSessionEntity>>
 

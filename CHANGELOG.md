@@ -14,6 +14,28 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.13.0] - 2026-10-13
+
+El inicio pasa a mostrar los viajes que hiciste, y Análisis gana la espera entre viajes.
+Incluye todo lo de la 1.12.0. Sin cambios en la base de datos. La 8B pasa a ser la 1.14.0.
+
+### Cambiado
+- Inicio: «Viajes realizados» en lugar de «Resumen de ofertas». El resumen, la lista «Viajes por
+  jornada» y «Mejores horas para salir» usan solo viajes completados, con lo que prometía su
+  oferta (guardada en el viaje al aceptarlo) y tus ajustes de hoy. Una oferta vista puede haber
+  sido de otro conductor o la dejaste pasar, así que ya no cuenta aquí.
+- Las ofertas se siguen guardando: alimentan «ofertas por hora en línea», Análisis y la
+  exportación. Desde el inicio ya no se borran (no hay deslizar ni «Borrar jornada»).
+- Quedan fuera los viajes cancelados o interrumpidos y los que Observador encontró ya empezados
+  sin ver su oferta.
+
+### Añadido
+- Análisis: tarjeta «Espera entre viajes» (de terminar un viaje a aceptar el siguiente) con
+  mediana, promedio, la más larga, reparto en menos de 5, 5 a 15, 15 a 30 y más de 30 minutos, y
+  las franjas de dos horas donde esperas menos y más (con 3 esperas o más). Cuenta una espera
+  cuando ambos extremos caen en la misma sesión en línea; sin sesión, solo si fue de 30 minutos o
+  menos (una pausa más larga puede ser un descanso).
+
 ## [1.12.0] - 2026-10-12
 
 Fase 8E: kilómetros reales con GPS. Incluye todo lo de la 1.11.0. Base de datos 8 → 9 (solo

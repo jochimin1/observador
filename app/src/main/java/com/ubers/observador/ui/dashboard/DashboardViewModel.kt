@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -132,6 +133,11 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = OfferRepository(db)
     private val settings = AppSettings(app)
     private val onlineRepository = OnlineRepository(db)
+    private val tripRepository = com.ubers.observador.data.TripRepository(db)
+
+    /** Trips done since [since], as rows with what their offer promised (offers merely seen are left out). */
+    private fun tripRowsSince(since: Long?): Flow<List<OfferEntity>> =
+        tripRepository.observeCompletedSince(since ?: 0L).map { com.ubers.observador.domain.CompletedTrips.asOfferRows(it) }
     private val distanceRepository = DistanceRepository(db)
 
     private val _exportEvents = MutableSharedFlow<ExportEvent>(extraBufferCapacity = 1)
@@ -245,7 +251,8 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { w ->
             // The whole period is loaded, so no day is ever cut short. At ~50 offers a day,
             // even a year of history is a few MB; revisit with paging if that changes.
-            val rows = if (w.since == null) repository.observeAll() else repository.observeSince(w.since)
+            // Trips done only: an offer seen may have gone to someone else or been let go
+            val rows = tripRowsSince(w.since)
             combine(rows, settings.engineSettings, settings.qualityThresholds) { offers, engine, cuts ->
                 // D1: judge the whole period with the current settings
                 val scored = DashboardStats.rescore(offers, engine)
@@ -320,7 +327,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         .distinctUntilChanged()
         .flatMapLatest { w ->
             combine(
-                repository.observeSince(w.since),
+                tripRowsSince(w.since),
                 settings.engineSettings,
                 settings.qualityThresholds
             ) { offers, engine, cuts ->

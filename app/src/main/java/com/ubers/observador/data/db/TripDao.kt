@@ -95,6 +95,10 @@ interface TripDao {
     )
     suspend fun getTripsTouching(from: Long, to: Long): List<TripEntity>
 
+    /** Completed trips whose offer was seen from [from] on (the home screen shows trips done, not offers). */
+    @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND offer_seen_at >= :from ORDER BY offer_seen_at DESC")
+    fun observeCompletedSince(from: Long): Flow<List<TripEntity>>
+
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
     suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>
 }
