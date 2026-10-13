@@ -143,7 +143,7 @@ object RideLifecycleMonitor {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val database = AppDatabase.getInstance(app)
         // Trips and money share one queue: a trip's money is always written after the trip
-        val queue = PersistenceQueue(scope)
+        val queue = PersistenceQueue.shared()
         val writer = TripPersistenceCoordinator(
             repository = TripRepository(database),
             settings = AppSettings(app),

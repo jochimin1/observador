@@ -56,6 +56,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         accessibilityEnabled = UberAccessibilityService.isEnabled(this)
+        // The driver may have changed the location permission in system settings
+        com.ubers.observador.ui.AppPermissions.refresh(this)
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -68,7 +70,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** The main destinations, one per tab of the bottom bar. Ganancias and Gastos arrive with Fase 8C and 8B. */
-private enum class Tab(val route: String, val label: String, @DrawableRes val icon: Int, @DrawableRes val selectedIcon: Int) {
+private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
     HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
     ANALYSIS("intelligence", "Análisis", R.drawable.ic_analytics, R.drawable.ic_analytics_fill),
     SETTINGS("settings", "Ajustes", R.drawable.ic_settings, R.drawable.ic_settings_fill)

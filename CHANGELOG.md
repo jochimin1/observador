@@ -14,6 +14,42 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.12.0] - 2026-10-12
+
+Fase 8E: kilómetros reales con GPS. Incluye todo lo de la 1.11.0. Base de datos 8 → 9 (solo
+añade dos tablas). Va antes de la 8B, como dice la decisión 11 del plan.
+
+### Añadido
+- «Medir km con GPS» en Ajustes (apagado hasta que lo actives y des el permiso de ubicación
+  precisa), con tres modos: al conectarte a Uber y con el botón, solo al conectarte o solo con
+  el botón.
+- Mide solo mientras hace falta: al conectarte a Uber (sesiones de la 8A) o con «Iniciar
+  recorrido». Se detiene y guarda el tramo al desconectarte, con «Detener recorrido» o al pausar
+  Observador. El GPS está apagado el resto del tiempo.
+- Cómo cuenta: distancia entre posiciones seguidas (Haversine) en milímetros enteros; descarta
+  posiciones con precisión peor que 25 m, saltos de más de 120 km/h y el temblor del GPS
+  parado. Más de 60 s sin señal se guarda aparte como «aprox. sin señal»; más de 10 min, nada.
+- El total del día es la suma de sus tramos; un tramo que cruza el inicio de la jornada se corta
+  ahí y la jornada nueva empieza en 0. El tramo abierto se guarda cada minuto.
+- Reparto de los km: con pasajero, a recoger, sin pasajero (en línea) y fuera de línea.
+- Km por viaje (recogida y viaje) con su cobertura, frente a lo que estimó la oferta, en el
+  detalle del viaje del panel de prueba.
+- Tarjeta «Km de hoy» en el inicio: total, reparto, tramos del día y botón Iniciar / Detener
+  recorrido. La notificación dice «Midiendo km · 23.4 km hoy» mientras mide.
+- Panel de prueba «Kilómetros»: contadores de calidad y tramos TEST-km-.
+
+### Privacidad
+- Las posiciones se usan en memoria para sumar metros y se descartan al instante. Nunca se
+  guardan coordenadas, rutas ni mapas: ni en la base de datos, ni en exportaciones, ni en
+  registros. Una prueba revisa que ninguna tabla tenga dónde guardarlas.
+
+### Técnico
+- Permisos nuevos: ubicación precisa y servicio en primer plano de tipo «ubicación». Librería
+  nueva: ubicación combinada de Google (play-services-location 21.3.0).
+- Si Android reinicia el servicio con la app cerrada, puede negarle el tipo «ubicación»; la
+  tarjeta lo avisa y basta con abrir Observador una vez.
+- Corregido el aviso de compilación de `MainActivity.kt:71`.
+
 ## [1.11.0] - 2026-10-12
 
 Fase 8A: tiempo en línea, y una cara nueva para toda la app. Incluye todo lo de la 1.10.0.

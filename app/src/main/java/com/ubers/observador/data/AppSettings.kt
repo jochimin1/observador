@@ -45,6 +45,10 @@ class AppSettings(private val context: Context) {
         private val KEY_OBSERVER_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("observer_enabled")
         private val KEY_PROFILES = stringPreferencesKey("settings_profiles")
         private val KEY_ACTIVE_PROFILE = stringPreferencesKey("active_profile_id")
+        // Fase 8E: kilometres with GPS. Off until the driver turns it on and grants location
+        private val KEY_DISTANCE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("distance_enabled")
+        private val KEY_DISTANCE_MODE = stringPreferencesKey("distance_mode")
+        private val KEY_DISTANCE_MANUAL = androidx.datastore.preferences.core.booleanPreferencesKey("distance_manual")
 
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
@@ -97,7 +101,30 @@ class AppSettings(private val context: Context) {
      */
     val observerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_OBSERVER_ENABLED] ?: true }
 
-    suspend fun updateObserverEnabled(value: Boolean) = context.dataStore.edit { it[KEY_OBSERVER_ENABLED] = value }
+    suspend fun updateObserverEnabled(value: Boolean) = context.dataStore.edit {
+        it[KEY_OBSERVER_ENABLED] = value
+        // Pausing also ends a measurement started with the button (decision 12: pause stops the GPS)
+        if (!value) it[KEY_DISTANCE_MANUAL] = false
+    }
+
+    /** "Medir km con GPS" (Fase 8E). Not part of profiles. */
+    val distanceEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_ENABLED] ?: false }
+
+    suspend fun updateDistanceEnabled(value: Boolean) = context.dataStore.edit {
+        it[KEY_DISTANCE_ENABLED] = value
+        if (!value) it[KEY_DISTANCE_MANUAL] = false
+    }
+
+    val distanceMode: Flow<com.ubers.observador.domain.distance.DistanceMode> =
+        context.dataStore.data.map { com.ubers.observador.domain.distance.DistanceMode.fromStorage(it[KEY_DISTANCE_MODE]) }
+
+    suspend fun updateDistanceMode(value: com.ubers.observador.domain.distance.DistanceMode) =
+        context.dataStore.edit { it[KEY_DISTANCE_MODE] = value.storageKey }
+
+    /** The "Iniciar recorrido" button; kept across restarts so a measurement survives the app being closed. */
+    val distanceManual: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_MANUAL] ?: false }
+
+    suspend fun updateDistanceManual(value: Boolean) = context.dataStore.edit { it[KEY_DISTANCE_MANUAL] = value }
 
     /** Saved settings profiles (see SettingsProfileCodec). A broken entry is skipped, never fatal. */
     val profiles: Flow<List<SettingsProfile>> = context.dataStore.data.map { SettingsProfileCodec.decode(it[KEY_PROFILES]) }

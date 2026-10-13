@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -40,6 +41,7 @@ class TripsDebugViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repository = TripRepository(AppDatabase.getInstance(app))
     private val money = FinancialRepository(AppDatabase.getInstance(app))
+    private val distances = com.ubers.observador.data.DistanceRepository(AppDatabase.getInstance(app))
     private val message = MutableStateFlow<String?>(null)
     private val selectedId = MutableStateFlow<String?>(null)
 
@@ -61,6 +63,13 @@ class TripsDebugViewModel(app: Application) : AndroidViewModel(app) {
     /** The open trip's money (Fase 7C): offered vs real, never the offer as income. */
     val selectedMoney: StateFlow<TripFinancialSummary?> = selectedId
         .flatMapLatest { id -> if (id == null) flowOf(null) else money.observeSummary(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The open trip's GPS kilometres (Fase 8E), against what the offer estimated. */
+    val selectedDistance: StateFlow<Pair<String, com.ubers.observador.domain.distance.TripDistance?>?> = selectedId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(null) else distances.observeTripDistance(id).map { id to it }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun select(id: String?) {

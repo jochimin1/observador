@@ -73,6 +73,7 @@ fun DashboardScreen(
     val bestHours by viewModel.bestHours.collectAsState()
     val bestHoursPeriod by viewModel.selectedBestHoursPeriod.collectAsState()
     val online by viewModel.online.collectAsState()
+    val distance by viewModel.distance.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -253,6 +254,14 @@ fun DashboardScreen(
                 }
                 item {
                     OnlineCard(state = online, modifier = Modifier.padding(top = 16.dp))
+                }
+                item {
+                    DistanceCard(
+                        state = distance,
+                        onEnable = { viewModel.setDistanceEnabled(true) },
+                        onManual = viewModel::setManualDistance,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
                 }
                 item {
                     BestHoursSection(

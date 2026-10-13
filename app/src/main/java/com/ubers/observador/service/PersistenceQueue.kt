@@ -11,6 +11,20 @@ import kotlinx.coroutines.launch
  */
 class PersistenceQueue(scope: CoroutineScope) {
 
+    companion object {
+        @Volatile private var shared: PersistenceQueue? = null
+
+        /**
+         * The one queue of the process (trips, money, online sessions and kilometres), created by
+         * whichever service starts first: the accessibility service or the foreground service.
+         */
+        fun shared(): PersistenceQueue = shared ?: synchronized(this) {
+            shared ?: PersistenceQueue(
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+            ).also { shared = it }
+        }
+    }
+
     private val jobs = Channel<suspend () -> Unit>(Channel.UNLIMITED)
 
     init {

@@ -9,6 +9,12 @@ import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.OnlineRepository
+import com.ubers.observador.data.DistanceRepository
+import com.ubers.observador.domain.distance.DayDistance
+import com.ubers.observador.domain.distance.DistanceMode
+import com.ubers.observador.service.DistanceLiveState
+import com.ubers.observador.service.DistanceMonitor
+import com.ubers.observador.ui.AppPermissions
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.data.debug.TestOfferSeeder
@@ -95,6 +101,19 @@ data class OnlineUiState(
     val loading: Boolean = true
 )
 
+/** Fase 8E: today's kilometres, live while measuring, and what is needed to measure. */
+data class DistanceUiState(
+    val enabled: Boolean = false,
+    val permitted: Boolean = false,
+    val observerOn: Boolean = true,
+    val mode: DistanceMode = DistanceMode.AUTO_AND_MANUAL,
+    val manualRequested: Boolean = false,
+    /** Today's stretches, the open one taken live from the tracker (the database lags up to a minute). */
+    val day: DayDistance? = null,
+    val live: DistanceLiveState = DistanceLiveState(),
+    val loading: Boolean = true
+)
+
 /** Offers just deleted, kept exactly as stored so "Deshacer" can put them back. */
 data class DeletedOffers(val message: String, val offers: List<OfferEntity>)
 
@@ -113,6 +132,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = OfferRepository(db)
     private val settings = AppSettings(app)
     private val onlineRepository = OnlineRepository(db)
+    private val distanceRepository = DistanceRepository(db)
 
     private val _exportEvents = MutableSharedFlow<ExportEvent>(extraBufferCapacity = 1)
     val exportEvents: SharedFlow<ExportEvent> = _exportEvents.asSharedFlow()
@@ -336,6 +356,31 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnlineUiState())
+
+    // ---- Kilometres with GPS (Fase 8E) ----
+
+    private val todayDistance: Flow<DayDistance> = clockNow
+        .mapLatest { (clock, now) -> clock.workdayOf(now) }
+        .distinctUntilChanged()
+        .flatMapLatest { distanceRepository.observeDay(it) }
+
+    private val distanceSwitches = combine(
+        settings.distanceEnabled, settings.distanceMode, settings.distanceManual, settings.observerEnabled, AppPermissions.location
+    ) { enabled, mode, manual, observer, permitted -> DistanceUiState(enabled, permitted, observer, mode, manual) }
+
+    val distance: StateFlow<DistanceUiState> = combine(distanceSwitches, todayDistance, DistanceMonitor.state) { sw, stored, live ->
+        // The open stretch changes every few seconds in memory; the stored copy only every minute
+        val open = live.open?.takeIf { it.workday == stored.workday }
+        val segments = stored.segments.filter { it.id != open?.id } + listOfNotNull(open)
+        sw.copy(day = DayDistance.of(stored.workday, segments), live = live, loading = false)
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DistanceUiState())
+
+    fun setDistanceEnabled(enabled: Boolean) = viewModelScope.launch { settings.updateDistanceEnabled(enabled) }
+
+    /** "Iniciar recorrido" / "Detener recorrido". */
+    fun setManualDistance(on: Boolean) = viewModelScope.launch { settings.updateDistanceManual(on) }
 
     // ---- Deleting, with undo ----
 

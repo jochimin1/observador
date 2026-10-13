@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -205,5 +206,25 @@ fun IconSectionHeader(text: String, @DrawableRes icon: Int, modifier: Modifier =
     ) {
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/**
+ * A bar split in several shares (e.g. km with passenger / pickup / empty / offline). Zero parts
+ * are left out; an all-zero bar is just the track. [description] is what TalkBack reads.
+ */
+@Composable
+fun StackedBar(parts: List<Pair<Long, Color>>, description: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .clearAndSetSemantics { contentDescription = description }
+    ) {
+        parts.filter { it.first > 0 }.forEach { (value, color) ->
+            Box(Modifier.weight(value.toFloat()).fillMaxHeight().background(color))
+        }
     }
 }

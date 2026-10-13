@@ -30,6 +30,7 @@ import com.ubers.observador.domain.finance.TripFinancialSummary
 import com.ubers.observador.domain.money.Currencies
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.money.MoneyFormat
+import com.ubers.observador.domain.formatNumber
 import com.ubers.observador.domain.trips.Trip
 import com.ubers.observador.domain.trips.TripTimeline
 import java.time.Instant
@@ -53,8 +54,16 @@ fun TripsDebugCard(viewModel: TripsDebugViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val selected by viewModel.selected.collectAsState()
     val selectedMoney by viewModel.selectedMoney.collectAsState()
+    val selectedDistance by viewModel.selectedDistance.collectAsState()
 
-    selected?.let { TimelineDialog(it, selectedMoney?.takeIf { m -> m.tripId == it.trip.id }, onDismiss = { viewModel.select(null) }) }
+    selected?.let {
+        TimelineDialog(
+            it,
+            selectedMoney?.takeIf { m -> m.tripId == it.trip.id },
+            selectedDistance?.takeIf { d -> d.first == it.trip.id }?.second,
+            onDismiss = { viewModel.select(null) }
+        )
+    }
 
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -121,7 +130,12 @@ private fun TripRow(trip: Trip, eventCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TimelineDialog(data: TripWithEvents, money: TripFinancialSummary?, onDismiss: () -> Unit) {
+private fun TimelineDialog(
+    data: TripWithEvents,
+    money: TripFinancialSummary?,
+    distance: com.ubers.observador.domain.distance.TripDistance?,
+    onDismiss: () -> Unit
+) {
     val trip = data.trip
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -138,6 +152,7 @@ private fun TimelineDialog(data: TripWithEvents, money: TripFinancialSummary?, o
                     style = MaterialTheme.typography.bodySmall
                 )
                 MoneyBlock(trip, money)
+                DistanceBlock(trip, distance)
                 HorizontalDivider()
                 data.events.forEach { e ->
                     Text(
@@ -179,6 +194,24 @@ private fun MoneyBlock(trip: Trip, money: TripFinancialSummary?) {
         lines += "Estado: UNKNOWN · ningún importe visto"
     }
     lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+}
+
+/** GPS kilometres (Fase 8E) against what the offer estimated; with real money, the real RD$/km. */
+@Composable
+private fun DistanceBlock(trip: Trip, distance: com.ubers.observador.domain.distance.TripDistance?) {
+    HorizontalDivider()
+    fun km(mm: Long) = com.ubers.observador.domain.distance.DistanceFormat.km(mm)
+    val offer = trip.offer
+    val estimated = offer?.let { " (oferta: ${formatNumber(it.pickupKm)} + ${formatNumber(it.tripKm)} km)" } ?: ""
+    if (distance == null) {
+        Text("Km GPS: no medidos$estimated", style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    Text(
+        "Km GPS: recogida ${km(distance.pickupMm)} + viaje ${km(distance.tripMm)} km$estimated · ${distance.coverage.name}" +
+            if (distance.gapMm > 0) " · ${km(distance.gapMm)} km aprox. sin señal" else "",
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
 private fun shortId(id: String): String = if (id.length <= HASH_HEAD + 2) id else id.take(HASH_HEAD + 2) + "…"

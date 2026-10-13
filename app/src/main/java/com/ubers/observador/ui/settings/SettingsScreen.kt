@@ -246,6 +246,18 @@ fun SettingsScreen(
                 onValid = { viewModel.updateExcellentScore(it) }
             )
 
+            SectionHeader("Kilómetros", R.drawable.ic_route)
+            val distanceEnabled by viewModel.distanceEnabled.collectAsState()
+            val distanceMode by viewModel.distanceMode.collectAsState()
+            val locationPermitted by com.ubers.observador.ui.AppPermissions.location.collectAsState()
+            DistanceSettingsCard(
+                enabled = distanceEnabled,
+                permitted = locationPermitted,
+                mode = distanceMode,
+                onEnabled = { viewModel.setDistanceEnabled(it) },
+                onMode = { viewModel.setDistanceMode(it) }
+            )
+
             SectionHeader("Jornada", R.drawable.ic_calendar_month)
             IntSettingCard(
                 title = "Inicio de la jornada",
@@ -316,6 +328,7 @@ fun SettingsScreen(
                 )
                 LifecycleDebugCard()
                 OnlineDebugCard()
+                DistanceDebugCard()
                 TripsDebugCard()
                 FinanceDebugCard()
             }

@@ -103,6 +103,19 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateObserverEnabled(enabled) }
 
+    // ---- Kilometres with GPS (Fase 8E) ----
+
+    val distanceEnabled: StateFlow<Boolean> = appSettings.distanceEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val distanceMode: StateFlow<com.ubers.observador.domain.distance.DistanceMode> = appSettings.distanceMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.ubers.observador.domain.distance.DistanceMode.AUTO_AND_MANUAL)
+
+    fun setDistanceEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateDistanceEnabled(enabled) }
+
+    fun setDistanceMode(mode: com.ubers.observador.domain.distance.DistanceMode) =
+        viewModelScope.launch { appSettings.updateDistanceMode(mode) }
+
     // ---- Profiles ----
 
     val profiles: StateFlow<ProfilesUiState> = combine(
