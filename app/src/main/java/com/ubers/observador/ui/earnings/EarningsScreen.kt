@@ -796,7 +796,7 @@ private fun moneyStatus(row: TripMoneyRow): Pair<String, Color> = when {
     row.hasAnomalies -> "Revisar" to MaterialTheme.colorScheme.error
     row.completeness == FinancialCompleteness.CONFIRMED -> (if (row.tipMinor > 0) "Confirmado · con propina" else "Confirmado") to MaterialTheme.colorScheme.tertiary
     row.completeness == FinancialCompleteness.PARTIAL -> "Parcial: sin total" to MaterialTheme.colorScheme.secondary
-    else -> "Sin dinero visto" to MaterialTheme.colorScheme.outline
+    else -> "Sin dinero visto" to MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable
@@ -835,7 +835,7 @@ private fun TripDetailContent(d: TripDetail) {
                     Text(
                         MoneyFormat.format(o.amount),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (gone) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                        color = if (gone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

@@ -14,6 +14,33 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.18.0] - 2026-10-14
+
+Fase 8G: temas. Incluye todo lo de la 1.17.0. La base de datos no cambia (sigue en 11).
+
+### Añadido
+- Ajustes → «Apariencia» con cinco temas y vista previa de cada uno:
+  - **Sistema**: claro u oscuro como el teléfono (el de siempre).
+  - **Claro** y **Oscuro**: fijos, sin depender del teléfono.
+  - **Noche**: negro puro con grises para separar tarjetas, texto blanco al 96 %; menos brillo y
+    menos batería en pantallas AMOLED (guía de Google para pantallas de manejo).
+  - **Sol**: alto contraste (nivel 1.0 de Material) con texto casi negro y letras un paso más
+    firmes; la tarjeta flotante sobre Uber sale un 15 % más grande.
+- «Noche automática»: pasa a Noche entre las horas que elijas (19 a 6 por defecto) aunque el
+  teléfono esté en modo claro, y vuelve a tu tema después.
+- Los iconos de la barra de estado siguen al tema que se ve, no al del teléfono.
+
+### Cambiado
+- Los colores viven en un solo lugar (`ThemePalettes`), sin colores del fondo de pantalla. Los de
+  MALO, BUENO y EXCELENTE no cambian con el tema.
+- Dos textos que usaban el color de los bordes («Sin dinero visto» y las cantidades anuladas)
+  usan ahora el color de texto secundario, que se lee mejor.
+
+### Pruebas
+- 6 pruebas JVM nuevas (`ThemeTest`): contraste de 4.5:1 o más en cada par de texto y fondo de
+  los cuatro temas y de los tres veredictos, Sol con más contraste que Claro, Noche en negro puro,
+  y la Noche automática cruzando la medianoche.
+
 ## [1.17.0] - 2026-10-14
 
 Fase 8F: origen, destino y pasajero, y diagnóstico de las tarjetas de ofertas. Incluye todo lo de

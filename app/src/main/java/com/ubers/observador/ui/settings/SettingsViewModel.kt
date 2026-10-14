@@ -123,6 +123,17 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setMaintenanceNotification(on: Boolean) = viewModelScope.launch { appSettings.updateMaintenanceNotification(on) }
 
+    // ---- Looks (Fase 8G) ----
+
+    val themeSettings: StateFlow<com.ubers.observador.domain.ThemeSettings> = appSettings.themeSettings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.ubers.observador.domain.ThemeSettings())
+
+    fun setTheme(theme: com.ubers.observador.domain.AppTheme) = viewModelScope.launch { appSettings.updateTheme(theme) }
+
+    fun setAutoNight(on: Boolean) = viewModelScope.launch { appSettings.updateAutoNight(on) }
+
+    fun setNightHours(from: Int, to: Int) = viewModelScope.launch { appSettings.updateNightHours(from, to) }
+
     // ---- Goals (Fase 8C) ----
 
     val goals: StateFlow<com.ubers.observador.domain.earnings.GoalSettings> = appSettings.goals

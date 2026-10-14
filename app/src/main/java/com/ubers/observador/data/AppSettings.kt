@@ -68,6 +68,12 @@ class AppSettings(private val context: Context) {
         private val KEY_WEEKLY_REPORT_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("weekly_report_notification")
         private val KEY_WEEKLY_REPORT_NOTIFIED = stringPreferencesKey("weekly_report_notified")
 
+        // Fase 8G: looks. Not part of profiles
+        private val KEY_THEME = stringPreferencesKey("app_theme")
+        private val KEY_AUTO_NIGHT = androidx.datastore.preferences.core.booleanPreferencesKey("auto_night")
+        private val KEY_NIGHT_FROM = intPreferencesKey("night_from_hour")
+        private val KEY_NIGHT_TO = intPreferencesKey("night_to_hour")
+
         const val DEFAULT_WORKDAY_START_HOUR = 4
 
         const val MODE_OBSERVER = "OBSERVER"
@@ -162,6 +168,25 @@ class AppSettings(private val context: Context) {
     val weeklyReportNotified: Flow<String?> = context.dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFIED] }
 
     suspend fun markWeeklyReportNotified(weekKey: String) = context.dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFIED] = weekKey }
+
+    /** Theme, and "Noche" by the hour (Fase 8G). */
+    val themeSettings: Flow<com.ubers.observador.domain.ThemeSettings> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.ThemeSettings(
+            theme = com.ubers.observador.domain.AppTheme.fromStorage(prefs[KEY_THEME]),
+            autoNight = prefs[KEY_AUTO_NIGHT] ?: false,
+            nightFromHour = (prefs[KEY_NIGHT_FROM] ?: 19).coerceIn(0, 23),
+            nightToHour = (prefs[KEY_NIGHT_TO] ?: 6).coerceIn(0, 23)
+        )
+    }
+
+    suspend fun updateTheme(theme: com.ubers.observador.domain.AppTheme) = context.dataStore.edit { it[KEY_THEME] = theme.storageKey }
+
+    suspend fun updateAutoNight(value: Boolean) = context.dataStore.edit { it[KEY_AUTO_NIGHT] = value }
+
+    suspend fun updateNightHours(from: Int, to: Int) = context.dataStore.edit {
+        it[KEY_NIGHT_FROM] = from.coerceIn(0, 23)
+        it[KEY_NIGHT_TO] = to.coerceIn(0, 23)
+    }
 
     /** Share of the motorbike used for work, 0-100 (decision 8: one % for everything, 100 by default). */
     val workSharePct: Flow<Int> = context.dataStore.data.map { it[KEY_WORK_SHARE] ?: 100 }

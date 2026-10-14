@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -52,7 +54,32 @@ class MainActivity : ComponentActivity() {
         ObservadorForegroundService.start(this)
         handleOpen(intent)
         setContent {
-            ObservadorTheme {
+            val themeFlow = remember { com.ubers.observador.data.AppSettings(applicationContext).themeSettings }
+            // Read once before the first frame, so a "Noche" driver never sees a light flash
+            val initialTheme = remember { kotlinx.coroutines.runBlocking { themeFlow.first() } }
+            val themeSettings by themeFlow.collectAsState(initial = initialTheme)
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            // "Noche" by the hour: the hour is checked every minute
+            val hour by androidx.compose.runtime.produceState(java.time.LocalTime.now().hour) {
+                while (true) {
+                    value = java.time.LocalTime.now().hour
+                    kotlinx.coroutines.delay(60_000)
+                }
+            }
+            val resolved = com.ubers.observador.domain.ThemeResolver.resolve(
+                themeSettings, systemDark, hour
+            )
+            // Status and navigation bar icons follow the theme drawn, not the phone's setting
+            androidx.compose.runtime.LaunchedEffect(resolved.isDark) {
+                val transparent = android.graphics.Color.TRANSPARENT
+                enableEdgeToEdge(
+                    statusBarStyle = if (resolved.isDark) androidx.activity.SystemBarStyle.dark(transparent)
+                    else androidx.activity.SystemBarStyle.light(transparent, transparent),
+                    navigationBarStyle = if (resolved.isDark) androidx.activity.SystemBarStyle.dark(transparent)
+                    else androidx.activity.SystemBarStyle.light(transparent, transparent)
+                )
+            }
+            ObservadorTheme(resolved) {
                 ObservadorNavHost(accessibilityEnabled = accessibilityEnabled)
             }
         }

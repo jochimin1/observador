@@ -24,12 +24,17 @@ class OverlayManager(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
 
+    /** Fase 8G: the Sol theme draws the card's text 15 % bigger, for the glare. */
+    private var textScale = 1f
+
     private companion object {
         const val TAG = "OverlayManager"
+        const val LARGE_SCALE = 1.15f
     }
 
     /** Safe to call from any thread; runs immediately when already on the main thread. */
-    fun show(analysis: OfferAnalysis, quality: OfferQuality, durationSeconds: Int) = runOnMain {
+    fun show(analysis: OfferAnalysis, quality: OfferQuality, durationSeconds: Int, large: Boolean = false) = runOnMain {
+        textScale = if (large) LARGE_SCALE else 1f
         removeNow()
         val view = buildCardView(analysis, quality).apply {
             contentDescription = "Oferta ${quality.label}, ${analysis.score} de 100. Toca para cerrar"
@@ -113,7 +118,7 @@ class OverlayManager(private val context: Context) {
             gravity = Gravity.CENTER_VERTICAL
             addView(TextView(context).apply {
                 text = "RD$%.2f".format(analysis.offer.price)
-                textSize = 22f
+                textSize = 22f * textScale
                 setTextColor(Color.WHITE)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -122,7 +127,7 @@ class OverlayManager(private val context: Context) {
             // sunlight or for color-blind drivers
             addView(TextView(context).apply {
                 text = "${analysis.score} · ${quality.label}"
-                textSize = 15f
+                textSize = 15f * textScale
                 setTextColor(quality.foregroundArgb)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding((10 * dp).toInt(), marginSm, (10 * dp).toInt(), marginSm)
@@ -134,7 +139,7 @@ class OverlayManager(private val context: Context) {
             // Close hint: the whole card is tappable, this just tells the driver it can be closed
             addView(TextView(context).apply {
                 text = "✕"
-                textSize = 18f
+                textSize = 18f * textScale
                 setTextColor(Color.parseColor("#AAAAAA"))
                 setPadding((12 * dp).toInt(), 0, (2 * dp).toInt(), 0)
             })
@@ -143,7 +148,7 @@ class OverlayManager(private val context: Context) {
         // km · min
         card.addView(TextView(context).apply {
             text = "%.1f km · %d min".format(analysis.totalKm, analysis.totalMin)
-            textSize = 14f
+            textSize = 14f * textScale
             setTextColor(Color.parseColor("#CCCCCC"))
             setPadding(0, marginSm, 0, 0)
         })
@@ -151,7 +156,7 @@ class OverlayManager(private val context: Context) {
         // RD$/km rate
         card.addView(TextView(context).apply {
             text = "RD$%.2f/km".format(analysis.rdpPerKm)
-            textSize = 14f
+            textSize = 14f * textScale
             setTextColor(Color.parseColor("#CCCCCC"))
             setPadding(0, marginSm, 0, 0)
         })
@@ -163,7 +168,7 @@ class OverlayManager(private val context: Context) {
         ).forEach { line ->
             card.addView(TextView(context).apply {
                 text = line
-                textSize = 13f
+                textSize = 13f * textScale
                 setTextColor(Color.WHITE)
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END

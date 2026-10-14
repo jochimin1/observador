@@ -112,6 +112,36 @@ fun SettingsScreen(
                 onDelete = { viewModel.deleteProfile(it) }
             )
 
+            SectionHeader("Apariencia", R.drawable.ic_contrast)
+            val theme by viewModel.themeSettings.collectAsState()
+            ThemeCard(selected = theme.theme, onSelect = { viewModel.setTheme(it) })
+            SwitchSettingCard(
+                title = "Noche automática",
+                description = "Pasa a Noche entre las horas que elijas, aunque el teléfono esté en modo claro. Al terminar vuelve a tu tema.",
+                checked = theme.autoNight,
+                onChange = { viewModel.setAutoNight(it) }
+            )
+            if (theme.autoNight) {
+                IntSettingCard(
+                    title = "Noche desde",
+                    description = "Hora en formato de 24 horas (19 = 7 pm).",
+                    value = theme.nightFromHour,
+                    min = 0,
+                    max = 23,
+                    suffix = "h",
+                    onValid = { viewModel.setNightHours(it, theme.nightToHour) }
+                )
+                IntSettingCard(
+                    title = "Noche hasta",
+                    description = "Hora en que vuelve tu tema (6 = 6 am).",
+                    value = theme.nightToHour,
+                    min = 0,
+                    max = 23,
+                    suffix = "h",
+                    onValid = { viewModel.setNightHours(theme.nightFromHour, it) }
+                )
+            }
+
             SectionHeader("Costos operativos", R.drawable.ic_local_gas_station)
             DecimalSettingCard(
                 title = "Precio del combustible",

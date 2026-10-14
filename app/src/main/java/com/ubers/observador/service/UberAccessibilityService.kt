@@ -272,6 +272,12 @@ class UberAccessibilityService : AccessibilityService() {
                 }
 
                 val showOverlay = settings.showOverlay.first()
+                // Fase 8G: bigger card text with the Sol theme
+                val night = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+                val large = com.ubers.observador.domain.ThemeResolver.resolve(
+                    settings.themeSettings.first(), night, java.time.LocalTime.now().hour
+                ) == com.ubers.observador.domain.ResolvedTheme.SUN
                 val overlaySeconds = settings.overlayDurationSeconds.first()
                 // Alerts only for a newly recorded GOOD or EXCELLENT offer, so a flicker never re-notifies
                 val notify = saved &&
@@ -281,7 +287,7 @@ class UberAccessibilityService : AccessibilityService() {
                 mainHandler.post {
                     // The card may already be gone or replaced while we were analysing
                     if (tracker.activeHash != hash) return@post
-                    if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds)
+                    if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds, large)
                     OfferDebug.onOverlay(showOverlay)
                     if (notify) {
                         notifier.notifyGoodOffer(analysis, quality)
