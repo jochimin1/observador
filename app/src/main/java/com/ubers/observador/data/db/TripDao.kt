@@ -99,6 +99,13 @@ interface TripDao {
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND offer_seen_at >= :from ORDER BY offer_seen_at DESC")
     fun observeCompletedSince(from: Long): Flow<List<TripEntity>>
 
+    /** Fase 8F: the rider's name read after accepting; only when it changes. Returns the rows changed. */
+    @Query(
+        "UPDATE trips SET rider_name = :name WHERE lifecycle_session_id = :sessionId " +
+            "AND (rider_name IS NULL OR rider_name != :name)"
+    )
+    suspend fun setRiderName(sessionId: String, name: String): Int
+
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
     suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>
 }

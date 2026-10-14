@@ -39,6 +39,22 @@ class TripPersistenceCoordinator(
     }
 
     /**
+     * Fase 8F: the rider's name, queued after the trip's own events so the trip already exists.
+     * A failure is logged and dropped: the name is shown again on the next screen.
+     */
+    fun submitRiderName(sessionId: String, name: String) {
+        queue.enqueue {
+            try {
+                repository.setRiderName(sessionId, name)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("TripWriter", "Rider name not stored", e)
+            }
+        }
+    }
+
+    /**
      * Queues the start-up recovery ahead of any event; [onDone] receives the trip still open
      * (already marked LIFECYCLE_LOST) or null. It is called even if the database fails, so the
      * lifecycle never waits forever.

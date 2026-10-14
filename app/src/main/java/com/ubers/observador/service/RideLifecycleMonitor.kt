@@ -188,12 +188,30 @@ object RideLifecycleMonitor {
         if (BuildConfig.DEBUG) lastSnapshot = snapshot
         log(result)
         coordinator?.submit(result.events)
+        observeRider(snapshot)
         observeMoney(snapshot, result)
         val onlineRecheck = observeOnline(snapshot, result)
         publish(snapshot.timestampMs)
         // Both may ask to read again: the sooner wins (money above used the lifecycle's own answer)
         val recheck = listOfNotNull(result.recheckAfterMs, onlineRecheck).minOrNull()
         return if (recheck == result.recheckAfterMs) result else result.copy(recheckAfterMs = recheck)
+    }
+
+    private var lastRider: Pair<String, String>? = null
+
+    /**
+     * Fase 8F: the rider's name ("Llegar por …") while a ride is under way, stored with its trip
+     * once per change. Also keeps the screen for the full copy of the debug panel.
+     */
+    private fun observeRider(snapshot: ScreenSnapshot) {
+        val ctx = pipeline.context
+        val session = ctx.sessionId ?: return
+        if (!ctx.state.isActiveTrip) return
+        val name = com.ubers.observador.domain.lifecycle.RiderNameReader.read(snapshot.texts) ?: return
+        OfferDebug.onRiderScreen(snapshot, name)
+        if (lastRider == session to name) return
+        lastRider = session to name
+        coordinator?.submitRiderName(session, name)
     }
 
     /**

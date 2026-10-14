@@ -101,6 +101,9 @@ class TripRepository(private val db: AppDatabase) {
     fun observeCounts(): Flow<Pair<Int, Int>> =
         combine(trips.observeTripCount(), trips.observeEventCount()) { t, e -> t to e }
 
+    /** Fase 8F: stores the rider's name on the trip of [sessionId]; false when there is none or it was already stored. */
+    suspend fun setRiderName(sessionId: String, name: String): Boolean = trips.setRiderName(sessionId, name) > 0
+
     suspend fun getTripByLifecycleSessionId(sessionId: String): Trip? =
         trips.getByLifecycleSessionId(sessionId)?.toDomain()
 

@@ -15,6 +15,10 @@ import com.ubers.observador.data.OfferRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.ProfitEngine
+import com.ubers.observador.domain.lifecycle.OfferParseCheck
+import com.ubers.observador.domain.lifecycle.OfferParseStep
+import com.ubers.observador.domain.lifecycle.OfferPlaces
+import com.ubers.observador.domain.lifecycle.OfferPlacesReader
 import com.ubers.observador.domain.lifecycle.ScreenSnapshot
 import com.ubers.observador.domain.models.OfferAnalysis
 import com.ubers.observador.domain.models.UberOffer
@@ -138,9 +142,23 @@ class UberAccessibilityService : AccessibilityService() {
         } finally {
             root.recycle()
         }
-        // If another app took the foreground, there is no Uber card to read
-        val offer: UberOffer? =
-            if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parse(snapshot.texts) else null
+        // The card is read from the active window; if it is not there (the card can be its own
+        // window, or another app is in front), the other Uber windows are tried (Fase 8F)
+        val active = if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parse(snapshot.texts) else null
+        val found: Pair<UberOffer, ScreenSnapshot>? = active?.let { it to snapshot } ?: offerFromOtherWindows(snapshot.timestampMs)
+        val offerScreen = found?.second ?: snapshot.takeIf {
+            it.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(it.texts)
+        }
+        val offer: UberOffer? = found?.let { (o, s) ->
+            val places = OfferPlacesReader.read(s.texts)
+            o.copy(pickupAddress = places.pickup, dropoffAddress = places.dropoff)
+        }
+        offerScreen?.let { s ->
+            OfferDebug.onOfferScreen(
+                s, if (offer != null) OfferParseStep.OK else OfferParseCheck.check(s.texts),
+                offer?.let { OfferPlaces(it.pickupAddress, it.dropoffAddress) }, otherWindow = found != null && active == null
+            )
+        }
         observeLifecycle(snapshot, offer?.offerHash())
         scheduleKeepAlive()
 
@@ -154,6 +172,32 @@ class UberAccessibilityService : AccessibilityService() {
         if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
             sessionStart(offer, hash)
         }
+    }
+
+    /** An offer card in an Uber window other than the active one, or null. Every node is released. */
+    @Suppress("DEPRECATION")
+    private fun offerFromOtherWindows(atMs: Long): Pair<UberOffer, ScreenSnapshot>? {
+        val list = try {
+            windows
+        } catch (e: RuntimeException) {
+            return null
+        }
+        val activeId = try { rootInActiveWindow?.let { r -> r.windowId.also { r.recycle() } } } catch (e: RuntimeException) { null }
+        for (w in list) {
+            if (w.id == activeId) continue
+            val root = w.root ?: continue
+            try {
+                if (root.packageName?.toString() != UBER_DRIVER_PACKAGE) continue
+                val s = ScreenSnapshotFactory.from(root, atMs)
+                val o = OfferParser.parse(s.texts) ?: continue
+                return o to s
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "Could not read another window", e)
+            } finally {
+                root.recycle()
+            }
+        }
+        return null
     }
 
     /**
@@ -238,7 +282,11 @@ class UberAccessibilityService : AccessibilityService() {
                     // The card may already be gone or replaced while we were analysing
                     if (tracker.activeHash != hash) return@post
                     if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds)
-                    if (notify) notifier.notifyGoodOffer(analysis, quality)
+                    OfferDebug.onOverlay(showOverlay)
+                    if (notify) {
+                        notifier.notifyGoodOffer(analysis, quality)
+                        OfferDebug.onNotified()
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

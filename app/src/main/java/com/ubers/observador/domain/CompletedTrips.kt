@@ -36,7 +36,9 @@ object CompletedTrips {
                     rdpPerHour = 0.0,
                     fuelCost = 0.0,
                     netProfit = 0.0,
-                    score = offer.scoreAtDetection
+                    score = offer.scoreAtDetection,
+                    pickupAddress = offer.pickupAddress,
+                    dropoffAddress = offer.dropoffAddress
                 )
             }
             .distinctBy { it.id }

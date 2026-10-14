@@ -61,7 +61,11 @@ data class TripEntity(
     @ColumnInfo(name = "setting_weight_km_pct") val settingWeightKmPct: Int? = null,
     @ColumnInfo(name = "setting_weight_hour_pct") val settingWeightHourPct: Int? = null,
     @ColumnInfo(name = "setting_weight_pickup_km_pct") val settingWeightPickupKmPct: Int? = null,
-    @ColumnInfo(name = "setting_weight_pickup_min_pct") val settingWeightPickupMinPct: Int? = null
+    @ColumnInfo(name = "setting_weight_pickup_min_pct") val settingWeightPickupMinPct: Int? = null,
+    // Fase 8F (DB 11): copied from the offer card, and the rider's name read after accepting
+    @ColumnInfo(name = "offer_pickup_address") val offerPickupAddress: String? = null,
+    @ColumnInfo(name = "offer_dropoff_address") val offerDropoffAddress: String? = null,
+    @ColumnInfo(name = "rider_name") val riderName: String? = null
 )
 
 /**

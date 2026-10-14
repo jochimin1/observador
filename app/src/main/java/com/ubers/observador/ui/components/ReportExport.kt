@@ -176,7 +176,7 @@ fun ReportExportDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "$periodLabel. Importes exactos con su moneda; sin datos personales. El PDF lleva la nota de que no es un documento oficial de Uber.",
+                    "$periodLabel. Importes exactos con su moneda; nunca coordenadas. El archivo de viajes incluye el pasajero y las direcciones. El PDF lleva la nota de que no es un documento oficial de Uber.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

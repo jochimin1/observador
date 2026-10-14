@@ -156,6 +156,22 @@ class OverlayManager(private val context: Context) {
             setPadding(0, marginSm, 0, 0)
         })
 
+        // Fase 8F: where from and where to, as Uber wrote them (one line each, cut with "…")
+        listOfNotNull(
+            analysis.offer.pickupAddress?.let { "▲ $it" },
+            analysis.offer.dropoffAddress?.let { "▼ $it" }
+        ).forEach { line ->
+            card.addView(TextView(context).apply {
+                text = line
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxWidth = (280 * dp).toInt()
+                setPadding(0, marginSm, 0, 0)
+            })
+        }
+
         // Score bar
         card.addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100

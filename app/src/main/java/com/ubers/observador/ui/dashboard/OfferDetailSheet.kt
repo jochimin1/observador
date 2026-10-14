@@ -80,6 +80,13 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
                 )
             }
         }
+        // Fase 8F: where from and where to, as Uber wrote them on the card
+        if (o.pickupAddress != null || o.dropoffAddress != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                o.pickupAddress?.let { com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_route, "Recogida: $it") }
+                o.dropoffAddress?.let { com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_flag, "Destino: $it") }
+            }
+        }
 
         DetailSection("Recorrido") {
             DetailLine("Recogida", "%.1f km · %d min".format(o.pickupKm, o.pickupMin))

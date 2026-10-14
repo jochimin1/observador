@@ -14,6 +14,40 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.17.0] - 2026-10-14
+
+Fase 8F: origen, destino y pasajero, y diagnóstico de las tarjetas de ofertas. Incluye todo lo de
+la 1.16.0. Base de datos 10 → 11 (solo añade columnas).
+
+### Cambiado (decisión del 14/10)
+- Por decisión tuya, Observador ahora **guarda** la dirección de recogida y la de destino que Uber
+  muestra en la tarjeta de la oferta, y el nombre del pasajero que aparece al aceptar («Llegar por
+  …»). Se guardan con la oferta y con el viaje, y salen en el archivo de viajes (CSV y JSON). Nunca
+  se leen ni se guardan coordenadas.
+
+### Añadido
+- La tarjeta flotante y la notificación de oferta rentable muestran ▲ recogida y ▼ destino.
+- Origen, destino y pasajero en el detalle del viaje (Inicio y Ganancias), en la lista de viajes
+  de Ganancias y al asignar una cantidad a un viaje.
+- Si la tarjeta de la oferta no está en la ventana activa (Uber la puede mostrar como ventana
+  aparte, o hay otra app delante), Observador la busca en las demás ventanas de Uber.
+- Ajustes → «Ofertas (diagnóstico)»: lecturas con «Aceptar», ofertas leídas, tarjetas mostradas,
+  notificaciones, en qué paso falló la lectura, recogida, destino y pasajero leídos, y botones
+  «Copiar oferta» y «Copiar recogida» con la lectura completa para revisarla.
+- «Probar notificación» junto a «Probar tarjeta»: envía el aviso de oferta rentable de ejemplo y
+  dice si Android tiene las notificaciones apagadas o si estás en un modo que no avisa (solo el
+  modo Asistido avisa con ofertas reales).
+
+### Pendiente de validar
+- La lectura de las direcciones es candidata hasta comprobarla con una oferta real (la regla:
+  la dirección va después de su tiempo y distancia). «Llegar por …» ya está confirmado con tu
+  captura.
+
+### Pruebas
+- 8 pruebas JVM nuevas (`OfferReadingTest`) y la de exportación ajustada (nunca coordenadas;
+  pasajero y direcciones en el archivo de viajes, con comillas cuando llevan coma).
+- `Migration10To11Test` y las pruebas de migración anteriores abren la cadena hasta 11.
+
 ## [1.16.0] - 2026-10-13
 
 Fase 8D: reporte semanal y exportación. Incluye todo lo de la 1.15.0. La base de datos no

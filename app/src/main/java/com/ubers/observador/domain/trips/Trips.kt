@@ -82,7 +82,10 @@ data class TripOfferSnapshot(
     val tripMinutes: Int,
     /** Score stored when the offer was detected: the judgement at decision time, never recalculated. */
     val scoreAtDetection: Int,
-    val offerSeenAt: Long
+    val offerSeenAt: Long,
+    /** Fase 8F: as Uber wrote them on the card. */
+    val pickupAddress: String? = null,
+    val dropoffAddress: String? = null
 )
 
 /** The settings that judged the offer, so "why was this good that day?" can be answered later. */
@@ -131,7 +134,9 @@ data class Trip(
     val lastEventId: String? = null,
     val hasAnomalies: Boolean = false,
     val offer: TripOfferSnapshot? = null,
-    val decision: TripDecisionSnapshot? = null
+    val decision: TripDecisionSnapshot? = null,
+    /** Fase 8F: the rider's name as Uber shows it after accepting ("Llegar por …"). */
+    val riderName: String? = null
 )
 
 /** One stored, never-edited observation of a trip. No screen text: codes and states only. */

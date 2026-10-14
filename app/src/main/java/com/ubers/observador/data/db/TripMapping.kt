@@ -47,7 +47,10 @@ fun Trip.toEntity() = TripEntity(
     settingWeightKmPct = decision?.weights?.kmPct,
     settingWeightHourPct = decision?.weights?.hourPct,
     settingWeightPickupKmPct = decision?.weights?.pickupKmPct,
-    settingWeightPickupMinPct = decision?.weights?.pickupMinPct
+    settingWeightPickupMinPct = decision?.weights?.pickupMinPct,
+    offerPickupAddress = offer?.pickupAddress,
+    offerDropoffAddress = offer?.dropoffAddress,
+    riderName = riderName
 )
 
 fun TripEntity.toDomain() = Trip(
@@ -69,7 +72,8 @@ fun TripEntity.toDomain() = Trip(
     lastEventId = lastEventId,
     hasAnomalies = hasAnomalies,
     offer = offerSnapshot(),
-    decision = decisionSnapshot()
+    decision = decisionSnapshot(),
+    riderName = riderName
 )
 
 private fun TripEntity.offerSnapshot(): TripOfferSnapshot? {
@@ -81,7 +85,9 @@ private fun TripEntity.offerSnapshot(): TripOfferSnapshot? {
         tripKm = estimatedTripKm ?: return null,
         tripMinutes = estimatedTripMinutes ?: return null,
         scoreAtDetection = scoreAtDetection ?: return null,
-        offerSeenAt = offerSeenAt ?: return null
+        offerSeenAt = offerSeenAt ?: return null,
+        pickupAddress = offerPickupAddress,
+        dropoffAddress = offerDropoffAddress
     )
 }
 
@@ -142,5 +148,7 @@ fun OfferEntity.toTripOfferSnapshot() = TripOfferSnapshot(
     tripKm = tripKm,
     tripMinutes = tripMin,
     scoreAtDetection = score,
-    offerSeenAt = detectedAt
+    offerSeenAt = detectedAt,
+    pickupAddress = pickupAddress,
+    dropoffAddress = dropoffAddress
 )

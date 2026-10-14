@@ -690,7 +690,14 @@ private fun AssignSheetContent(sheet: AssignSheet, onChoose: (Trip) -> Unit) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(painterResource(R.drawable.ic_two_wheeler), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text("Terminó ${dayTime(requireNotNull(trip.completedAt))}", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "Terminó ${dayTime(requireNotNull(trip.completedAt))}" + (trip.riderName?.let { " · $it" } ?: ""),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            trip.offer?.dropoffAddress?.let {
+                                Text("Destino: $it", style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            }
                             Text(
                                 "Ofertado ${trip.offer?.let { MoneyAmount.fromLegacyDouble(it.offeredAmount, "DOP")?.let { MoneyFormat.format(it) } } ?: "—"} · " +
                                     "Real ${summary?.effectiveEarnings?.let { MoneyFormat.format(it) } ?: "sin confirmar"}",
@@ -752,10 +759,19 @@ private fun TripRow(row: TripMoneyRow, showDay: Boolean, onClick: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(if (showDay) dayTime(row.completedAt) else time(row.completedAt), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Ofertado ${row.offered?.let { MoneyFormat.format(it) } ?: "—"}",
+                    "Ofertado ${row.offered?.let { MoneyFormat.format(it) } ?: "—"}" + (row.riderName?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (row.pickupAddress != null || row.dropoffAddress != null) {
+                    Text(
+                        "${row.pickupAddress ?: "?"} → ${row.dropoffAddress ?: "?"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(statusColor))
                     Text(statusText, style = MaterialTheme.typography.labelMedium, color = statusColor)
@@ -787,6 +803,10 @@ private fun moneyStatus(row: TripMoneyRow): Pair<String, Color> = when {
 private fun TripDetailContent(d: TripDetail) {
     Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Viaje de las ${time(d.row.completedAt)}", style = MaterialTheme.typography.titleLarge)
+        // Fase 8F: who and where, as Uber showed them
+        (d.trip?.riderName ?: d.row.riderName)?.let { InfoLine(R.drawable.ic_info, "Pasajero: $it") }
+        (d.trip?.offer?.pickupAddress ?: d.row.pickupAddress)?.let { InfoLine(R.drawable.ic_route, "Recogida: $it") }
+        (d.trip?.offer?.dropoffAddress ?: d.row.dropoffAddress)?.let { InfoLine(R.drawable.ic_flag, "Destino: $it") }
         StatRow { m ->
             StatTile(R.drawable.ic_bookmarks, "Ofertado", d.row.offered?.let { MoneyFormat.format(it) } ?: "—", m, detail = "referencia")
             StatTile(R.drawable.ic_payments, "Real", d.row.real?.let { MoneyFormat.format(it) } ?: "—", m, detail = moneyStatus(d.row).first)

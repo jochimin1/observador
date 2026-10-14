@@ -80,7 +80,11 @@ data class TripMoneyRow(
     val differencePercent: BigDecimal?,
     val tipMinor: Long,
     val hasAnomalies: Boolean,
-    val pendingReviewCount: Int
+    val pendingReviewCount: Int,
+    /** Fase 8F: as Uber showed them (the driver chose to keep them). */
+    val riderName: String? = null,
+    val pickupAddress: String? = null,
+    val dropoffAddress: String? = null
 )
 
 /** Real income of one working day. Trips without confirmed money add nothing; they are counted apart. */
@@ -162,7 +166,10 @@ object EarningsReports {
                 differencePercent = diff?.second,
                 tipMinor = s.tip,
                 hasAnomalies = s.hasAnomalies,
-                pendingReviewCount = s.pendingReviewCount
+                pendingReviewCount = s.pendingReviewCount,
+                riderName = t.riderName,
+                pickupAddress = t.offer?.pickupAddress,
+                dropoffAddress = t.offer?.dropoffAddress
             )
         }
         return EarningsReport(window, summary, bars, best, rows, pending(inWindow + voids, currencyCode))

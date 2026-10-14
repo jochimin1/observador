@@ -17,5 +17,7 @@ fun OfferAnalysis.toEntity(offerHash: String = offer.offerHash()) = OfferEntity(
     rdpPerHour = rdpPerHour,
     fuelCost = fuelCost,
     netProfit = netProfit,
-    score = score
+    score = score,
+    pickupAddress = offer.pickupAddress,
+    dropoffAddress = offer.dropoffAddress
 )

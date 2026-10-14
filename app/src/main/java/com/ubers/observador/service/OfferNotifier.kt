@@ -55,6 +55,17 @@ class OfferNotifier(private val context: Context) {
                     analysis.offer.price, analysis.totalKm, analysis.totalMin, analysis.rdpPerKm
                 )
             )
+            .setStyle(
+                Notification.BigTextStyle().bigText(
+                    listOfNotNull(
+                        "RD$%.2f · %.1f km · %d min · RD$%.2f/km".format(
+                            analysis.offer.price, analysis.totalKm, analysis.totalMin, analysis.rdpPerKm
+                        ),
+                        analysis.offer.pickupAddress?.let { "Recoger: $it" },
+                        analysis.offer.dropoffAddress?.let { "Destino: $it" }
+                    ).joinToString("\n")
+                )
+            )
             .setCategory(Notification.CATEGORY_RECOMMENDATION)
             .setContentIntent(tapToClose)
             .setAutoCancel(true)

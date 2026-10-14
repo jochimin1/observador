@@ -106,6 +106,7 @@ class ReportsTest {
         val lines = csv.removePrefix("﻿").split("\r\n").filter { it.isNotEmpty() }
         assertEquals(TripExport.HEADER.joinToString(","), lines[0])
         assertEquals(4, lines.size)
+        assertEquals(20, TripExport.HEADER.size)
         val t1 = lines[1].split(",")
         assertEquals("150.00", t1[6]) // offered: a reference column
         assertEquals("191.50", t1[7]) // real
@@ -123,13 +124,19 @@ class ReportsTest {
         assertTrue(json.contains(PeriodSummaryText.NOTE))
     }
 
-    @Test fun filesCarryNoPersonalData() {
-        val rows = TripExport.rows(listOf(trip("t1", at(2026, 10, 6, 10))), mapOf("t1" to confirmed("t1", 100)), clock)
-        val all = (TripExport.HEADER + ExpenseExport.HEADER + DailyExport.HEADER).joinToString(",").lowercase() +
-            TripExport.json(rows, zone, 0, LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 6)).lowercase()
-        listOf("lat", "lon", "nombre", "name", "rider", "pasajero", "direccion", "address", "telefono", "phone").forEach {
-            assertFalse("found $it", Regex("\\b$it").containsMatchIn(all))
+    @Test fun filesNeverCarryCoordinatesButKeepWhatUberShowed() {
+        val t = trip("t1", at(2026, 10, 6, 10)).let {
+            it.copy(riderName = "Stefany", offer = it.offer!!.copy(pickupAddress = "Calle 5, Los Alcarrizos", dropoffAddress = "Aeropuerto Las Américas"))
         }
+        val rows = TripExport.rows(listOf(t), mapOf("t1" to confirmed("t1", 100)), clock)
+        val json = TripExport.json(rows, zone, 0, LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 6))
+        val all = ((TripExport.HEADER + ExpenseExport.HEADER + DailyExport.HEADER).joinToString(",") + json).lowercase()
+        listOf("lat", "lon", "latitude", "longitude", "coord").forEach { assertFalse("found $it", Regex("\\b$it").containsMatchIn(all)) }
+        assertTrue(JsonCheck.valid(json))
+        assertTrue(json.contains("\"riderName\":\"Stefany\""))
+        val csv = TripExport.csv(rows, zone).removePrefix("\uFEFF").split("\r\n")
+        // The address has a comma: the CSV quotes it
+        assertTrue(csv[1].endsWith(",Stefany,\"Calle 5, Los Alcarrizos\",Aeropuerto Las Américas"))
     }
 
     // ---- Expenses file ----

@@ -250,7 +250,11 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             OfferQuality.GOOD -> 65
             OfferQuality.EXCELLENT -> 88
         }
-        val fakeOffer = UberOffer(price = 136.06, pickupKm = 2.3, pickupMin = 7, tripKm = 8.5, tripMin = 18)
+        val fakeOffer = UberOffer(
+            price = 136.06, pickupKm = 2.3, pickupMin = 7, tripKm = 8.5, tripMin = 18,
+            pickupAddress = "Av. Charles de Gaulle, Santo Domingo Este",
+            dropoffAddress = "Aeropuerto Internacional Las Américas"
+        )
         val fakeAnalysis = OfferAnalysis(
             offer = fakeOffer,
             totalKm = 10.8,
@@ -267,6 +271,36 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             "Mostrando la tarjeta ${quality.label} durante $duration s."
         } else {
             "Activa el servicio de accesibilidad para probar la tarjeta."
+        }
+    }
+
+    /**
+     * Sends the "oferta rentable" notification with a sample offer and says why real offers may
+     * not notify: they only do in Asistido mode, and Android may have them turned off.
+     */
+    fun showTestNotification() = viewModelScope.launch {
+        val app = getApplication<Application>()
+        val manager = app.getSystemService(android.app.NotificationManager::class.java)
+        val granted = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU ||
+            androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted || !manager.areNotificationsEnabled()) {
+            _overlayTestMessage.value = "Android tiene apagadas las notificaciones de Observador. Actívalas en Ajustes del teléfono → Apps → Observador → Notificaciones."
+            return@launch
+        }
+        val offer = UberOffer(
+            price = 136.06, pickupKm = 2.3, pickupMin = 7, tripKm = 8.5, tripMin = 18,
+            pickupAddress = "Av. Charles de Gaulle, Santo Domingo Este",
+            dropoffAddress = "Aeropuerto Internacional Las Américas"
+        )
+        val analysis = OfferAnalysis(offer, 10.8, 25, 12.60, 326.5, 16.2, 119.86, 72)
+        com.ubers.observador.service.OfferNotifier(app).notifyGoodOffer(analysis, OfferQuality.GOOD)
+        val channelOff = manager.getNotificationChannel("observador_offers")?.importance == android.app.NotificationManager.IMPORTANCE_NONE
+        val mode = appSettings.operatingMode.first()
+        _overlayTestMessage.value = when {
+            channelOff -> "El canal «Ofertas rentables» está apagado en Android: actívalo en los ajustes de notificaciones de Observador."
+            mode != AppSettings.MODE_ASSISTED -> "Notificación de prueba enviada. Ojo: con las ofertas reales solo avisa en modo Asistido, y ahora estás en otro modo."
+            else -> "Notificación de prueba enviada. Las ofertas reales BUENAS o EXCELENTES avisan así."
         }
     }
 

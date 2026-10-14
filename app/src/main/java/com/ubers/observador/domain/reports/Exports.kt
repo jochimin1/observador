@@ -19,8 +19,8 @@ import java.time.format.DateTimeFormatter
 /*
  * Fase 8D: the files for the driver's own accounts. Pure text from the same figures as
  * Ganancias (no formulas of their own). Amounts are written as exact decimals from the stored
- * minor units, always with a currency column. No personal data: internal ids, dates, amounts
- * and codes only (no coordinates, no names, no screen text).
+ * minor units, always with a currency column. Never coordinates. Since Fase 8F (decision of
+ * 14/10) the trips file also carries the rider's name and the addresses Uber showed.
  */
 
 /** "1978.38" from 197838 centavos; exact, never through a Double. */
@@ -105,14 +105,18 @@ data class TripExportRow(
     val otherMinor: Long,
     val completeness: FinancialCompleteness,
     val anomalies: List<String>,
-    val currencyCode: String
+    val currencyCode: String,
+    val riderName: String? = null,
+    val pickupAddress: String? = null,
+    val dropoffAddress: String? = null
 )
 
 object TripExport {
 
     val HEADER = listOf(
         "viaje_id", "jornada", "fecha", "hora_aceptado", "hora_fin", "estado", "ofertado", "real", "tarifa", "propina",
-        "promocion", "ajuste", "cargo_cancelacion", "otros", "completitud", "anomalias", "moneda"
+        "promocion", "ajuste", "cargo_cancelacion", "otros", "completitud", "anomalias", "moneda",
+        "pasajero", "origen", "destino"
     )
 
     fun rows(trips: List<Trip>, summaries: Map<String, TripFinancialSummary>, clock: WorkdayClock, currencyCode: String = Currencies.DOP): List<TripExportRow> =
@@ -135,7 +139,10 @@ object TripExport {
                 otherMinor = s?.other ?: 0,
                 completeness = s?.completeness ?: FinancialCompleteness.UNKNOWN,
                 anomalies = s?.anomalies?.map { it.storageKey }?.sorted() ?: emptyList(),
-                currencyCode = currency
+                currencyCode = currency,
+                riderName = t.riderName,
+                pickupAddress = t.offer?.pickupAddress,
+                dropoffAddress = t.offer?.dropoffAddress
             )
         }
 
@@ -158,7 +165,10 @@ object TripExport {
             Decimals.of(r.otherMinor, r.currencyCode),
             r.completeness.storageKey,
             r.anomalies.joinToString("|"),
-            r.currencyCode
+            r.currencyCode,
+            r.riderName ?: "",
+            r.pickupAddress ?: "",
+            r.dropoffAddress ?: ""
         )
     })
 
@@ -185,7 +195,10 @@ object TripExport {
                 "other" to Json.num(Decimals.of(r.otherMinor, r.currencyCode)),
                 "completeness" to Json.str(r.completeness.storageKey),
                 "anomalies" to r.anomalies.joinToString(",", "[", "]") { Json.str(it) },
-                "currency" to Json.str(r.currencyCode)
+                "currency" to Json.str(r.currencyCode),
+                "riderName" to Json.str(r.riderName),
+                "pickupAddress" to Json.str(r.pickupAddress),
+                "dropoffAddress" to Json.str(r.dropoffAddress)
             )
         })
     )

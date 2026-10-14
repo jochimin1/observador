@@ -24,5 +24,8 @@ data class OfferEntity(
     val rdpPerHour: Double,
     val fuelCost: Double,
     val netProfit: Double,
-    val score: Int
+    val score: Int,
+    // Fase 8F (DB 11): addresses as Uber wrote them on the card; null on older rows
+    @ColumnInfo(name = "pickup_address") val pickupAddress: String? = null,
+    @ColumnInfo(name = "dropoff_address") val dropoffAddress: String? = null
 )

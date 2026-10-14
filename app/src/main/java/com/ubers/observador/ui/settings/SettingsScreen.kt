@@ -381,7 +381,12 @@ fun SettingsScreen(
             }
 
             val overlayMessage by viewModel.overlayTestMessage.collectAsState()
-            OverlayPreviewCard(message = overlayMessage, onTest = { viewModel.showTestOverlay() })
+            OverlayPreviewCard(
+                message = overlayMessage,
+                onTest = { viewModel.showTestOverlay() },
+                onTestNotification = { viewModel.showTestNotification() }
+            )
+            OfferDebugCard()
 
             SectionHeader("Detección", R.drawable.ic_filter_alt)
             IntSettingCard(
@@ -435,7 +440,7 @@ fun SettingsScreen(
 
 /** Shows the floating card with a sample offer, so its size and colours can be checked. */
 @Composable
-private fun OverlayPreviewCard(message: String?, onTest: () -> Unit) {
+private fun OverlayPreviewCard(message: String?, onTest: () -> Unit, onTestNotification: () -> Unit) {
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -447,12 +452,16 @@ private fun OverlayPreviewCard(message: String?, onTest: () -> Unit) {
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Muestra la tarjeta flotante con una oferta de ejemplo. Cada toque alterna MALO, " +
-                    "BUENO y EXCELENTE. Necesita el servicio de accesibilidad activo.",
+                text = "Muestra la tarjeta flotante con una oferta de ejemplo (con recogida y destino). Cada toque alterna MALO, " +
+                    "BUENO y EXCELENTE. Necesita el servicio de accesibilidad activo. «Probar notificación» envía el aviso " +
+                    "de oferta rentable, que con ofertas reales solo llega en modo Asistido.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedButton(onClick = onTest) { Text("Probar") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onTest) { Text("Probar tarjeta") }
+                OutlinedButton(onClick = onTestNotification) { Text("Probar notificación") }
+            }
             if (message != null) {
                 Text(text = message, style = MaterialTheme.typography.bodySmall)
             }
