@@ -8,6 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
+ * Version 14 (Fase 8K) adds `trip_route_points` and `trip_routes`: the route of each taken trip,
+ * the only tables with coordinates (the driver's decision of 17/10). Only CREATE TABLE.
  * Version 10 (Fase 8B) adds `fuel_entries`, `expense_entries`, `recurring_costs` and
  * `odometer_readings`: what the driver spends, written by hand.
  * Version 9 (Fase 8E) adds `distance_segments` and `trip_distances`: kilometres as totals only,
@@ -28,9 +30,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FinancialObservationEntity::class, TripFinancialSummaryEntity::class, PlatformEarningsSnapshotEntity::class,
         ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class,
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
-        FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class
+        FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
+        TripRoutePointEntity::class, TripRouteEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +51,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun distanceDao(): DistanceDao
 
     abstract fun expenseDao(): ExpenseDao
+
+    abstract fun routeDao(): RouteDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -285,6 +290,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Fase 8K: the route of each taken trip. Two new tables; nothing existing changes. */
+        internal val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `trip_route_points` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`trip_id` TEXT NOT NULL, `seq` INTEGER NOT NULL, `at_ms` INTEGER NOT NULL, `lat_e7` INTEGER NOT NULL, " +
+                        "`lng_e7` INTEGER NOT NULL, `accuracy_dm` INTEGER NOT NULL, `phase` TEXT NOT NULL, " +
+                        "FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_route_points_trip_id_seq` ON `trip_route_points` (`trip_id`, `seq`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `trip_routes` (`trip_id` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                        "`coverage` TEXT NOT NULL, `opened_at` INTEGER NOT NULL, `closed_at` INTEGER, `points_received` INTEGER NOT NULL, " +
+                        "`points_kept` INTEGER NOT NULL, `first_at` INTEGER, `last_at` INTEGER, `seconds_without_signal` INTEGER NOT NULL, " +
+                        "`start_at` INTEGER, `start_lat_e7` INTEGER, `start_lng_e7` INTEGER, `start_with_passenger` INTEGER NOT NULL, " +
+                        "`end_at` INTEGER, `end_lat_e7` INTEGER, `end_lng_e7` INTEGER, `start_place` TEXT, `end_place` TEXT, " +
+                        "`updated_at` INTEGER NOT NULL, PRIMARY KEY(`trip_id`), " +
+                        "FOREIGN KEY(`trip_id`) REFERENCES `trips`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_routes_status` ON `trip_routes` (`status`)")
+            }
+        }
+
         /** Fase 8J: the card's modality ("Moto") and "Exclusivo", also copied into trips with the button. Only adds columns. */
         internal val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -352,7 +382,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .build().also { INSTANCE = it }
             }
     }

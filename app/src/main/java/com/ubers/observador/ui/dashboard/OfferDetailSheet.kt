@@ -37,15 +37,21 @@ private val DETAIL_TIME_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM · h:mm 
 /** Bottom panel with the why behind one offer. Closes by swiping down or with Back. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OfferDetailSheet(detail: OfferDetail, onDismiss: () -> Unit, onDelete: (() -> Unit)? = null) {
+fun OfferDetailSheet(
+    detail: OfferDetail,
+    onDismiss: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+    /** Fase 8K: the trip the offer became, if it was taken: its card and its route are shown. */
+    trip: com.ubers.observador.domain.trips.Trip? = null
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        OfferDetailContent(detail, onDelete)
+        OfferDetailContent(detail, onDelete, trip)
     }
 }
 
 @Composable
-private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
+private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?, trip: com.ubers.observador.domain.trips.Trip?) {
     val o = detail.offer
     val quality = detail.quality
     val parts = detail.breakdown
@@ -92,8 +98,12 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
                 else "Tarjeta con «Aceptar»"
             )
         }
+        // Fase 8K: a taken offer shows its trip's card and route (with Uber's addresses in it)
+        if (trip != null) {
+            com.ubers.observador.ui.route.TripRouteSection(trip.id)
+        }
         // Fase 8F: where from and where to, as Uber wrote them on the card
-        if (o.pickupAddress != null || o.dropoffAddress != null) {
+        if (trip == null && (o.pickupAddress != null || o.dropoffAddress != null)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 o.pickupAddress?.let { com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_route, "Recogida: $it") }
                 o.dropoffAddress?.let { com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_flag, "Destino: $it") }

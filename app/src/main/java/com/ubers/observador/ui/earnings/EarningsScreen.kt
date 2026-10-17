@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.earnings
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -819,17 +820,24 @@ private fun moneyStatus(row: TripMoneyRow): Pair<String, Color> = when {
 
 @Composable
 private fun TripDetailContent(d: TripDetail) {
-    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Text("Viaje de las ${time(d.row.completedAt)}", style = MaterialTheme.typography.titleLarge)
-        // Fase 8F: who and where, as Uber showed them
-        (d.trip?.riderName ?: d.row.riderName)?.let { InfoLine(R.drawable.ic_info, "Pasajero: $it") }
-        (d.trip?.offer?.pickupAddress ?: d.row.pickupAddress)?.let { InfoLine(R.drawable.ic_route, "Recogida: $it") }
-        (d.trip?.offer?.dropoffAddress ?: d.row.dropoffAddress)?.let { InfoLine(R.drawable.ic_flag, "Destino: $it") }
+        // Fase 8F: who and where, as Uber showed them (with the trip, its card below says it all)
+        if (d.trip == null) {
+            d.row.riderName?.let { InfoLine(R.drawable.ic_info, "Pasajero: $it") }
+            d.row.pickupAddress?.let { InfoLine(R.drawable.ic_route, "Recogida: $it") }
+            d.row.dropoffAddress?.let { InfoLine(R.drawable.ic_flag, "Destino: $it") }
+        }
         StatRow { m ->
             StatTile(R.drawable.ic_bookmarks, "Ofertado", d.row.offered?.let { MoneyFormat.format(it) } ?: "—", m, detail = "referencia")
             StatTile(R.drawable.ic_payments, "Real", d.row.real?.let { MoneyFormat.format(it) } ?: "—", m, detail = moneyStatus(d.row).first)
         }
         val trip = d.trip
+        // Fase 8K: who, when and where, offered against real, and the route on the map
+        if (trip != null) com.ubers.observador.ui.route.TripRouteSection(trip.id)
         if (trip != null) {
             Text("Línea de tiempo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             TripTimeline.of(trip).forEach { (label, at) ->

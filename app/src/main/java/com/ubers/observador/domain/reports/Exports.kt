@@ -20,7 +20,9 @@ import java.time.format.DateTimeFormatter
  * Fase 8D: the files for the driver's own accounts. Pure text from the same figures as
  * Ganancias (no formulas of their own). Amounts are written as exact decimals from the stored
  * minor units, always with a currency column. Never coordinates. Since Fase 8F (decision of
- * 14/10) the trips file also carries the rider's name and the addresses Uber showed.
+ * 14/10) the trips file also carries the rider's name and the addresses Uber showed; since Fase
+ * 8K, when the trip started and the names of the places where it started and ended (text only:
+ * the coordinates go only in the route files, GPX and GeoJSON).
  */
 
 /** "1978.38" from 197838 centavos; exact, never through a Double. */
@@ -108,7 +110,12 @@ data class TripExportRow(
     val currencyCode: String,
     val riderName: String? = null,
     val pickupAddress: String? = null,
-    val dropoffAddress: String? = null
+    val dropoffAddress: String? = null,
+    /** Fase 8K: «Iniciar viaje» (or the first point with passenger); null when not told apart. */
+    val startedAt: Long? = null,
+    /** Fase 8K: names of the GPS places where the rider got in and where the trip ended. */
+    val startPlace: String? = null,
+    val endPlace: String? = null
 )
 
 object TripExport {
@@ -116,12 +123,21 @@ object TripExport {
     val HEADER = listOf(
         "viaje_id", "jornada", "fecha", "hora_aceptado", "hora_fin", "estado", "ofertado", "real", "tarifa", "propina",
         "promocion", "ajuste", "cargo_cancelacion", "otros", "completitud", "anomalias", "moneda",
-        "pasajero", "origen", "destino"
+        "pasajero", "origen", "destino",
+        "hora_inicio", "lugar_inicio", "lugar_fin"
     )
 
-    fun rows(trips: List<Trip>, summaries: Map<String, TripFinancialSummary>, clock: WorkdayClock, currencyCode: String = Currencies.DOP): List<TripExportRow> =
+    fun rows(
+        trips: List<Trip>,
+        summaries: Map<String, TripFinancialSummary>,
+        clock: WorkdayClock,
+        currencyCode: String = Currencies.DOP,
+        routes: Map<String, com.ubers.observador.domain.route.TripRouteSummary> = emptyMap()
+    ): List<TripExportRow> =
         trips.sortedBy { it.acceptedAt ?: it.createdAt }.map { t ->
             val s = summaries[t.id]
+            val route = routes[t.id]
+            val sheet = com.ubers.observador.domain.route.TripSheets.of(t, route, null)
             val currency = s?.currencyCode ?: currencyCode
             TripExportRow(
                 tripId = t.id,
@@ -142,7 +158,10 @@ object TripExport {
                 currencyCode = currency,
                 riderName = t.riderName,
                 pickupAddress = t.offer?.pickupAddress,
-                dropoffAddress = t.offer?.dropoffAddress
+                dropoffAddress = t.offer?.dropoffAddress,
+                startedAt = sheet.startAt.takeIf { sheet.startDistinguished },
+                startPlace = route?.startPlace?.takeIf { route.startWithPassenger },
+                endPlace = route?.endPlace
             )
         }
 
@@ -168,7 +187,10 @@ object TripExport {
             r.currencyCode,
             r.riderName ?: "",
             r.pickupAddress ?: "",
-            r.dropoffAddress ?: ""
+            r.dropoffAddress ?: "",
+            r.startedAt?.let { Instant.ofEpochMilli(it).atZone(zone).format(TIME) } ?: "",
+            r.startPlace ?: "",
+            r.endPlace ?: ""
         )
     })
 
@@ -198,7 +220,10 @@ object TripExport {
                 "currency" to Json.str(r.currencyCode),
                 "riderName" to Json.str(r.riderName),
                 "pickupAddress" to Json.str(r.pickupAddress),
-                "dropoffAddress" to Json.str(r.dropoffAddress)
+                "dropoffAddress" to Json.str(r.dropoffAddress),
+                "startedAt" to Json.str(r.startedAt?.let { Instant.ofEpochMilli(it).atZone(zone).format(DATE_TIME) }),
+                "startPlace" to Json.str(r.startPlace),
+                "endPlace" to Json.str(r.endPlace)
             )
         })
     )

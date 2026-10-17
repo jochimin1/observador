@@ -144,11 +144,12 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = viewModel())
             }
             item {
                 Text(
-                    when (state.ready.size) {
+                    // «Recorridos» is two files: GPX and GeoJSON
+                    when (val files = state.ready.size + if (ReportKind.ROUTES in state.ready) 1 else 0) {
                         0 -> "Marca al menos un archivo con datos."
                         1 -> "Se exporta 1 archivo."
-                        else -> "Se exportan ${state.ready.size} archivos juntos en un .zip."
-                    } + " Importes exactos con su moneda; nunca coordenadas. El ofertado es referencia, nunca ingreso. " +
+                        else -> "Se exportan $files archivos juntos en un .zip."
+                    } + " Importes exactos con su moneda; coordenadas solo en «Recorridos». El ofertado es referencia, nunca ingreso. " +
                         "El PDF lleva la nota de que no es un documento oficial de Uber.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -256,6 +257,7 @@ private fun FilesCard(state: ReportsUiState, vm: ReportsViewModel) {
                             !enabled -> "Sin datos en este periodo"
                             kind == ReportKind.TOTALS || kind == ReportKind.SUMMARY_PDF -> "Listo"
                             kind == ReportKind.DAILY -> "$count jornadas"
+                            kind == ReportKind.ROUTES -> "$count viajes con recorrido · llevan ubicaciones y el nombre del pasajero"
                             else -> "$count filas"
                         },
                         style = MaterialTheme.typography.bodySmall,

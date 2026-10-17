@@ -52,6 +52,8 @@ class AppSettings(private val context: Context) {
         private val KEY_DISTANCE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("distance_enabled")
         private val KEY_DISTANCE_MODE = stringPreferencesKey("distance_mode")
         private val KEY_DISTANCE_MANUAL = androidx.datastore.preferences.core.booleanPreferencesKey("distance_manual")
+        // Fase 8K: record the route of the taken trips (on unless switched off; decision 1 of 17/10)
+        private val KEY_ROUTE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("route_enabled")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         private val KEY_MAINTENANCE_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("maintenance_notification")
@@ -244,6 +246,11 @@ class AppSettings(private val context: Context) {
         it[KEY_DISTANCE_ENABLED] = value
         if (!value) it[KEY_DISTANCE_MANUAL] = false
     }
+
+    /** Fase 8K: «Grabar el recorrido de los viajes». Uses the GPS positions of «Kilómetros con GPS». */
+    val routeEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_ROUTE_ENABLED] ?: true }
+
+    suspend fun updateRouteEnabled(value: Boolean) = context.dataStore.edit { it[KEY_ROUTE_ENABLED] = value }
 
     val distanceMode: Flow<com.ubers.observador.domain.distance.DistanceMode> =
         context.dataStore.data.map { com.ubers.observador.domain.distance.DistanceMode.fromStorage(it[KEY_DISTANCE_MODE]) }

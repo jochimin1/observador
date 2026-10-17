@@ -52,7 +52,8 @@ import java.time.ZoneId
  *
  * Fase 8E: it also runs the GPS while kilometres are measured (connected to Uber, or the
  * "Iniciar recorrido" button), with the "location" service type so positions keep coming with
- * the screen off. Positions go straight to DistanceMonitor and are never kept.
+ * the screen off. Positions go straight to DistanceMonitor, which keeps only totals; since Fase 8K
+ * the same positions also go to RouteMonitor, which keeps the route of the taken trip under way.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ObservadorForegroundService : Service() {
@@ -99,9 +100,9 @@ class ObservadorForegroundService : Service() {
         override fun onLocationResult(result: LocationResult) {
             result.locations.forEach { loc ->
                 // Only the numbers needed for one step; the object is dropped right after
-                DistanceMonitor.onFix(
-                    LocationFix(loc.time, loc.latitude, loc.longitude, if (loc.hasAccuracy()) loc.accuracy else Float.NaN)
-                )
+                val fix = LocationFix(loc.time, loc.latitude, loc.longitude, if (loc.hasAccuracy()) loc.accuracy else Float.NaN)
+                DistanceMonitor.onFix(fix)
+                RouteMonitor.onFix(fix)
             }
         }
     }
@@ -123,6 +124,7 @@ class ObservadorForegroundService : Service() {
         notification = first
         startForegroundTyped(first)
         DistanceMonitor.start(applicationContext)
+        RouteMonitor.start(applicationContext)
 
         scope.launch {
             settings.workdayStartHour.collect { DistanceMonitor.setClock(WorkdayClock(it, ZoneId.systemDefault())) }
@@ -130,8 +132,13 @@ class ObservadorForegroundService : Service() {
         // Which trip is under way, and whether Uber is online (8A)
         scope.launch {
             combine(RideLifecycleMonitor.state, RideLifecycleMonitor.online, ticker) { s, o, now -> Triple(s.context, o.current, now) }
-                .collect { (ride, online, now) -> DistanceMonitor.onRide(ride, online, now) }
+                .collect { (ride, online, now) ->
+                    DistanceMonitor.onRide(ride, online, now)
+                    RouteMonitor.onRide(ride, now)
+                }
         }
+        // Fase 8K: «Grabar recorrido» in Ajustes
+        scope.launch { settings.routeEnabled.collect { RouteMonitor.setEnabled(it) } }
         // Whether to measure: switch, permission, pause, mode, online, button
         scope.launch {
             val switches = combine(settings.distanceEnabled, settings.distanceMode, settings.distanceManual, settings.observerEnabled) { e, m, b, o ->
@@ -184,6 +191,7 @@ class ObservadorForegroundService : Service() {
 
     override fun onDestroy() {
         setGps(false)
+        RouteMonitor.stop()
         scope.cancel()
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)

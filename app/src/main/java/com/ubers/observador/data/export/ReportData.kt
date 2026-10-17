@@ -24,6 +24,9 @@ import com.ubers.observador.domain.reports.PeriodSummary
 import com.ubers.observador.domain.reports.TripExport
 import com.ubers.observador.domain.reports.WeeklyReport
 import com.ubers.observador.domain.reports.WeeklyReports
+import com.ubers.observador.data.RouteRepository
+import com.ubers.observador.domain.route.RouteFiles
+import com.ubers.observador.domain.route.TripRouteSummary
 import kotlinx.coroutines.flow.first
 
 /** The files Ganancias and Gastos can export (Fase 8D). */
@@ -33,7 +36,10 @@ enum class ReportFile(val label: String, val kind: String, val extension: String
     EXPENSES_CSV("Gastos (CSV)", "gastos", "csv", "text/csv"),
     EXPENSES_JSON("Gastos (JSON)", "gastos", "json", "application/json"),
     DAILY_CSV("Resumen por jornada (CSV)", "jornadas", "csv", "text/csv"),
-    SUMMARY_PDF("Resumen del periodo (PDF)", "resumen", "pdf", "application/pdf")
+    SUMMARY_PDF("Resumen del periodo (PDF)", "resumen", "pdf", "application/pdf"),
+    // Fase 8K: the only files with coordinates (and the rider's name, decision 9)
+    ROUTES_GPX("Recorridos de los viajes (GPX)", "recorridos", "gpx", RouteFiles.GPX_MIME),
+    ROUTES_GEOJSON("Recorridos de los viajes (GeoJSON)", "recorridos", "geojson", RouteFiles.GEOJSON_MIME)
 }
 
 /** A built file, ready to be saved or shared. [rows] is what it holds, for the confirmation. */
@@ -50,6 +56,7 @@ class ReportData(private val db: AppDatabase) {
     private val online = OnlineRepository(db)
     private val expenses = ExpenseRepository(db)
     private val distances = DistanceRepository(db)
+    private val routes = RouteRepository(db)
 
     /** Fase 8J: test rows (ids and hashes starting with TEST-) are left out unless asked for. */
     private fun keep(id: String, includeTest: Boolean) = includeTest || !id.startsWith(TEST_PREFIX)
@@ -82,7 +89,9 @@ class ReportData(private val db: AppDatabase) {
         val rows: List<com.ubers.observador.domain.reports.OfferReportRow>,
         val trips: List<com.ubers.observador.domain.trips.Trip>,
         val expenses: ExpenseData,
-        val report: EarningsReport
+        val report: EarningsReport,
+        /** Fase 8K: the route summaries of [trips], by trip id. */
+        val routes: Map<String, TripRouteSummary> = emptyMap()
     )
 
     suspend fun offerSource(
@@ -96,7 +105,7 @@ class ReportData(private val db: AppDatabase) {
         val periodTrips = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
         val summaries = money.summariesFor(periodTrips.map { it.id })
         val rows = com.ubers.observador.domain.reports.OfferReport.rows(offers, periodTrips, summaries, engine, cuts, clock)
-        return OfferSource(rows, periodTrips, expenseData(includeTest), report(window, clock, includeTest))
+        return OfferSource(rows, periodTrips, expenseData(includeTest), report(window, clock, includeTest), routes.routesOf(periodTrips.map { it.id }))
     }
 
     /** The trips file for a chosen set of trips (Fase 8J, filtered on the export screen). */
@@ -108,9 +117,39 @@ class ReportData(private val db: AppDatabase) {
         nowMs: Long
     ): ReportOutput {
         val name = ExportNames.of("viajes", window.firstDay, window.lastDay, if (csv) "csv" else "json")
-        val rows = TripExport.rows(list, money.summariesFor(list.map { it.id }), clock)
+        val rows = TripExport.rows(list, money.summariesFor(list.map { it.id }), clock, routes = routes.routesOf(list.map { it.id }))
         val text = if (csv) TripExport.csv(rows, clock.zone) else TripExport.json(rows, clock.zone, nowMs, window.firstDay, window.lastDay)
         return ReportOutput(name, if (csv) "text/csv" else "application/json", text.toByteArray(Charsets.UTF_8), rows.size)
+    }
+
+    /**
+     * Fase 8K: the routes of [list] in one GPX or GeoJSON file, one track per trip with points.
+     * [ReportOutput.rows] is the number of trips in it.
+     */
+    suspend fun routesFile(
+        list: List<com.ubers.observador.domain.trips.Trip>,
+        gpx: Boolean,
+        firstDay: java.time.LocalDate,
+        lastDay: java.time.LocalDate,
+        zone: java.time.ZoneId,
+        nowMs: Long
+    ): ReportOutput {
+        val ids = list.map { it.id }
+        val summaries = routes.routesOf(ids)
+        val points = routes.pointsOf(ids)
+        val tracks = list.sortedBy { it.acceptedAt ?: it.createdAt }.mapNotNull { t ->
+            val s = summaries[t.id]?.takeIf { it.hasPoints } ?: return@mapNotNull null
+            val pts = points[t.id].orEmpty().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            RouteFiles.track(t, s, pts, zone)
+        }
+        val ext = if (gpx) "gpx" else "geojson"
+        val text = if (gpx) RouteFiles.gpx(tracks, nowMs) else RouteFiles.geoJson(tracks, nowMs)
+        return ReportOutput(
+            ExportNames.of("recorridos", firstDay, lastDay, ext),
+            if (gpx) RouteFiles.GPX_MIME else RouteFiles.GEOJSON_MIME,
+            text.toByteArray(Charsets.UTF_8),
+            tracks.size
+        )
     }
 
     /** The weekly summary of [window], compared with the week before. */
@@ -151,7 +190,7 @@ class ReportData(private val db: AppDatabase) {
         return when (file) {
             ReportFile.TRIPS_CSV, ReportFile.TRIPS_JSON -> {
                 val all = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
-                val rows = TripExport.rows(all, money.summariesFor(all.map { it.id }), clock)
+                val rows = TripExport.rows(all, money.summariesFor(all.map { it.id }), clock, routes = routes.routesOf(all.map { it.id }))
                 val text = if (file == ReportFile.TRIPS_CSV) TripExport.csv(rows, zone)
                 else TripExport.json(rows, zone, nowMs, window.firstDay, window.lastDay)
                 ReportOutput(name, file.mimeType, text.toByteArray(Charsets.UTF_8), rows.size)
@@ -178,6 +217,10 @@ class ReportData(private val db: AppDatabase) {
             ReportFile.SUMMARY_PDF -> {
                 val s = periodSummary(window, clock, nowMs, workSharePct, includeTest)
                 ReportOutput(name, file.mimeType, SummaryPdf.render(s, extra = extraPdfSections), 1)
+            }
+            ReportFile.ROUTES_GPX, ReportFile.ROUTES_GEOJSON -> {
+                val all = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
+                routesFile(all, file == ReportFile.ROUTES_GPX, window.firstDay, window.lastDay, zone, nowMs)
             }
         }
     }

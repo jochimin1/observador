@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -80,7 +81,11 @@ class TripsDebugViewModel(app: Application) : AndroidViewModel(app) {
         message.value = try {
             val seed = TripTestSeeder.generate(System.currentTimeMillis())
             repository.replaceTestTrips(TripTestSeeder.PREFIX, seed.trips, seed.events)
-            "${seed.trips.size} viajes de prueba cargados (${seed.events.size} eventos)."
+            // Fase 8K: a made-up route in Santo Domingo for each, to see the card and the map
+            val stored = seed.trips.mapNotNull { t -> repository.observeTripWithEvents(t.id).first()?.trip }
+            val routes = stored.mapNotNull { com.ubers.observador.data.debug.RouteTestSeeder.generate(it) }
+            com.ubers.observador.data.RouteRepository(com.ubers.observador.data.db.AppDatabase.getInstance(getApplication<android.app.Application>())).putTestRoutes(routes)
+            "${seed.trips.size} viajes de prueba cargados (${seed.events.size} eventos, ${routes.size} recorridos)."
         } catch (e: Exception) {
             Log.e(TAG, "Loading test trips failed", e)
             "No se pudieron cargar los viajes de prueba."

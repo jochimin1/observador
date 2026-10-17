@@ -180,6 +180,32 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setDistanceMode(mode: com.ubers.observador.domain.distance.DistanceMode) =
         viewModelScope.launch { appSettings.updateDistanceMode(mode) }
 
+    // ---- Route of the taken trips (Fase 8K) ----
+
+    private val routes = com.ubers.observador.data.RouteRepository(AppDatabase.getInstance(app))
+
+    val routeEnabled: StateFlow<Boolean> = appSettings.routeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** Routes with points, and points stored. */
+    val routeCounts: StateFlow<Pair<Int, Int>> = routes.observeCounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0 to 0)
+
+    fun setRouteEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateRouteEnabled(enabled) }
+
+    /** «Borrar todos los recorridos»: through the single writer; km, times and money stay. */
+    fun deleteAllRoutes() {
+        com.ubers.observador.service.PersistenceQueue.shared().enqueue {
+            try {
+                routes.deleteAll(System.currentTimeMillis())
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("Settings", "Could not delete the routes", e)
+            }
+        }
+    }
+
     // ---- Profiles ----
 
     val profiles: StateFlow<ProfilesUiState> = combine(

@@ -55,7 +55,9 @@ enum class ReportKind(val label: String, val formats: Boolean, val filtered: Boo
     TRIPS("Viajes y ganancias", true, true),
     EXPENSES("Gastos", true, false),
     DAILY("Resumen por jornada (CSV)", false, false),
-    SUMMARY_PDF("Resumen del periodo (PDF)", false, true)
+    SUMMARY_PDF("Resumen del periodo (PDF)", false, true),
+    /** Fase 8K: GPX and GeoJSON of the taken trips that pass the filters. */
+    ROUTES("Recorridos (GPX y GeoJSON)", false, true)
 }
 
 enum class ReportFormat(val label: String) { CSV("CSV"), JSON("JSON") }
@@ -182,7 +184,8 @@ class ReportsViewModel(app: Application) : AndroidViewModel(app) {
             ReportKind.TRIPS to tripsFor(src, rows, filtersNow).size,
             ReportKind.EXPENSES to ExpenseExport.rows(src.expenses.fuel, src.expenses.expenses, window.firstDay, window.lastDay, l.clock).size,
             ReportKind.DAILY to if (src.report.trips.isEmpty() && src.report.summary.totalObservedEarnings == 0L && all.isEmpty()) 0 else window.days.size,
-            ReportKind.SUMMARY_PDF to if (all.isEmpty() && src.report.trips.isEmpty()) 0 else 1
+            ReportKind.SUMMARY_PDF to if (all.isEmpty() && src.report.trips.isEmpty()) 0 else 1,
+            ReportKind.ROUTES to tripsFor(src, rows, filtersNow).count { src.routes[it.id]?.hasPoints == true }
         )
         return ReportsUiState(
             loading = false,
@@ -254,8 +257,15 @@ class ReportsViewModel(app: Application) : AndroidViewModel(app) {
         val csv = st.format == ReportFormat.CSV
         val rows = OfferReport.filter(src.rows, st.filters)
         val totals = st.totals ?: PeriodTotalsBuilder.of(rows)
-        val files = st.ready.map { kind ->
-            when (kind) {
+        val routeTrips = if (ReportKind.ROUTES in st.ready) tripsFor(src, rows, st.filters) else emptyList()
+        val files = st.ready.flatMap { kind ->
+            if (kind == ReportKind.ROUTES) {
+                // Both formats, in the .zip with the rest
+                return@flatMap listOf(true, false).map { gpx ->
+                    data.routesFile(routeTrips, gpx, window.firstDay, window.lastDay, l.clock.zone, now)
+                }
+            }
+            listOf(when (kind) {
                 ReportKind.OFFERS -> {
                     val text = if (csv) OfferReport.csv(rows, l.clock.zone)
                     else OfferReport.json(rows, l.clock.zone, now, window.firstDay, window.lastDay, st.filters)
@@ -276,7 +286,8 @@ class ReportsViewModel(app: Application) : AndroidViewModel(app) {
                     extraPdfSections = listOf(PeriodTotalsText.Section("Filtros", listOf("Aplicados" to st.filters.describe()))) +
                         PeriodTotalsText.sections(totals)
                 )
-            }
+                ReportKind.ROUTES -> error("handled above")
+            })
         }.filter { it.rows > 0 }
         val out = when (files.size) {
             0 -> ReportOutput("vacio", "text/plain", ByteArray(0), 0)

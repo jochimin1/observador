@@ -14,6 +14,51 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.24.0] - 2026-10-17
+
+Plan 8K: el recorrido de los viajes tomados. Incluye todo lo de la 1.23.1. La base de datos pasa de
+13 a 14 solo con dos tablas nuevas: tus datos actuales no se tocan.
+
+### Añadido
+- **Recorrido de cada viaje tomado.** Desde «Llegar por …» hasta el cierre del viaje se guarda por
+  dónde pasaste, con las mismas posiciones de cada 5 segundos que ya usa «Medir km con GPS» (no gasta
+  más batería) y los mismos filtros: precisión peor que 25 m, saltos de más de 120 km/h y el temblor
+  del GPS parado no cuentan. Cada punto lleva su fase: yendo a recoger o con pasajero (si «Iniciar
+  viaje» no se distingue, queda «sin distinguir»). Se escribe cada 30 segundos, se simplifica al
+  cerrar (fuera los puntos a menos de 5 m de la línea) y se guarda siempre, hasta que lo borres.
+  Tope de 3 horas por viaje. Un viaje cerrado por «Buscando» pierde sus últimos 45 s, que ya eran
+  búsqueda.
+- **Ficha del viaje** en el detalle (Inicio, al tocar un tomado, y Ganancias): pasajero, aceptado,
+  llegada al punto, inicio y fin con hora y lugar, duración, y **ofertado contra real** («Uber dijo
+  3.9 km y 10 min; hiciste 4.6 km y 17 min»).
+- **Mapa con calles** (OpenStreetMap) con el trazo encima: recogida en naranja, viaje en azul,
+  inicio verde y fin rojo. Se mueve con el dedo, acerca con dos dedos o con los botones, y «Ver
+  todo» lo vuelve a encuadrar. Sin internet se ve solo el trazo.
+- **Nombres de los lugares** de inicio y fin a partir del GPS, con internet (servicio de mapas del
+  teléfono). Mientras no hay nombre se muestran las direcciones de la tarjeta de Uber.
+- **Exportar el recorrido** en GPX (abre en Google Maps «Mis mapas», Google Earth y casi cualquier
+  app de mapas) o GeoJSON, desde el detalle del viaje y desde «Reportes y exportación»
+  («Recorridos», con los filtros del periodo). Llevan las ubicaciones y el nombre del pasajero.
+- **«Borrar recorrido»** en el detalle y **«Borrar todos los recorridos»** en Ajustes: se van los
+  puntos; las horas, los lugares, los km y el dinero se quedan.
+- **Ajustes › Recorrido de los viajes**: interruptor (encendido) y cuántos recorridos y puntos hay.
+- En la lista de **Tomados**, una línea por viaje: «Stefany · 6:42 → 7:01 · Los Ríos → Los Prados».
+- Herramientas de prueba: «Cargar prueba» de viajes crea también recorridos inventados en Santo
+  Domingo para ver la ficha y el mapa sin manejar.
+
+### Cambiado
+- El archivo de **viajes** suma `hora_inicio`, `lugar_inicio` y `lugar_fin` (texto). Las
+  coordenadas solo van en los archivos de recorrido; las demás tablas y exportaciones siguen sin
+  ninguna (la prueba de privacidad de la 8E se dividió para revisarlo).
+- La app pide permiso de **internet**, solo para las calles del mapa y los nombres de lugares.
+
+### Técnico
+- Base de datos 14: `trip_route_points` (un punto por fila, grados × 10 000 000 en enteros) y
+  `trip_routes` (resumen por viaje). Se borran con su viaje. Migración 13 → 14 con prueba
+  instrumentada (`Migration13To14Test`) y la cadena desde la 4.
+- 26 pruebas JVM nuevas (`RouteTest`): grabador, filtros, fases, 30 s, 3 horas, 45 s de «Buscando»,
+  simplificación a 5 m, GPX y GeoJSON válidos, ficha, mapa y privacidad.
+
 ## [1.23.1] - 2026-10-17
 
 Corrección del botón de cerrar. Incluye todo lo de la 1.23.0. La base de datos no cambia (sigue en 13).

@@ -323,6 +323,17 @@ fun SettingsScreen(
                 onEnabled = { viewModel.setDistanceEnabled(it) },
                 onMode = { viewModel.setDistanceMode(it) }
             )
+            // Fase 8K: the route of the taken trips
+            val routeEnabled by viewModel.routeEnabled.collectAsState()
+            val routeCounts by viewModel.routeCounts.collectAsState()
+            RouteSettingsCard(
+                enabled = routeEnabled,
+                gpsReady = distanceEnabled && locationPermitted,
+                routes = routeCounts.first,
+                points = routeCounts.second,
+                onEnabled = { viewModel.setRouteEnabled(it) },
+                onDeleteAll = { viewModel.deleteAllRoutes() }
+            )
 
             SectionHeader("Ganancias y metas", R.drawable.ic_flag)
             val goals by viewModel.goals.collectAsState()

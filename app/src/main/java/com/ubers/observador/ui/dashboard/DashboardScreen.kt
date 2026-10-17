@@ -164,7 +164,8 @@ fun DashboardScreen(
     if (selectedOffer != null) {
         OfferDetailSheet(
             detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
-            onDismiss = { selectedOfferId = null }
+            onDismiss = { selectedOfferId = null },
+            trip = state.trips[selectedOffer.id]
         )
     }
 
@@ -329,6 +330,7 @@ fun DashboardScreen(
                                 offer = offer,
                                 thresholds = state.thresholds,
                                 tripStatus = state.tripStatus[offer.id],
+                                tripLine = state.tripLines[offer.id],
                                 onClick = { selectedOfferId = offer.id }
                             )
                         }
@@ -775,6 +777,7 @@ private fun OfferRow(
     offer: OfferEntity,
     thresholds: QualityThresholds,
     tripStatus: TripStatus?,
+    tripLine: String? = null,
     onClick: () -> Unit
 ) {
     val time = remember(offer.detectedAt) {
@@ -833,6 +836,14 @@ private fun OfferRow(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+                // Fase 8K: who, when and where
+                if (!tripLine.isNullOrEmpty()) {
+                    Text(
+                        text = tripLine,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

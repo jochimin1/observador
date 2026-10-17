@@ -136,6 +136,9 @@ fun ReportExportEffects(exporter: ReportExporter, snackbar: SnackbarHostState) {
     val json = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { exporter.savePendingTo(it) }
     val pdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { exporter.savePendingTo(it) }
     val zip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { exporter.savePendingTo(it) }
+    // Fase 8K: route files
+    val gpx = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(com.ubers.observador.domain.route.RouteFiles.GPX_MIME)) { exporter.savePendingTo(it) }
+    val geojson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(com.ubers.observador.domain.route.RouteFiles.GEOJSON_MIME)) { exporter.savePendingTo(it) }
     LaunchedEffect(exporter) {
         exporter.events.collect { event ->
             when (event) {
@@ -143,6 +146,8 @@ fun ReportExportEffects(exporter: ReportExporter, snackbar: SnackbarHostState) {
                     "application/pdf" -> pdf.launch(event.fileName)
                     "application/zip" -> zip.launch(event.fileName)
                     "application/json" -> json.launch(event.fileName)
+                    com.ubers.observador.domain.route.RouteFiles.GPX_MIME -> gpx.launch(event.fileName)
+                    com.ubers.observador.domain.route.RouteFiles.GEOJSON_MIME -> geojson.launch(event.fileName)
                     else -> csv.launch(event.fileName)
                 }
                 is ReportExportEvent.ReadyToShare -> {
@@ -178,7 +183,7 @@ fun ReportExportDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "$periodLabel. Importes exactos con su moneda; nunca coordenadas. El archivo de viajes incluye el pasajero y las direcciones. El PDF lleva la nota de que no es un documento oficial de Uber.",
+                    "$periodLabel. Importes exactos con su moneda. El archivo de viajes incluye el pasajero, las direcciones y los lugares de inicio y fin. Solo los recorridos (GPX y GeoJSON) llevan ubicaciones exactas y el nombre del pasajero. El PDF lleva la nota de que no es un documento oficial de Uber.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

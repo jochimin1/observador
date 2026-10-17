@@ -93,7 +93,11 @@ data class DashboardUiState(
     val tripStatus: Map<Long, TripStatus> = emptyMap(),
     /** Fase 8J: cards of the period with «Me interesa» and with «Aceptar». */
     val interestCount: Int = 0,
-    val acceptCount: Int = 0
+    val acceptCount: Int = 0,
+    /** Fase 8K: offer row id -> its trip, for the trip's card in the detail panel. */
+    val trips: Map<Long, com.ubers.observador.domain.trips.Trip> = emptyMap(),
+    /** Fase 8K: offer row id -> «Stefany · 6:42 → 7:01 · Los Ríos → Los Prados». */
+    val tripLines: Map<Long, String> = emptyMap()
 )
 
 /** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
@@ -147,6 +151,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = AppSettings(app)
     private val onlineRepository = OnlineRepository(db)
     private val tripRepository = com.ubers.observador.data.TripRepository(db)
+    private val routeRepository = com.ubers.observador.data.RouteRepository(db)
 
     /** Fase 8H: every offer seen since [since], each with the trip it became (if any). */
     private fun ledgerSince(since: Long?): Flow<OfferLedger> =
@@ -272,7 +277,8 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
             // even a year of history is a few MB; revisit with paging if that changes.
             // Fase 8H: every offer seen, with the trip it became; the origin chip picks which are shown
             val ledger = ledgerSince(w.since)
-            combine(ledger, origin, settings.engineSettings, settings.qualityThresholds) { all, o, engine, cuts ->
+            val routes = routeRepository.observeRoutesSince(w.since ?: 0L)
+            combine(ledger, origin, settings.engineSettings, settings.qualityThresholds, routes) { all, o, engine, cuts, routeOf ->
                 // D1: judge the whole period with the current settings
                 val scored = DashboardStats.rescore(all.filtered(o), engine)
                 DashboardUiState(
@@ -287,7 +293,13 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     originCounts = all.counts,
                     tripStatus = all.tripStatus,
                     interestCount = all.countOf(com.ubers.observador.domain.lifecycle.OfferCardAction.INTEREST),
-                    acceptCount = all.countOf(com.ubers.observador.domain.lifecycle.OfferCardAction.ACCEPT)
+                    acceptCount = all.countOf(com.ubers.observador.domain.lifecycle.OfferCardAction.ACCEPT),
+                    trips = all.tripOf,
+                    tripLines = all.tripOf.mapValues { (_, t) ->
+                        com.ubers.observador.domain.route.TripSheets.oneLine(
+                            com.ubers.observador.domain.route.TripSheets.of(t, routeOf[t.id], null), w.clock.zone
+                        )
+                    }
                 )
             }
         }

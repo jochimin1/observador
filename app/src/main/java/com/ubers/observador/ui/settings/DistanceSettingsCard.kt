@@ -16,6 +16,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -66,7 +68,7 @@ fun DistanceSettingsCard(
                 ModeOption("Solo al conectarme a Uber", DistanceMode.AUTO_ONLY, mode, onMode)
                 ModeOption("Solo con el botón «Iniciar recorrido»", DistanceMode.MANUAL_ONLY, mode, onMode)
             }
-            InfoLine(R.drawable.ic_info, "Solo se guardan km y horas. Nunca coordenadas, rutas ni mapas, tampoco en las exportaciones.")
+            InfoLine(R.drawable.ic_info, "Los km se guardan como totales. El recorrido de los viajes tomados se guarda aparte: «Recorrido de los viajes», abajo.")
             if (enabled && !permitted) {
                 InfoLine(R.drawable.ic_warning, "Falta el permiso de ubicación precisa.", tint = MaterialTheme.colorScheme.error)
                 TextButton(onClick = {
@@ -91,5 +93,75 @@ private fun ModeOption(label: String, value: DistanceMode, current: DistanceMode
     ) {
         RadioButton(selected = value == current, onClick = null)
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+/**
+ * Fase 8K in Ajustes: «Grabar el recorrido de los viajes» (on unless switched off) and «Borrar
+ * todos los recorridos». It uses the positions of «Medir km con GPS»: without them a trip is kept
+ * without its route.
+ */
+@Composable
+fun RouteSettingsCard(
+    enabled: Boolean,
+    gpsReady: Boolean,
+    routes: Int,
+    points: Int,
+    onEnabled: (Boolean) -> Unit,
+    onDeleteAll: () -> Unit
+) {
+    var confirming by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (confirming) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text("¿Borrar todos los recorridos?") },
+            text = {
+                Text(
+                    "Se borran los puntos y el trazo de $routes viaje(s). Los viajes, sus horas, los nombres de los lugares, " +
+                        "los km y el dinero se quedan. No se puede deshacer."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirming = false; onDeleteAll() }) {
+                    Text("Borrar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancelar") } }
+        )
+    }
+    SectionCard(
+        title = "Recorrido de los viajes",
+        icon = R.drawable.ic_route,
+        subtitle = when {
+            !enabled -> "Apagado"
+            !gpsReady -> "Activado · falta el GPS"
+            else -> "Activado"
+        },
+        badgeContainer = MaterialTheme.colorScheme.tertiaryContainer,
+        badgeContent = MaterialTheme.colorScheme.onTertiaryContainer,
+        action = { Switch(checked = enabled, onCheckedChange = onEnabled) }
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "Guarda por dónde pasó cada viaje tomado, desde «Llegar por …» hasta el final, con la hora y el lugar " +
+                    "de inicio y de fin. Lo ves en el detalle del viaje, sobre un mapa, y lo exportas en GPX o GeoJSON.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            InfoLine(R.drawable.ic_info, "Usa las mismas posiciones de «Medir km con GPS»: no gasta más batería. Se guarda siempre, hasta que lo borres.")
+            InfoLine(R.drawable.ic_info, "El mapa con calles y los nombres de los lugares usan internet (OpenStreetMap y el servicio de mapas del teléfono).")
+            if (enabled && !gpsReady) {
+                InfoLine(R.drawable.ic_warning, "Con «Medir km con GPS» apagado o sin permiso, los viajes se guardan sin recorrido.", tint = MaterialTheme.colorScheme.error)
+            }
+            Text(
+                if (routes == 0) "Aún no hay recorridos guardados." else "$routes recorrido(s) · $points punto(s) guardados",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (routes > 0) {
+                TextButton(onClick = { confirming = true }) {
+                    Text("Borrar todos los recorridos", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
     }
 }
