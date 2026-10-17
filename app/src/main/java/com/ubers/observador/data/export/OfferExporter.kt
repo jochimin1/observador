@@ -1,6 +1,7 @@
 package com.ubers.observador.data.export
 
 import com.ubers.observador.data.db.OfferEntity
+import com.ubers.observador.data.db.action
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -34,7 +35,7 @@ object OfferExporter {
 
     private const val CSV_HEADER =
         "fecha,hora,precio,km_recogida,min_recogida,km_viaje,min_viaje,km_total,min_total," +
-        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score"
+        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score,boton"
 
     private val DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE
     private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -55,7 +56,7 @@ object OfferExporter {
             sb.append(
                 String.format(
                     Locale.US,
-                    "%s,%s,%.2f,%.1f,%d,%.1f,%d,%.1f,%d,%.2f,%.2f,%.2f,%.2f,%d",
+                    "%s,%s,%.2f,%.1f,%d,%.1f,%d,%.1f,%d,%.2f,%.2f,%.2f,%.2f,%d,%s",
                     detected.format(DATE_FORMAT),
                     detected.format(TIME_FORMAT),
                     o.price,
@@ -69,7 +70,8 @@ object OfferExporter {
                     o.rdpPerHour,
                     o.fuelCost,
                     o.netProfit,
-                    o.score
+                    o.score,
+                    o.action?.label ?: ""
                 )
             ).append("\r\n")
         }
@@ -96,6 +98,7 @@ object OfferExporter {
                     .put("fuelCost", o.fuelCost)
                     .put("netProfit", o.netProfit)
                     .put("score", o.score)
+                    .put("cardAction", o.action?.storageKey ?: JSONObject.NULL)
             )
         }
         return JSONObject()

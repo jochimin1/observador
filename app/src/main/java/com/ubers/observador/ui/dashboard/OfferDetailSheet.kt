@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.dashboard
 
+import com.ubers.observador.data.db.action
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,6 +80,14 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
+        }
+        // Fase 8J: which button the card had
+        o.action?.let { a ->
+            com.ubers.observador.ui.components.InfoLine(
+                com.ubers.observador.R.drawable.ic_info,
+                if (a == com.ubers.observador.domain.lifecycle.OfferCardAction.INTEREST) "Tarjeta del Radar: «Me interesa» (Uber decide si te la da)"
+                else "Tarjeta con «Aceptar»"
+            )
         }
         // Fase 8F: where from and where to, as Uber wrote them on the card
         if (o.pickupAddress != null || o.dropoffAddress != null) {

@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -285,6 +285,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Fase 8J: the offer card's button («Me interesa» or «Aceptar»). Only adds a column. */
+        internal val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `detected_offers` ADD COLUMN `card_action` TEXT")
+            }
+        }
+
         /** Fase 8F: the offer card's addresses and the rider's name (decision of 14/10). Only adds columns. */
         internal val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -334,7 +341,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .build().also { INSTANCE = it }
             }
     }

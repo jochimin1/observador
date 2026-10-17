@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.dashboard
 
+import com.ubers.observador.data.db.action
 import android.content.ClipData
 import android.content.Intent
 import android.provider.Settings
@@ -661,15 +662,26 @@ private fun DayHeader(
 /** Fase 8H: Todo / Ofertados / Tomados, each with how many offers it holds in the period. */
 @Composable
 private fun OriginChips(state: DashboardUiState, onOrigin: (TakenFilter) -> Unit) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        TakenFilter.entries.forEach { origin ->
-            FilterChip(
-                selected = origin == state.origin,
-                onClick = { onOrigin(origin) },
-                label = { Text("${origin.label} ${state.originCounts.of(origin)}") }
+    Column {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TakenFilter.entries.forEach { origin ->
+                FilterChip(
+                    selected = origin == state.origin,
+                    onClick = { onOrigin(origin) },
+                    label = { Text("${origin.label} ${state.originCounts.of(origin)}") }
+                )
+            }
+        }
+        // Fase 8J: «Me interesa» only asks Uber for the trip; «Aceptar» takes it
+        if (state.interestCount + state.acceptCount > 0) {
+            Text(
+                text = "Tarjetas: ${state.interestCount} con «Me interesa» · ${state.acceptCount} con «Aceptar»",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
     }
@@ -775,6 +787,13 @@ private fun OfferRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                offer.action?.let { a ->
+                    Text(
+                        text = "Tarjeta: ${a.label}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (tripStatus != null) {
                     Text(
                         text = tripStatusLabel(tripStatus),

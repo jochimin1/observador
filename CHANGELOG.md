@@ -14,6 +14,27 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.21.0] - 2026-10-17
+
+Ofertas «Me interesa». Incluye todo lo de la 1.20.0. Base de datos 11 → 12 (solo añade una columna).
+
+### Añadido
+- Cada oferta guarda el **botón de su tarjeta**: «Me interesa» (Radar de solicitud de viaje) o
+  «Aceptar» (tarjeta directa, también las «Exclusivo»). Las ofertas guardadas antes de esta versión
+  no lo tienen.
+- Las de «Me interesa» se registran **como ofertas**: tocar «Me interesa» solo le dice a Uber que
+  quieres el viaje, y Uber puede dárselo a otro. Pasan a «Tomados» únicamente si después aparece
+  «Llegar por …».
+- Inicio: debajo de Todo / Ofertados / Tomados, cuántas tarjetas del periodo fueron «Me interesa» y
+  cuántas «Aceptar»; cada fila dice «Tarjeta: Me interesa» o «Tarjeta: Aceptar», y el detalle lo explica.
+- La exportación de ofertas (CSV y JSON) lleva la columna `boton` / `cardAction`.
+
+### Pruebas
+- 3 pruebas JVM nuevas en `OfferRadarTest` (botón de cada tarjeta del Radar, clave fija, conteo y
+  que «Me interesa» sin viaje queda en «Ofertados»).
+- `Migration11To12Test` (instrumentada): las ofertas pasan intactas con el botón vacío, validado
+  con `schemas/12.json`, y la cadena 4 → 12 abre. Las demás pruebas de migración encadenan la 11 → 12.
+
 ## [1.20.0] - 2026-10-17
 
 Radar de ofertas y avisos. Incluye todo lo de la 1.19.0. La base de datos no cambia (sigue en 11).

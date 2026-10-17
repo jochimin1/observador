@@ -90,7 +90,10 @@ data class DashboardUiState(
     /** How many offers each origin chip would show in this period. */
     val originCounts: TakenCounts = TakenCounts(),
     /** Offer row id -> status of the trip it became; absent = only offered. */
-    val tripStatus: Map<Long, TripStatus> = emptyMap()
+    val tripStatus: Map<Long, TripStatus> = emptyMap(),
+    /** Fase 8J: cards of the period with «Me interesa» and with «Aceptar». */
+    val interestCount: Int = 0,
+    val acceptCount: Int = 0
 )
 
 /** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
@@ -282,7 +285,9 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     engineSettings = engine,
                     origin = o,
                     originCounts = all.counts,
-                    tripStatus = all.tripStatus
+                    tripStatus = all.tripStatus,
+                    interestCount = all.countOf(com.ubers.observador.domain.lifecycle.OfferCardAction.INTEREST),
+                    acceptCount = all.countOf(com.ubers.observador.domain.lifecycle.OfferCardAction.ACCEPT)
                 )
             }
         }

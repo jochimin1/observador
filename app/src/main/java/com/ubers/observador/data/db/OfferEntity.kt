@@ -27,5 +27,7 @@ data class OfferEntity(
     val score: Int,
     // Fase 8F (DB 11): addresses as Uber wrote them on the card; null on older rows
     @ColumnInfo(name = "pickup_address") val pickupAddress: String? = null,
-    @ColumnInfo(name = "dropoff_address") val dropoffAddress: String? = null
+    @ColumnInfo(name = "dropoff_address") val dropoffAddress: String? = null,
+    // Fase 8J (DB 12): the card's button, OfferCardAction.storageKey ("INTEREST" or "ACCEPT"); null on older rows
+    @ColumnInfo(name = "card_action") val cardAction: String? = null
 )

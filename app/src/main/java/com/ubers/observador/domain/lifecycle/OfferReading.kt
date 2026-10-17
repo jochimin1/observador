@@ -36,6 +36,31 @@ object OfferParseCheck {
 }
 
 /**
+ * Fase 8J: the button on the offer card. "Me interesa" is the Radar's: pressing it only says the
+ * driver wants the trip, and Uber may give it to someone else, so the offer stays an offer until
+ * "Llegar por …" shows it was given. "Aceptar" is the card that takes the trip at once (it also
+ * appears on the "Exclusivo" cards). Stored by [storageKey]; null on rows older than DB 12.
+ */
+enum class OfferCardAction(val storageKey: String, val label: String) {
+    INTEREST("INTEREST", "Me interesa"),
+    ACCEPT("ACCEPT", "Aceptar");
+
+    companion object {
+        fun fromStorage(key: String?): OfferCardAction? = entries.firstOrNull { it.storageKey == key }
+
+        /** The button of one card: "Me interesa" wins if both appear (a Radar card never says Aceptar). */
+        fun of(card: List<String>): OfferCardAction? {
+            val norm = card.map(TextNormalizer::normalize)
+            return when {
+                norm.any { it.contains("me interesa") } -> INTEREST
+                norm.any { t -> listOf("aceptar", "accept", "aceitar").any { t.contains(it) } } -> ACCEPT
+                else -> null
+            }
+        }
+    }
+}
+
+/**
  * Uber's "Radar de solicitud de viaje" lists several offer cards on one screen, each with its own
  * price and "Me interesa" button. The texts are cut at every price: each piece is one card, read
  * on its own. Text before the first price (a half-scrolled card) has no price and is left out.

@@ -19,5 +19,10 @@ fun OfferAnalysis.toEntity(offerHash: String = offer.offerHash()) = OfferEntity(
     netProfit = netProfit,
     score = score,
     pickupAddress = offer.pickupAddress,
-    dropoffAddress = offer.dropoffAddress
+    dropoffAddress = offer.dropoffAddress,
+    cardAction = offer.cardAction?.storageKey
 )
+
+/** Fase 8J: the card's button, read from [OfferEntity.cardAction] (kept out of the entity so Room never sees it). */
+val OfferEntity.action: com.ubers.observador.domain.lifecycle.OfferCardAction?
+    get() = com.ubers.observador.domain.lifecycle.OfferCardAction.fromStorage(cardAction)

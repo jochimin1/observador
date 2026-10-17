@@ -3,8 +3,10 @@ package com.ubers.observador
 import com.ubers.observador.LifecycleFixtures.button
 import com.ubers.observador.LifecycleFixtures.screen
 import com.ubers.observador.LifecycleFixtures.text
+import com.ubers.observador.data.db.action
 import com.ubers.observador.domain.OfferAlerts
 import com.ubers.observador.domain.OfferQuality
+import com.ubers.observador.domain.lifecycle.OfferCardAction
 import com.ubers.observador.domain.lifecycle.OfferCards
 import com.ubers.observador.domain.lifecycle.OfferParseCheck
 import com.ubers.observador.domain.lifecycle.OfferParseStep
@@ -13,6 +15,7 @@ import com.ubers.observador.domain.lifecycle.OfferPlacesReader
 import com.ubers.observador.domain.lifecycle.UberScreenType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -99,5 +102,46 @@ class OfferRadarTest {
         assertFalse(OfferAlerts.shouldNotify(true, OfferAlerts.OFF, true, OfferQuality.BAD))
         assertEquals(OfferAlerts.ALL, OfferAlerts.fromStorage(null))
         assertEquals(OfferAlerts.GOOD, OfferAlerts.fromStorage("GOOD"))
+    }
+
+    // --- Fase 8J: the card's button ---
+
+    @Test
+    fun `each card knows its button`() {
+        val texts = listOf("Radar de solicitud de viaje") +
+            card("DOP74.17", "A 2 min (0.5 km)", "Los Ríos", "Viaje: 10 min (3.9 km)", "Madre Teresa de Calcuta, Arroyo Manzano") +
+            card("DOP72.47", "A 4 min (2.0 km)", "C. Arzobispo Portes, Gazcue", "Viaje: 10 min (3.6 km)", "Guachupita", action = "Aceptar")
+        val cards = OfferCards.segments(texts)
+        assertEquals(listOf(OfferCardAction.INTEREST, OfferCardAction.ACCEPT), cards.map { OfferCardAction.of(it) })
+        assertNull(OfferCardAction.of(listOf("DOP50.01", "A 5 min (1.9 km)")))
+    }
+
+    @Test
+    fun `the button is stored by a fixed key`() {
+        assertEquals(OfferCardAction.INTEREST, OfferCardAction.fromStorage("INTEREST"))
+        assertEquals(OfferCardAction.ACCEPT, OfferCardAction.fromStorage("ACCEPT"))
+        assertNull(OfferCardAction.fromStorage(null))
+        assertNull(OfferCardAction.fromStorage("OTRO"))
+        assertEquals("Me interesa", OfferCardAction.INTEREST.label)
+    }
+
+    @Test
+    fun `an offer with Me interesa stays an offer and is counted by button`() {
+        fun row(id: Long, action: OfferCardAction?) = com.ubers.observador.data.db.OfferEntity(
+            id = id, offerHash = "h$id", detectedAt = id, price = 50.0, pickupKm = 1.0, pickupMin = 3, tripKm = 2.0, tripMin = 6,
+            totalKm = 3.0, totalMin = 9, rdpPerKm = 16.0, rdpPerHour = 300.0, fuelCost = 5.0, netProfit = 45.0, score = 60,
+            cardAction = action?.storageKey
+        )
+        val ledger = com.ubers.observador.domain.OfferLedger.of(
+            listOf(row(1, OfferCardAction.INTEREST), row(2, OfferCardAction.INTEREST), row(3, OfferCardAction.ACCEPT), row(4, null)),
+            emptyList()
+        )
+        assertEquals(2, ledger.countOf(OfferCardAction.INTEREST))
+        assertEquals(1, ledger.countOf(OfferCardAction.ACCEPT))
+        // Without a trip, every one of them is "Ofertados", never "Tomados"
+        assertEquals(4, ledger.counts.offered)
+        assertEquals(0, ledger.counts.taken)
+        assertEquals(OfferCardAction.INTEREST, row(1, OfferCardAction.INTEREST).action)
+        assertNull(row(4, null).action)
     }
 }

@@ -34,6 +34,10 @@ data class OfferLedger(val rows: List<OfferEntity>, val tripStatus: Map<Long, co
     val counts: TakenCounts
         get() = TakenCounts(all = rows.size, offered = rows.count { it.id !in tripStatus }, taken = tripStatus.size)
 
+    /** Fase 8J: how many cards had each button (rows older than DB 12 have none and are not counted). */
+    fun countOf(action: com.ubers.observador.domain.lifecycle.OfferCardAction): Int =
+        rows.count { it.cardAction == action.storageKey }
+
     fun filtered(filter: TakenFilter): List<OfferEntity> = when (filter) {
         TakenFilter.ALL -> rows
         TakenFilter.OFFERED -> rows.filter { it.id !in tripStatus }

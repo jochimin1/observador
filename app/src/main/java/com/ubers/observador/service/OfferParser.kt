@@ -22,7 +22,11 @@ object OfferParser {
         com.ubers.observador.domain.lifecycle.OfferCards.segments(texts).mapNotNull { card ->
             parse(card)?.let { o ->
                 val places = com.ubers.observador.domain.lifecycle.OfferPlacesReader.read(card)
-                o.copy(pickupAddress = places.pickup, dropoffAddress = places.dropoff)
+                o.copy(
+                    pickupAddress = places.pickup,
+                    dropoffAddress = places.dropoff,
+                    cardAction = com.ubers.observador.domain.lifecycle.OfferCardAction.of(card)
+                )
             }
         }
 
