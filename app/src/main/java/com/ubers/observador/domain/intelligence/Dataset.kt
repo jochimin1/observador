@@ -9,10 +9,13 @@ import com.ubers.observador.domain.finance.FinancialCompleteness
 import com.ubers.observador.domain.finance.TripFinancialSummary
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.trips.Trip
+import com.ubers.observador.domain.trips.TripOutcome
 import com.ubers.observador.domain.trips.TripStatus
 
 /**
- * One completed trip, joined with its offer, the settings that judged it and its real money.
+ * One trip done, joined with its offer, the settings that judged it and its real money. Since
+ * 1.25.0 also the trips closed by «Buscando» («terminó sin confirmar», [endConfirmed] false), and
+ * the real kilometres of the GPS (8E) when the whole trip was measured.
  * Outcome fields (earnings, real minutes) are labels for evaluation only: no decision model
  * ever receives this class, only [features].
  *
@@ -47,8 +50,38 @@ data class IntelligenceSample(
     val realizedGrossPerEngagedHour: Double?,
     val recovered: Boolean,
     val timelineValid: Boolean,
-    val modelVersionId: String? = null
+    val modelVersionId: String? = null,
+    /** False for a trip closed by «Buscando»: its end is the route's last point or 45 s before the close. */
+    val endConfirmed: Boolean = true,
+    /** The offer's km: pickup + trip, as Uber estimated them. */
+    val estimatedKm: Double? = null,
+    /** GPS km of the whole trip (8E), only when it was measured from pickup to end with no gap. */
+    val realDistanceMm: Long? = null
 ) {
+    /** Real km - estimated km. */
+    val distanceErrorKm: Double?
+        get() {
+            val real = realDistanceMm ?: return null
+            val estimated = estimatedKm ?: return null
+            return real / 1_000_000.0 - estimated
+        }
+
+    val distanceErrorPercent: Double?
+        get() {
+            val estimated = estimatedKm ?: return null
+            if (estimated <= 0.0) return null
+            return distanceErrorKm?.div(estimated)
+        }
+
+    /** Real earnings / real GPS km: RD$ per real km, only with confirmed money and a full measure. */
+    val realizedPerRealKm: Double?
+        get() {
+            val earnings = actualEarnings ?: return null
+            val mm = realDistanceMm ?: return null
+            if (mm < 100_000) return null // under 100 m: no meaningful ratio
+            return earnings.toDecimal().toDouble() / (mm / 1_000_000.0)
+        }
+
     /** Orders samples in time for validation: when the offer appeared, else when it was taken. */
     val orderingTimeMs: Long get() = detectedAtMs ?: acceptedAtMs ?: completedAtMs ?: 0L
 
@@ -98,6 +131,7 @@ data class IntelligenceSample(
 
 /** What the data can and cannot support. Shown before any conclusion. */
 data class DataQualityReport(
+    /** Trips done in the period: confirmed by Uber's summary plus, when included, closed by «Buscando». */
     val completedTrips: Int,
     val withConfirmedMoney: Int,
     val withPartialMoney: Int,
@@ -109,8 +143,14 @@ data class DataQualityReport(
     val invalidTimeline: Int,
     val currencyMismatch: Int,
     val withoutOffer: Int,
-    val withoutSettingsSnapshot: Int
+    val withoutSettingsSnapshot: Int,
+    /** Of [completedTrips]: closed by «Buscando», with no summary seen. */
+    val unconfirmedEnds: Int = 0,
+    /** With the GPS km of the whole trip. */
+    val withRealDistance: Int = 0
 ) {
+    val confirmedEnds: Int get() = completedTrips - unconfirmedEnds
+    val distance: Coverage get() = Coverage(completedTrips, withRealDistance)
     val financial: Coverage get() = Coverage(completedTrips, withConfirmedMoney)
     val time: Coverage get() = Coverage(completedTrips, withFullTimes)
     val hourly: Coverage get() = Coverage(completedTrips, usableForHourly)
@@ -130,16 +170,30 @@ object IntelligenceDatasetBuilder {
     /** Neutral rules, used only to read the predicted ratios (they do not depend on settings). */
     private val NEUTRAL = ProfitSettingsSnapshot(6.0, 300.0, 6.0, 12, ScoreWeights.DEFAULT, 60, 80)
 
-    fun build(trips: List<Trip>, summaries: Map<String, TripFinancialSummary>, currencyCode: String): IntelligenceDataset {
+    /**
+     * [includeUnconfirmed]: also the trips closed by «Buscando» that count as done (TripOutcome).
+     * [routeEnds]: trip id -> last point of its route (8K), their best end time.
+     * [realDistanceMm]: trip id -> GPS km of the whole trip (8E), only for full measures.
+     */
+    fun build(
+        trips: List<Trip>,
+        summaries: Map<String, TripFinancialSummary>,
+        currencyCode: String,
+        includeUnconfirmed: Boolean = true,
+        routeEnds: Map<String, Long> = emptyMap(),
+        realDistanceMm: Map<String, Long> = emptyMap()
+    ): IntelligenceDataset {
         var currencyMismatch = 0
-        val samples = trips.filter { it.status == TripStatus.COMPLETED }
-            .sortedWith(compareBy<Trip> { it.completedAt ?: 0L }.thenBy { it.id })
-            .map { trip ->
+        val samples = trips
+            .filter { it.status == TripStatus.COMPLETED || (includeUnconfirmed && it.status == TripStatus.INTERRUPTED && TripOutcome.endedAt(it) != null) }
+            .map { it to TripOutcome.realEndAt(it, routeEnds[it.id]) }
+            .sortedWith(compareBy<Pair<Trip, Long?>> { it.second ?: 0L }.thenBy { it.first.id })
+            .map { (trip, end) ->
                 val summary = summaries[trip.id]
                 val confirmed = summary?.takeIf { it.completeness == FinancialCompleteness.CONFIRMED }?.effectiveEarnings
                 val earnings = confirmed?.takeIf { it.currencyCode == currencyCode }
                 if (confirmed != null && earnings == null) currencyMismatch++
-                sample(trip, summary, earnings, currencyCode)
+                sample(trip, summary, earnings, currencyCode, end, realDistanceMm[trip.id])
             }
         val quality = DataQualityReport(
             completedTrips = samples.size,
@@ -153,12 +207,21 @@ object IntelligenceDatasetBuilder {
             invalidTimeline = samples.count { !it.timelineValid },
             currencyMismatch = currencyMismatch,
             withoutOffer = samples.count { it.features == null },
-            withoutSettingsSnapshot = samples.count { it.settingsAtDetection == null }
+            withoutSettingsSnapshot = samples.count { it.settingsAtDetection == null },
+            unconfirmedEnds = samples.count { !it.endConfirmed },
+            withRealDistance = samples.count { it.realDistanceMm != null }
         )
         return IntelligenceDataset(samples, quality)
     }
 
-    private fun sample(trip: Trip, summary: TripFinancialSummary?, earnings: MoneyAmount?, currencyCode: String): IntelligenceSample {
+    private fun sample(
+        trip: Trip,
+        summary: TripFinancialSummary?,
+        earnings: MoneyAmount?,
+        currencyCode: String,
+        end: Long?,
+        realMm: Long?
+    ): IntelligenceSample {
         val offer = trip.offer
         val features = offer?.let {
             MoneyAmount.fromLegacyDouble(it.offeredAmount, currencyCode)?.let { amount ->
@@ -169,7 +232,8 @@ object IntelligenceDatasetBuilder {
         val predicted = features?.let { engine.evaluate(it, settings ?: NEUTRAL) }
         val accepted = trip.acceptedAt
         val started = trip.tripStartedAt
-        val completed = trip.completedAt
+        // The summary's time, or for a trip closed by «Buscando» its best estimate (TripOutcome.realEndAt)
+        val completed = end
         val timelineValid = completed != null &&
             (accepted == null || accepted <= completed) &&
             (started == null || started <= completed) &&
@@ -206,7 +270,10 @@ object IntelligenceDatasetBuilder {
             actualInTripMinutes = inTrip,
             realizedGrossPerEngagedHour = realized,
             recovered = trip.recovered,
-            timelineValid = timelineValid
+            timelineValid = timelineValid,
+            endConfirmed = trip.status == TripStatus.COMPLETED,
+            estimatedKm = features?.let { it.pickupKm + it.tripKm }?.takeIf { it > 0.0 },
+            realDistanceMm = realMm?.takeIf { it > 0 }
         )
     }
 

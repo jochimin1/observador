@@ -165,6 +165,72 @@ class IntelligenceTest {
         assertEquals(0.5, d.quality.hourly.ratio!!, 1e-9)
     }
 
+    // ---- Since 1.25.0: trips closed by «Buscando», GPS kilometres ----
+
+    /** A trip closed by «Buscando» 45 s after Uber went back to searching, with no anomaly. */
+    private fun unconfirmed(id: String, closedAt: Long = at(10, 31)) =
+        trip(id, completed = null).copy(status = TripStatus.INTERRUPTED, interruptedAt = closedAt)
+
+    @Test fun tripsClosedBySearchingCountAndEndWhenTheRouteEnds() {
+        val trips = listOf(
+            trip("a"),
+            unconfirmed("b"),
+            unconfirmed("c"),
+            unconfirmed("d").copy(hasAnomalies = true), // not counted as done, like in Ganancias
+            trip("e", status = TripStatus.CANCELLED)
+        )
+        val d = IntelligenceDatasetBuilder.build(
+            trips, mapOf("a" to money("a", 14_000)), Currencies.DOP, routeEnds = mapOf("c" to at(10, 28))
+        )
+        assertEquals(listOf("a", "b", "c"), d.samples.map { it.tripId }.sorted())
+        assertEquals(3, d.quality.completedTrips)
+        assertEquals(2, d.quality.unconfirmedEnds)
+        assertEquals(1, d.quality.confirmedEnds)
+        val b = d.samples.first { it.tripId == "b" }
+        assertFalse(b.endConfirmed)
+        assertEquals(at(10, 31) - 45_000, b.completedAtMs) // Uber was already searching for 45 s
+        assertEquals(30.25, b.actualEngagedMinutes!!, 1e-9)
+        assertEquals(at(10, 28), d.samples.first { it.tripId == "c" }.completedAtMs) // the route's last point
+        assertNull(b.realizedGrossPerEngagedHour) // no money: never the offer
+        assertTrue(d.samples.first { it.tripId == "a" }.endConfirmed)
+        // Switched off: only what Uber's summary confirmed
+        val only = IntelligenceDatasetBuilder.build(trips, emptyMap(), Currencies.DOP, includeUnconfirmed = false)
+        assertEquals(listOf("a"), only.samples.map { it.tripId })
+        assertEquals(0, only.quality.unconfirmedEnds)
+    }
+
+    @Test fun realKilometresComeFromTheGpsOnlyWhenTheWholeTripWasMeasured() {
+        // Offer: 2.0 km pickup + 8.0 km trip; GPS: 11.5 km; money RD$140
+        val d = IntelligenceDatasetBuilder.build(
+            listOf(trip("a"), trip("b")), mapOf("a" to money("a", 14_000)), Currencies.DOP,
+            realDistanceMm = mapOf("a" to 11_500_000L)
+        )
+        val a = d.samples.first { it.tripId == "a" }
+        assertEquals(10.0, a.estimatedKm!!, 1e-9)
+        assertEquals(1.5, a.distanceErrorKm!!, 1e-9)
+        assertEquals(0.15, a.distanceErrorPercent!!, 1e-9)
+        assertEquals(140.0 / 11.5, a.realizedPerRealKm!!, 1e-9)
+        assertNull(d.samples.first { it.tripId == "b" }.realDistanceMm)
+        assertEquals(1, d.quality.withRealDistance)
+        val p = PredictionErrorAnalyzer.analyze(d.samples)
+        assertEquals(1, p.distance!!.coverage.valid)
+        assertEquals(11.5, p.realKm!!.median, 1e-9)
+        assertEquals(14.0, p.perEstimatedKm!!.median, 1e-9) // RD$140 / 10 km
+    }
+
+    @Test fun longerTripsThanOfferedBecomeAFinding() {
+        val trips = (1..12).map { trip("t$it") }
+        val gps = trips.associate { it.id to 12_000_000L } // 12 km against 10 estimated: +20%
+        val d = IntelligenceDatasetBuilder.build(trips, emptyMap(), Currencies.DOP, realDistanceMm = gps)
+        val p = PredictionErrorAnalyzer.analyze(d.samples)
+        val insights = com.ubers.observador.domain.intelligence.InsightGenerator.generate(
+            p, ScorePerformanceAnalyzer.analyze(d.samples, null), ThresholdAnalyzer.analyze(d.samples, null)
+        )
+        val found = insights.first { it.type == InsightType.DISTANCE_UNDERESTIMATED }
+        assertEquals(12, found.sampleCount)
+        assertEquals(0.2, found.metric, 1e-9)
+    }
+
     @Test fun inconsistentTimelineIsFlaggedNotDeleted() {
         val d = build(listOf(trip(completed = at(9))), listOf(money("t1", 14_000)))
         assertEquals(1, d.samples.size)

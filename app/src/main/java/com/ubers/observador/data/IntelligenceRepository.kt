@@ -28,13 +28,35 @@ class IntelligenceRepository(private val db: AppDatabase) {
     private val trips = db.tripDao()
     private val money = db.financialDao()
 
-    /** Completed trips of [from, to) with their money, as samples. Offers are never income. */
-    suspend fun loadDataset(from: Long, to: Long, currencyCode: String = Currencies.DOP): IntelligenceDataset = db.withTransaction {
-        val completed = trips.getTripsCompletedBetween(from, to).map { it.toDomain() }
-        val summaries = completed.map { it.id }.chunked(SQLITE_BATCH).flatMap { money.getSummaries(it) }
+    /**
+     * Trips done in [from, to) with their money, as samples. Offers are never income. Since
+     * 1.25.0, with [includeUnconfirmed] also the trips closed by «Buscando» (ended without the
+     * summary), each with the last point of its route (8K) and its GPS km when fully measured (8E).
+     */
+    suspend fun loadDataset(
+        from: Long,
+        to: Long,
+        currencyCode: String = Currencies.DOP,
+        includeUnconfirmed: Boolean = true
+    ): IntelligenceDataset = db.withTransaction {
+        val done = (if (includeUnconfirmed) trips.getTripsEndedBetween(from, to) else trips.getTripsCompletedBetween(from, to))
+            .map { it.toDomain() }
+        val ids = done.map { it.id }
+        val summaries = ids.chunked(SQLITE_BATCH).flatMap { money.getSummaries(it) }
             .associate { it.tripId to it.toDomain(currencyCode) }
-        IntelligenceDatasetBuilder.build(completed, summaries, currencyCode)
+        val routeEnds = routeEnds(ids)
+        val realKm = ids.chunked(SQLITE_BATCH).flatMap { db.distanceDao().getTripDistances(it) }
+            .filter { it.coverage == com.ubers.observador.domain.distance.TripDistanceCoverage.FULL.storageKey }
+            .associate { it.tripId to it.pickupMm + it.tripMm }
+        IntelligenceDatasetBuilder.build(done, summaries, currencyCode, includeUnconfirmed, routeEnds, realKm)
     }
+
+    /** The last point of each route of [tripIds] (8K): the best end of a trip closed by «Buscando». */
+    suspend fun routeEnds(tripIds: List<String>): Map<String, Long> =
+        tripIds.chunked(SQLITE_BATCH).flatMap { db.routeDao().getRoutes(it) }
+            .filter { it.status != "OPEN" }
+            .mapNotNull { r -> r.endAt?.let { r.tripId to it } }
+            .toMap()
 
     suspend fun acceptedOfferHashesSince(from: Long): Set<String> = trips.getAcceptedOfferHashesSince(from).toSet()
 

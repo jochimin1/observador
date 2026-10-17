@@ -30,7 +30,10 @@ enum class InsightType {
     CATEGORIES_COLLAPSE,
     EARNINGS_ABOVE_OFFER,
     EARNINGS_BELOW_OFFER,
-    PICKUP_DISTANCE_HURTS
+    PICKUP_DISTANCE_HURTS,
+    /** Since 1.25.0, with the GPS: trips are longer (or shorter) in km than the offer said. */
+    DISTANCE_UNDERESTIMATED,
+    DISTANCE_OVERESTIMATED
 }
 
 /** One explicit-rule finding. The UI turns [type] into words; numbers come from here. */
@@ -219,6 +222,12 @@ object InsightGenerator {
             val pct = t.medianPercent
             if (t.coverage.valid >= min && pct != null && abs(pct) >= 0.10) {
                 list += Insight(if (pct > 0) InsightType.TIME_UNDERESTIMATED else InsightType.TIME_OVERESTIMATED, 80, t.coverage.valid, pct)
+            }
+        }
+        prediction.distance?.let { d ->
+            val pct = d.medianPercent
+            if (d.coverage.valid >= min && pct != null && abs(pct) >= 0.10) {
+                list += Insight(if (pct > 0) InsightType.DISTANCE_UNDERESTIMATED else InsightType.DISTANCE_OVERESTIMATED, 78, d.coverage.valid, pct)
             }
         }
         if (score.spearmanN >= min && score.bucketMonotonicity == Monotonicity.NON_MONOTONIC) {

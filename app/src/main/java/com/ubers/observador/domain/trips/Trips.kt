@@ -219,4 +219,22 @@ object TripOutcome {
 
     /** True only when the screen that closes a trip was seen. */
     fun isConfirmed(t: Trip): Boolean = t.status == TripStatus.COMPLETED
+
+    /** A trip closed by «Buscando» had already ended this long before (LifecycleConfig.searchEndsTripMs). */
+    val SEARCHING_CLOSE_MS: Long = com.ubers.observador.domain.lifecycle.LifecycleConfig().searchEndsTripMs
+
+    /**
+     * When the trip really ended, as near as Observador can tell (Fase 8K+): the summary or the
+     * cancellation when seen; for a trip closed by «Buscando», the last point of its route, or
+     * else 45 s before the close (Uber was already searching then). Never before the last
+     * milestone seen. Null while the trip is under way.
+     */
+    fun realEndAt(t: Trip, routeEndAt: Long? = null): Long? {
+        val seen = t.completedAt ?: t.cancelledAt
+        if (seen != null) return seen
+        val closed = t.interruptedAt ?: return null
+        val last = listOfNotNull(t.acceptedAt, t.pickupNavigationAt, t.arrivedAt, t.tripStartedAt).maxOrNull()
+        val guess = routeEndAt?.takeIf { it <= closed } ?: (closed - SEARCHING_CLOSE_MS)
+        return if (last != null) maxOf(guess, last) else guess
+    }
 }

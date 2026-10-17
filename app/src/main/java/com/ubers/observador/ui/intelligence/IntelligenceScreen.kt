@@ -71,6 +71,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val DATE = DateTimeFormatter.ofPattern("d MMM yyyy")
+private fun km(value: Double) = String.format(java.util.Locale.US, "%.1f", value)
 private fun date(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DATE)
 
 /**
@@ -125,6 +126,12 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                 IntelligencePeriod.entries.forEach { p ->
                     FilterChip(selected = state.period == p, onClick = { viewModel.selectPeriod(p) }, label = { Text(p.label) })
                 }
+                // Since 1.25.0: the trips closed by «Buscando» count too, unless switched off here
+                FilterChip(
+                    selected = state.includeUnconfirmed,
+                    onClick = { viewModel.setIncludeUnconfirmed(!state.includeUnconfirmed) },
+                    label = { Text("Incluir sin confirmar") }
+                )
             }
             message?.let {
                 OutlinedCard(modifier = Modifier.fillMaxWidth()) {
@@ -146,13 +153,18 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                     if (report.quality.usableForHourly == 0) {
                         Card("¿El score funciona?") {
                             Body(
-                                if (report.quality.withConfirmedMoney > 0) {
-                                    "Tenemos ingresos reales, pero faltan tiempos suficientes para calcular RD$/hora."
-                                } else {
-                                    "Todavía no hay suficientes viajes reales para evaluar el modelo."
+                                when {
+                                    report.quality.completedTrips == 0 -> "Todavía no hay viajes terminados en este periodo."
+                                    report.quality.withConfirmedMoney > 0 ->
+                                        "Tenemos ingresos reales, pero faltan tiempos suficientes para calcular RD$/hora."
+                                    else -> "Hay ${report.quality.completedTrips} viajes terminados, pero ninguno con el dinero real del viaje. " +
+                                        "Para medir si el score acierta hace falta lo que cobraste en cada viaje: llega cuando Observador lee " +
+                                        "la pantalla de ganancias del viaje (aún por validar con capturas) o cuando lo asignas en Ganancias."
                                 }
                             )
                         }
+                        // Times and kilometres need no money: they are shown anyway
+                        if (report.prediction.time != null || report.prediction.distance != null) PredictionVsReality(report)
                     } else {
                         ScoreWorks(report)
                         PredictionVsReality(report)
@@ -237,7 +249,11 @@ private fun Limitations() {
 private fun DataQuality(r: IntelligenceReport, usesTestData: Boolean) {
     val q = r.quality
     Card("Calidad de datos") {
-        Body("${q.completedTrips} viajes completados · ${q.withConfirmedMoney} con dinero · ${q.withFullTimes} con tiempos completos")
+        Body("${q.completedTrips} viajes terminados · ${q.withConfirmedMoney} con dinero · ${q.withFullTimes} con tiempos completos")
+        if (q.unconfirmedEnds > 0) {
+            Muted("${q.confirmedEnds} confirmados por Uber · ${q.unconfirmedEnds} sin confirmar (cerrados al volver a «Buscando»)")
+        }
+        Body("Con km reales del GPS (viaje medido completo): ${q.withRealDistance}" + (q.distance.ratio?.let { " · cobertura ${pct(it, signed = false)}" } ?: ""))
         Body("Usables para RD$/hora real: ${q.usableForHourly}" + (q.hourly.ratio?.let { " · cobertura ${pct(it, signed = false)}" } ?: ""))
         Muted("Confianza de la muestra: ${confidence(q.hourly.confidence)}")
         val gaps = listOfNotNull(
@@ -341,6 +357,15 @@ private fun PredictionVsReality(r: IntelligenceReport) {
         p.money?.let { m ->
             Body("Ingreso final vs precio ofertado: mediana ${rdMinor(m.medianMinor, signed = true)}" + (m.medianPercent?.let { " (${pct(it)})" } ?: ""))
             Muted("P25–P75: ${rdMinor(m.p25Minor, true)} a ${rdMinor(m.p75Minor, true)} · n=${m.coverage.valid}")
+        }
+        // Since 1.25.0: the GPS kilometres of the whole trip (8E) against the offer's
+        p.distance?.let { d ->
+            Body("Distancia estimada ${km(p.estimatedKm!!.median)} km · real ${km(p.realKm!!.median)} km (medianas, GPS)")
+            Muted("Sesgo de distancia: ${d.medianPercent?.let { pct(it) } ?: "—"} · error típico ${km(d.medianAbsolute)} km · n=${d.coverage.valid}")
+            Muted("Distancia = recogida + viaje, de aceptar a terminar.")
+        }
+        p.perRealKm?.let { real ->
+            Body("RD$/km real (mediana): RD$${km(real.median)}" + (p.perEstimatedKm?.let { " · por km estimado RD$${km(it.median)}" } ?: "") + " · n=${real.n}")
         }
         Muted("Un pago mayor no es mejor rentabilidad si el viaje dura más: por eso el resultado principal es RD$/hora real.")
     }

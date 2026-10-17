@@ -31,7 +31,8 @@ object IntelligenceTexts {
         "Con pocos viajes, las conclusiones pueden cambiar mucho.",
         "El mercado y el tráfico cambian con el tiempo.",
         "Es ingreso bruto, todavía no beneficio neto.",
-        "Sin GPS no hay RD$/km real: solo por km estimado.",
+        "RD$/km real solo con «Medir km con GPS» y el viaje medido de principio a fin.",
+        "Un viaje «sin confirmar» se cerró al volver Uber a «Buscando»: su hora de fin es aproximada (último punto del recorrido).",
         "Sin sesión en línea fiable no hay RD$/hora en línea total."
     )
 
@@ -91,6 +92,12 @@ object IntelligenceTexts {
             "El ingreso final suele quedar ${pct(i.metric)} sobre el precio ofertado (mediana, ${i.sampleCount} viajes)."
         InsightType.EARNINGS_BELOW_OFFER ->
             "El ingreso final suele quedar ${pct(i.metric)} bajo el precio ofertado (mediana, ${i.sampleCount} viajes)."
+        InsightType.DISTANCE_UNDERESTIMATED ->
+            "Los viajes son más largos de lo que dice la oferta: en ${i.sampleCount} viajes medidos con GPS, los km reales " +
+                "fueron una mediana ${pct(i.metric)} sobre los estimados. Tu RD$/km real queda por debajo del calculado."
+        InsightType.DISTANCE_OVERESTIMATED ->
+            "Los viajes son más cortos de lo que dice la oferta: mediana ${pct(i.metric)} en km frente a lo estimado " +
+                "(${i.sampleCount} viajes medidos con GPS)."
         InsightType.PICKUP_DISTANCE_HURTS ->
             "Entre tus viajes aceptados, las recogidas de más de 4 km rindieron una mediana de ${rdHour(i.metric)}, " +
                 "frente a ${rdHour(i.comparison ?: 0.0)} con 4 km o menos (${i.sampleCount} viajes)."

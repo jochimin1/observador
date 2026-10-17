@@ -51,10 +51,20 @@ object TripWaits {
 
     const val MIN_SLOT_SAMPLES = 3
 
-    fun of(trips: List<Trip>, sessions: List<OnlineSession>, nowMs: Long, policy: OnlinePolicy = OnlinePolicy()): List<TripWait> {
+    /**
+     * [routeEnds]: trip id -> last point of its route (Fase 8K), the best end for a trip closed by
+     * «Buscando». Such a trip ends a wait too (since 1.25.0): without it, most real waits were lost.
+     */
+    fun of(
+        trips: List<Trip>,
+        sessions: List<OnlineSession>,
+        nowMs: Long,
+        policy: OnlinePolicy = OnlinePolicy(),
+        routeEnds: Map<String, Long> = emptyMap()
+    ): List<TripWait> {
         val ordered = trips.filter { it.acceptedAt != null }.sortedBy { it.acceptedAt }
         return ordered.zipWithNext().mapNotNull { (previous, next) ->
-            val ended = previous.completedAt ?: previous.cancelledAt ?: return@mapNotNull null
+            val ended = com.ubers.observador.domain.trips.TripOutcome.realEndAt(previous, routeEnds[previous.id]) ?: return@mapNotNull null
             val accepted = next.acceptedAt ?: return@mapNotNull null
             val wait = accepted - ended
             if (wait < 0) return@mapNotNull null

@@ -74,6 +74,27 @@ class TripsViewTest {
         assertTrue(!waits.single().inSession)
     }
 
+    @Test fun aTripClosedBySearchingEndsAWaitToo() {
+        // Closed by «Buscando» at 10:31: it ended at its route's last point, or 45 s before the close
+        val interrupted = trip("a", t0, null, TripStatus.INTERRUPTED).copy(interruptedAt = t0 + 31 * min)
+        val trips = listOf(interrupted, trip("b", t0 + 40 * min, t0 + 60 * min))
+        val noRoute = TripWaits.of(trips, emptyList(), t0 + 2 * hour).single()
+        assertEquals(9 * min + 45_000, noRoute.waitMs)
+        val withRoute = TripWaits.of(trips, emptyList(), t0 + 2 * hour, routeEnds = mapOf("a" to t0 + 28 * min)).single()
+        assertEquals(12 * min, withRoute.waitMs)
+        assertEquals(t0 + 28 * min, withRoute.startedAt)
+    }
+
+    @Test fun theRealEndOfATripIsNeverBeforeWhatWasSeen() {
+        val t = trip("a", t0, null, TripStatus.INTERRUPTED).copy(interruptedAt = t0 + 30_000, tripStartedAt = t0 + 10_000)
+        // 45 s before the close would be before the start: the start is the floor
+        assertEquals(t0 + 10_000, com.ubers.observador.domain.trips.TripOutcome.realEndAt(t))
+        // A route end after the close is not believed
+        assertEquals(t0 + 10_000, com.ubers.observador.domain.trips.TripOutcome.realEndAt(t, routeEndAt = t0 + 60_000))
+        assertEquals(t0 + 20 * min, com.ubers.observador.domain.trips.TripOutcome.realEndAt(trip("b", t0, t0 + 20 * min)))
+        assertNull(com.ubers.observador.domain.trips.TripOutcome.realEndAt(trip("c", t0, null, TripStatus.IN_TRIP)))
+    }
+
     @Test fun aLongGapWithNoSessionIsABreakNotAWait() {
         val trips = listOf(trip("a", t0, t0 + 20 * min), trip("b", t0 + 80 * min, t0 + 90 * min))
         assertTrue(TripWaits.of(trips, emptyList(), t0 + 2 * hour).isEmpty())

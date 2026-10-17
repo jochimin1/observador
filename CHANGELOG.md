@@ -14,6 +14,36 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.25.0] - 2026-10-17
+
+Análisis con tus viajes reales. Incluye todo lo de la 1.24.0. La base de datos no cambia (sigue en 14).
+
+### Cambiado
+- **Análisis cuenta también los viajes «sin confirmar»** (los que se cierran cuando Uber vuelve a
+  «Buscando»), igual que Ganancias desde la 1.19.0. Antes solo usaba los viajes con la pantalla de
+  resumen de Uber, que aún no está validada, y por eso salía casi vacío. Su hora de fin es el último
+  punto del recorrido o, sin recorrido, 45 s antes del cierre (Uber ya estaba buscando). Un nuevo
+  filtro «Incluir sin confirmar» los quita para ver solo los confirmados.
+- **Espera entre viajes** cuenta también la espera después de un viaje «sin confirmar»: antes se
+  perdía casi toda.
+- «Calidad de datos» separa los viajes confirmados por Uber de los «sin confirmar» y dice cuántos
+  tienen km reales del GPS.
+- Cuando no hay dinero real por viaje, «Análisis» lo explica (de dónde sale ese dinero) y muestra
+  igual «Predicción vs realidad» con tiempos y km, que no necesitan dinero.
+
+### Añadido
+- **Km reales contra los de la oferta:** con «Medir km con GPS» y el viaje medido completo, compara
+  la distancia estimada (recogida + viaje) con la real del GPS, con su sesgo y su error típico.
+- **RD$/km real**: lo cobrado entre los km del GPS, al lado del RD$/km estimado, en los viajes con
+  dinero real.
+- Nuevo hallazgo: «Los viajes son más largos (o más cortos) de lo que dice la oferta», con 10
+  viajes medidos o más y una diferencia de al menos 10 %.
+
+### Técnico
+- `TripOutcome.realEndAt`: el mejor fin conocido de un viaje (resumen, cancelación, último punto
+  del recorrido o 45 s antes del cierre por «Buscando»), nunca antes del último hito visto.
+- 5 pruebas JVM nuevas (`IntelligenceTest`, `TripsViewTest`).
+
 ## [1.24.0] - 2026-10-17
 
 Plan 8K: el recorrido de los viajes tomados. Incluye todo lo de la 1.23.1. La base de datos pasa de

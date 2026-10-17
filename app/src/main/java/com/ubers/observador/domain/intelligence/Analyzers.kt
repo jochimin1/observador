@@ -47,7 +47,16 @@ data class PredictionReport(
     val time: ErrorStats?,
     /** RD$/h: realized - predicted. */
     val hourly: ErrorStats?,
-    val money: MoneyDifferenceStats?
+    val money: MoneyDifferenceStats?,
+    /** Since 1.25.0: km of the offer (pickup + trip) against the GPS km of the whole trip. */
+    val estimatedKm: Distribution? = null,
+    val realKm: Distribution? = null,
+    /** Km: real (GPS) - estimated. */
+    val distance: ErrorStats? = null,
+    /** RD$ per real GPS km, with confirmed money. */
+    val perRealKm: Distribution? = null,
+    /** RD$ per estimated km on the same trips, to compare with [perRealKm]. */
+    val perEstimatedKm: Distribution? = null
 )
 
 /** Prediction vs reality on the trips that have both sides. */
@@ -59,6 +68,8 @@ object PredictionErrorAnalyzer {
         val hourly = samples.filter { it.hourlyError != null }
         val money = samples.filter { it.moneyDifferenceMinor != null }
         val diffs = money.map { it.moneyDifferenceMinor!! }
+        val measured = samples.filter { it.distanceErrorKm != null }
+        val perKm = samples.filter { it.realizedPerRealKm != null }
         return PredictionReport(
             predictedHourly = Distribution.of(hourly.map { it.predictedRdpPerHour!! }),
             realizedHourly = Distribution.of(hourly.map { it.realizedGrossPerEngagedHour!! }),
@@ -72,7 +83,15 @@ object PredictionErrorAnalyzer {
                 p25Minor = Stats.percentileMinor(diffs, 0.25)!!,
                 p75Minor = Stats.percentileMinor(diffs, 0.75)!!,
                 medianPercent = Stats.median(money.mapNotNull { it.moneyDifferencePercent })
-            )
+            ),
+            estimatedKm = Distribution.of(measured.map { it.estimatedKm!! }),
+            realKm = Distribution.of(measured.map { it.realDistanceMm!! / 1_000_000.0 }),
+            distance = ErrorStats.of(total, measured.map { it.distanceErrorKm!! }, measured.mapNotNull { it.distanceErrorPercent }),
+            perRealKm = Distribution.of(perKm.map { it.realizedPerRealKm!! }),
+            perEstimatedKm = Distribution.of(perKm.mapNotNull { s ->
+                val km = s.estimatedKm ?: return@mapNotNull null
+                s.actualEarnings?.toDecimal()?.toDouble()?.div(km)
+            })
         )
     }
 }

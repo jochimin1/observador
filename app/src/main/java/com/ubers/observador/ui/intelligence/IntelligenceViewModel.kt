@@ -43,6 +43,8 @@ enum class IntelligencePeriod(val label: String, val days: Int?) {
 data class IntelligenceUiState(
     val loading: Boolean = true,
     val period: IntelligencePeriod = IntelligencePeriod.D90,
+    /** Since 1.25.0: also the trips closed by «Buscando» (on unless the driver switches it off). */
+    val includeUnconfirmed: Boolean = true,
     val report: IntelligenceReport? = null,
     val versions: List<ProfitModelVersion> = emptyList(),
     val active: ProfitModelVersion? = null,
@@ -71,6 +73,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
     private val money = FinancialRepository(db)
     private val settings = AppSettings(app)
     private val period = MutableStateFlow(IntelligencePeriod.D90)
+    private val includeUnconfirmed = MutableStateFlow(true)
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
@@ -82,12 +85,18 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         repo.observeVersions()
     ) { _, _, profit, shadowId, versions -> Triple(profit, shadowId, versions) }
 
-    val state: StateFlow<IntelligenceUiState> = combine(triggers, repo.observeShadowCount(), period) { t, _, p -> t to p }
-        .mapLatest { (t, p) -> compute(t.first, t.second, p) }
+    val state: StateFlow<IntelligenceUiState> = combine(triggers, repo.observeShadowCount(), period, includeUnconfirmed) { t, _, p, u ->
+        Triple(t, p, u)
+    }
+        .mapLatest { (t, p, u) -> compute(t.first, t.second, p, u) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IntelligenceUiState())
 
     fun selectPeriod(p: IntelligencePeriod) {
         period.value = p
+    }
+
+    fun setIncludeUnconfirmed(on: Boolean) {
+        includeUnconfirmed.value = on
     }
 
     fun clearMessage() {
@@ -97,14 +106,15 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun compute(
         profit: com.ubers.observador.domain.ProfitSettingsSnapshot,
         shadowId: String?,
-        p: IntelligencePeriod
+        p: IntelligencePeriod,
+        unconfirmed: Boolean
     ): IntelligenceUiState = try {
         val now = System.currentTimeMillis()
         val zone = ZoneId.systemDefault()
         val from = p.days?.let { now - it * DAY } ?: 0L
         val active = repo.ensureCurrent(profit, now)
         val versions = repo.versions()
-        val dataset = repo.loadDataset(from, now + 1)
+        val dataset = repo.loadDataset(from, now + 1, includeUnconfirmed = unconfirmed)
         val accepted = repo.acceptedOfferHashesSince(from)
         val offers = repo.offersSince(from)
         val candidate = shadowId?.let { repo.version(it) }
@@ -112,9 +122,11 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         val usesTest = dataset.samples.any { it.tripId.startsWith(TripTestSeeder.PREFIX) }
         val periodTrips = db.tripDao().getTripsTouching(from, now + 1).map { it.toDomain() }
         val sessions = com.ubers.observador.data.OnlineRepository(db).getBetween(from, now + 1)
+        // Since 1.25.0 a trip closed by «Buscando» ends a wait too, at the last point of its route
+        val routeEnds = repo.routeEnds(periodTrips.map { it.id })
         val waits = withContext(Dispatchers.Default) {
             com.ubers.observador.domain.online.TripWaits.summarize(
-                com.ubers.observador.domain.online.TripWaits.of(periodTrips, sessions, now), zone
+                com.ubers.observador.domain.online.TripWaits.of(periodTrips, sessions, now, routeEnds = routeEnds), zone
             )
         }
         val report = withContext(Dispatchers.Default) {
@@ -147,6 +159,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         IntelligenceUiState(
             loading = false,
             period = p,
+            includeUnconfirmed = unconfirmed,
             report = report,
             versions = versions,
             active = active,
@@ -158,7 +171,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         )
     } catch (e: Exception) {
         Log.e(TAG, "Analysis failed", e)
-        IntelligenceUiState(loading = false, period = p, failed = true)
+        IntelligenceUiState(loading = false, period = p, includeUnconfirmed = unconfirmed, failed = true)
     }
 
     /** "Probar en sombra": stores the calibration and its candidate; the active model is untouched. */
