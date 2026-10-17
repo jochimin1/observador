@@ -81,7 +81,10 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?) {
                 )
             }
         }
-        // Fase 8J: which button the card had
+        // Fase 8J: modality and "Exclusivo", then which button the card had
+        listOfNotNull(o.product, "Exclusivo".takeIf { o.exclusive == true }).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
+            com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_two_wheeler, "Modalidad: $it")
+        }
         o.action?.let { a ->
             com.ubers.observador.ui.components.InfoLine(
                 com.ubers.observador.R.drawable.ic_info,

@@ -36,6 +36,7 @@ class AppSettings(private val context: Context) {
         private val KEY_MODE = stringPreferencesKey("operating_mode")
         private val KEY_SHOW_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("show_overlay")
         private val KEY_OFFER_ALERTS = stringPreferencesKey("offer_alerts")
+        private val KEY_EXPORT_HISTORY = stringPreferencesKey("export_history")
         private val KEY_GRACE_WINDOW = intPreferencesKey("grace_window_seconds")
         private val KEY_WORKDAY_START = intPreferencesKey("workday_start_hour")
         private val KEY_WEIGHT_KM = intPreferencesKey("weight_km_pct")
@@ -314,6 +315,12 @@ class AppSettings(private val context: Context) {
     val operatingMode: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_MODE] ?: MODE_OBSERVER
     }
+
+    /** Fase 8J: «Últimas exportaciones» (ExportHistory text). */
+    val exportHistory: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_EXPORT_HISTORY] }
+
+    suspend fun addExportRecord(record: com.ubers.observador.domain.reports.ExportRecord) =
+        context.dataStore.edit { it[KEY_EXPORT_HISTORY] = com.ubers.observador.domain.reports.ExportHistory.add(it[KEY_EXPORT_HISTORY], record) }
 
     /** Fase 8I: which offers notify ("Avisos de ofertas"). */
     val offerAlerts: Flow<com.ubers.observador.domain.OfferAlerts> = context.dataStore.data.map { prefs ->

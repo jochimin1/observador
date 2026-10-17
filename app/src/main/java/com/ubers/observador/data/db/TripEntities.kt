@@ -65,7 +65,11 @@ data class TripEntity(
     // Fase 8F (DB 11): copied from the offer card, and the rider's name read after accepting
     @ColumnInfo(name = "offer_pickup_address") val offerPickupAddress: String? = null,
     @ColumnInfo(name = "offer_dropoff_address") val offerDropoffAddress: String? = null,
-    @ColumnInfo(name = "rider_name") val riderName: String? = null
+    @ColumnInfo(name = "rider_name") val riderName: String? = null,
+    // Fase 8J (DB 13): copied from the offer card
+    @ColumnInfo(name = "offer_product") val offerProduct: String? = null,
+    @ColumnInfo(name = "offer_exclusive") val offerExclusive: Boolean? = null,
+    @ColumnInfo(name = "offer_card_action") val offerCardAction: String? = null
 )
 
 /**

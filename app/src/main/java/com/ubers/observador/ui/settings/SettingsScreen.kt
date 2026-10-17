@@ -1,5 +1,8 @@
 package com.ubers.observador.ui.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.annotation.DrawableRes
 import com.ubers.observador.R
 import com.ubers.observador.ui.components.IconSectionHeader
@@ -70,6 +73,7 @@ private val ExampleOffer = UberOffer(price = 75.50, pickupKm = 1.8, pickupMin = 
 @Composable
 fun SettingsScreen(
     onNavigateBack: (() -> Unit)?,
+    onOpenReports: (() -> Unit)? = null,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -112,6 +116,28 @@ fun SettingsScreen(
                 onRename = { id, name -> viewModel.renameProfile(id, name) },
                 onDelete = { viewModel.deleteProfile(it) }
             )
+
+            // Fase 8J: every export in one place
+            if (onOpenReports != null) {
+                OutlinedCard(modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Abrir", onClick = onOpenReports)) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(painterResource(R.drawable.ic_download), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            Text("Reportes y exportación", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                            Text(
+                                "Ofertas y viajes con categorías, modalidad y totales del periodo; viajes, gastos, jornadas y PDF.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
 
             SectionHeader("Apariencia", R.drawable.ic_contrast)
             val theme by viewModel.themeSettings.collectAsState()

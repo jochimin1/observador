@@ -100,7 +100,10 @@ private sealed interface Form {
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ExpensesScreen(viewModel: ExpensesViewModel = viewModel()) {
+fun ExpensesScreen(
+    onOpenReports: ((thisMonth: Boolean) -> Unit)? = null,
+    viewModel: ExpensesViewModel = viewModel()
+) {
     val state by viewModel.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -158,7 +161,9 @@ fun ExpensesScreen(viewModel: ExpensesViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Gastos") },
                 actions = {
-                    IconButton(onClick = { exporting = true }) {
+                    IconButton(onClick = {
+                        if (onOpenReports != null) onOpenReports(state.period == ExpensePeriod.THIS_MONTH) else exporting = true
+                    }) {
                         Icon(painterResource(R.drawable.ic_download), contentDescription = "Exportar gastos del mes")
                     }
                 }

@@ -24,7 +24,15 @@ object SummaryPdf {
     private const val MARGIN = 48f
     private val GENERATED = DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.forLanguageTag("es-DO"))
 
-    fun render(s: PeriodSummary, zone: ZoneId = ZoneId.systemDefault()): ByteArray {
+    /**
+     * [extra] (Fase 8J): the totals of offers and trips, drawn on the following pages, a section
+     * title then its lines; a new page starts whenever the current one is full.
+     */
+    fun render(
+        s: PeriodSummary,
+        zone: ZoneId = ZoneId.systemDefault(),
+        extra: List<com.ubers.observador.domain.reports.PeriodTotalsText.Section> = emptyList()
+    ): ByteArray {
         val doc = PdfDocument()
         try {
             val page = doc.startPage(PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, 1).create())
@@ -61,6 +69,7 @@ object SummaryPdf {
                 noteY += 13f
             }
             doc.finishPage(page)
+            if (extra.isNotEmpty()) drawExtra(doc, extra, title, label, value, small)
             return ByteArrayOutputStream().use { out ->
                 doc.writeTo(out)
                 out.toByteArray()
@@ -68,6 +77,51 @@ object SummaryPdf {
         } finally {
             doc.close()
         }
+    }
+
+    private fun drawExtra(
+        doc: PdfDocument,
+        sections: List<com.ubers.observador.domain.reports.PeriodTotalsText.Section>,
+        title: Paint,
+        label: Paint,
+        value: Paint,
+        small: Paint
+    ) {
+        val heading = Paint(value).apply { textSize = 13f; color = Color.rgb(0, 0x63, 0x9B) }
+        val bottom = HEIGHT - MARGIN - 20f
+        var pageNo = 2
+        var page = doc.startPage(PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, pageNo).create())
+        var y = MARGIN + 20f
+        page.canvas.drawText("Ofertas y viajes del periodo", MARGIN, y, title)
+        y += 26f
+        fun ensure(space: Float) {
+            if (y + space <= bottom) return
+            page.canvas.drawText(PeriodSummaryText.NOTE.take(110), MARGIN, HEIGHT - MARGIN, small)
+            doc.finishPage(page)
+            pageNo++
+            page = doc.startPage(PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, pageNo).create())
+            y = MARGIN + 20f
+        }
+        val valueX = MARGIN + 230f
+        val valueWidth = WIDTH - MARGIN - valueX
+        val labelWidth = valueX - MARGIN - 8f
+        sections.forEach { section ->
+            ensure(40f)
+            page.canvas.drawText(section.title, MARGIN, y, heading)
+            y += 18f
+            section.lines.forEach { (l, v) ->
+                val ls = wrap(l, label, labelWidth)
+                val vs = wrap(v, value, valueWidth)
+                val rows = maxOf(ls.size, vs.size)
+                ensure(rows * 14f + 6f)
+                ls.forEachIndexed { i, part -> page.canvas.drawText(part, MARGIN, y + i * 14f, label) }
+                vs.forEachIndexed { i, part -> page.canvas.drawText(part, valueX, y + i * 14f, value) }
+                y += rows * 14f + 6f
+            }
+            y += 8f
+        }
+        page.canvas.drawText(PeriodSummaryText.NOTE.take(110), MARGIN, HEIGHT - MARGIN, small)
+        doc.finishPage(page)
     }
 
     private fun wrap(text: String, paint: Paint, width: Float): List<String> {

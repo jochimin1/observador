@@ -1,5 +1,7 @@
 package com.ubers.observador
 
+import com.ubers.observador.domain.reports.ReportPeriod
+import com.ubers.observador.ui.reports.ReportsNavigation
 import android.Manifest
 import android.os.Build
 import android.content.Intent
@@ -140,6 +142,10 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         launchSingleTop = true
         restoreState = true
     }
+    fun openReports(preset: com.ubers.observador.domain.reports.ReportPreset?) {
+        ReportsNavigation.preset.value = preset
+        navController.navigate(ReportsNavigation.ROUTE) { launchSingleTop = true }
+    }
     // A notification asked for a screen: switch tab; the screen itself consumes the request
     val pendingOpen by com.ubers.observador.ui.AppNavigation.pending.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pendingOpen) {
@@ -167,19 +173,33 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
         ) {
             composable(Tab.HOME.route) {
-                DashboardScreen(accessibilityEnabled = accessibilityEnabled, onOpenEarnings = { open(Tab.EARNINGS) })
+                DashboardScreen(
+                    accessibilityEnabled = accessibilityEnabled,
+                    onOpenEarnings = { open(Tab.EARNINGS) },
+                    onOpenReports = { p -> openReports(ReportsNavigation.forStats(p)) }
+                )
             }
             composable(Tab.EARNINGS.route) {
-                com.ubers.observador.ui.earnings.EarningsScreen()
+                com.ubers.observador.ui.earnings.EarningsScreen(
+                    onOpenReports = { w -> openReports(w?.let(ReportsNavigation::forWindow)) }
+                )
             }
             composable(Tab.EXPENSES.route) {
-                com.ubers.observador.ui.expenses.ExpensesScreen()
+                com.ubers.observador.ui.expenses.ExpensesScreen(
+                    onOpenReports = { thisMonth ->
+                        openReports(com.ubers.observador.domain.reports.ReportPreset(if (thisMonth) ReportPeriod.THIS_MONTH else ReportPeriod.LAST_MONTH))
+                    }
+                )
+            }
+            // Fase 8J: not a tab; opened from Ajustes, Inicio, Ganancias and Gastos
+            composable(ReportsNavigation.ROUTE) {
+                com.ubers.observador.ui.reports.ReportsScreen(onBack = { navController.popBackStack() })
             }
             composable(Tab.ANALYSIS.route) {
                 IntelligenceScreen(onNavigateBack = null)
             }
             composable(Tab.SETTINGS.route) {
-                SettingsScreen(onNavigateBack = null)
+                SettingsScreen(onNavigateBack = null, onOpenReports = { openReports(null) })
             }
         }
     }

@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -285,6 +285,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Fase 8J: the card's modality ("Moto") and "Exclusivo", also copied into trips with the button. Only adds columns. */
+        internal val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `detected_offers` ADD COLUMN `product` TEXT")
+                db.execSQL("ALTER TABLE `detected_offers` ADD COLUMN `exclusive` INTEGER")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `offer_product` TEXT")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `offer_exclusive` INTEGER")
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `offer_card_action` TEXT")
+            }
+        }
+
         /** Fase 8J: the offer card's button («Me interesa» or «Aceptar»). Only adds a column. */
         internal val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -341,7 +352,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "observador.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .build().also { INSTANCE = it }
             }
     }

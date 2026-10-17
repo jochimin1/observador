@@ -108,7 +108,10 @@ private fun dayTime(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDef
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
+fun EarningsScreen(
+    onOpenReports: ((com.ubers.observador.domain.earnings.EarningsWindow?) -> Unit)? = null,
+    viewModel: EarningsViewModel = viewModel()
+) {
     val state by viewModel.state.collectAsState()
     val assign by viewModel.assign.collectAsState()
     val confirm by viewModel.confirm.collectAsState()
@@ -182,7 +185,10 @@ fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Ganancias") },
                 actions = {
-                    IconButton(onClick = { exporting = true }, enabled = state.report != null) {
+                    IconButton(
+                        onClick = { if (onOpenReports != null) onOpenReports(state.report?.window) else exporting = true },
+                        enabled = state.report != null
+                    ) {
                         Icon(painterResource(R.drawable.ic_download), contentDescription = "Exportar este periodo")
                     }
                 }

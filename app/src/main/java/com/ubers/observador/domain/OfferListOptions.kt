@@ -29,7 +29,12 @@ data class TakenCounts(val all: Int = 0, val offered: Int = 0, val taken: Int = 
 }
 
 /** Every offer seen, with the status of the trip it became (null = only offered). */
-data class OfferLedger(val rows: List<OfferEntity>, val tripStatus: Map<Long, com.ubers.observador.domain.trips.TripStatus>) {
+data class OfferLedger(
+    val rows: List<OfferEntity>,
+    val tripStatus: Map<Long, com.ubers.observador.domain.trips.TripStatus>,
+    /** Offer row id -> the trip it became (Fase 8J, for the reports). */
+    val tripOf: Map<Long, com.ubers.observador.domain.trips.Trip> = emptyMap()
+) {
 
     val counts: TakenCounts
         get() = TakenCounts(all = rows.size, offered = rows.count { it.id !in tripStatus }, taken = tripStatus.size)
@@ -55,19 +60,21 @@ data class OfferLedger(val rows: List<OfferEntity>, val tripStatus: Map<Long, co
                 .sortedBy { it.updatedAt }
                 .associateBy { requireNotNull(it.relatedOfferHash) }
             val status = HashMap<Long, com.ubers.observador.domain.trips.TripStatus>()
-            offers.forEach { o -> byHash[o.offerHash]?.let { status[o.id] = it.status } }
+            val tripOf = HashMap<Long, com.ubers.observador.domain.trips.Trip>()
+            offers.forEach { o -> byHash[o.offerHash]?.let { status[o.id] = it.status; tripOf[o.id] = it } }
             val seen = offers.map { it.offerHash }.toSet()
             val orphan = trips.filter { it.relatedOfferHash == null || it.relatedOfferHash !in seen }
-            val extra = orphan.mapNotNull { t -> CompletedTrips.offerRowOf(t)?.let { it to t.status } }
+            val extra = orphan.mapNotNull { t -> CompletedTrips.offerRowOf(t)?.let { it to t } }
             val used = offers.map { it.id }.toMutableSet()
             val added = ArrayList<OfferEntity>()
-            extra.forEach { (row, st) ->
+            extra.forEach { (row, t) ->
                 if (used.add(row.id)) {
                     added += row
-                    status[row.id] = st
+                    status[row.id] = t.status
+                    tripOf[row.id] = t
                 }
             }
-            return OfferLedger((offers + added).sortedByDescending { it.detectedAt }, status)
+            return OfferLedger((offers + added).sortedByDescending { it.detectedAt }, status, tripOf)
         }
     }
 }

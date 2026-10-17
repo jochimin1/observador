@@ -29,5 +29,8 @@ data class OfferEntity(
     @ColumnInfo(name = "pickup_address") val pickupAddress: String? = null,
     @ColumnInfo(name = "dropoff_address") val dropoffAddress: String? = null,
     // Fase 8J (DB 12): the card's button, OfferCardAction.storageKey ("INTEREST" or "ACCEPT"); null on older rows
-    @ColumnInfo(name = "card_action") val cardAction: String? = null
+    @ColumnInfo(name = "card_action") val cardAction: String? = null,
+    // Fase 8J (DB 13): the modality above the price ("Moto") and the "Exclusivo" label; null on older rows
+    @ColumnInfo(name = "product") val product: String? = null,
+    @ColumnInfo(name = "exclusive") val exclusive: Boolean? = null
 )

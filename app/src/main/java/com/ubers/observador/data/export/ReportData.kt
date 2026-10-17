@@ -51,13 +51,67 @@ class ReportData(private val db: AppDatabase) {
     private val expenses = ExpenseRepository(db)
     private val distances = DistanceRepository(db)
 
-    suspend fun report(window: EarningsWindow, clock: WorkdayClock): EarningsReport {
+    /** Fase 8J: test rows (ids and hashes starting with TEST-) are left out unless asked for. */
+    private fun keep(id: String, includeTest: Boolean) = includeTest || !id.startsWith(TEST_PREFIX)
+
+    suspend fun report(window: EarningsWindow, clock: WorkdayClock, includeTest: Boolean = true): EarningsReport {
         val inputs = money.earningsInputs(window.startMs, window.endMs)
-        return EarningsReports.build(window, clock, inputs.completedTrips, inputs.summaries, inputs.unassigned)
+        val completed = inputs.completedTrips.filter { keep(it.id, includeTest) }
+        val unassigned = inputs.unassigned.filter { keep(it.observationId, includeTest) }
+        return EarningsReports.build(window, clock, completed, inputs.summaries, unassigned)
     }
 
-    suspend fun online(window: EarningsWindow, nowMs: Long): OnlineSummary =
-        online.summarize(online.getBetween(window.startMs, window.endMs), window.startMs, window.endMs, nowMs)
+    suspend fun online(window: EarningsWindow, nowMs: Long, includeTest: Boolean = true): OnlineSummary =
+        online.summarize(
+            online.getBetween(window.startMs, window.endMs).filter { keep(it.id, includeTest) },
+            window.startMs, window.endMs, nowMs
+        )
+
+    /** Fill-ups, expenses and fixed costs, without test rows unless asked for. */
+    suspend fun expenseData(includeTest: Boolean = true): ExpenseData {
+        val all = expenses.getAll()
+        return if (includeTest) all else all.copy(
+            fuel = all.fuel.filter { keep(it.id, includeTest) },
+            expenses = all.expenses.filter { keep(it.id, includeTest) },
+            recurring = all.recurring.filter { keep(it.id, includeTest) }
+        )
+    }
+
+    /** Fase 8J: what «Reportes y exportación» reads for a period, before any filter. */
+    class OfferSource(
+        val rows: List<com.ubers.observador.domain.reports.OfferReportRow>,
+        val trips: List<com.ubers.observador.domain.trips.Trip>,
+        val expenses: ExpenseData,
+        val report: EarningsReport
+    )
+
+    suspend fun offerSource(
+        window: EarningsWindow,
+        clock: WorkdayClock,
+        engine: com.ubers.observador.domain.EngineSettings,
+        cuts: com.ubers.observador.domain.QualityThresholds,
+        includeTest: Boolean
+    ): OfferSource {
+        val offers = db.offerDao().getBetween(window.startMs, window.endMs).filter { keep(it.offerHash, includeTest) }
+        val periodTrips = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
+        val summaries = money.summariesFor(periodTrips.map { it.id })
+        val rows = com.ubers.observador.domain.reports.OfferReport.rows(offers, periodTrips, summaries, engine, cuts, clock)
+        return OfferSource(rows, periodTrips, expenseData(includeTest), report(window, clock, includeTest))
+    }
+
+    /** The trips file for a chosen set of trips (Fase 8J, filtered on the export screen). */
+    suspend fun tripsFile(
+        list: List<com.ubers.observador.domain.trips.Trip>,
+        csv: Boolean,
+        window: EarningsWindow,
+        clock: WorkdayClock,
+        nowMs: Long
+    ): ReportOutput {
+        val name = ExportNames.of("viajes", window.firstDay, window.lastDay, if (csv) "csv" else "json")
+        val rows = TripExport.rows(list, money.summariesFor(list.map { it.id }), clock)
+        val text = if (csv) TripExport.csv(rows, clock.zone) else TripExport.json(rows, clock.zone, nowMs, window.firstDay, window.lastDay)
+        return ReportOutput(name, if (csv) "text/csv" else "application/json", text.toByteArray(Charsets.UTF_8), rows.size)
+    }
 
     /** The weekly summary of [window], compared with the week before. */
     suspend fun weekly(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, weeklyGoalMinor: Long, workSharePct: Int): WeeklyReport {
@@ -83,28 +137,36 @@ class ReportData(private val db: AppDatabase) {
         )
     }
 
-    suspend fun build(file: ReportFile, window: EarningsWindow, clock: WorkdayClock, nowMs: Long, workSharePct: Int): ReportOutput {
+    suspend fun build(
+        file: ReportFile,
+        window: EarningsWindow,
+        clock: WorkdayClock,
+        nowMs: Long,
+        workSharePct: Int,
+        includeTest: Boolean = true,
+        extraPdfSections: List<com.ubers.observador.domain.reports.PeriodTotalsText.Section> = emptyList()
+    ): ReportOutput {
         val name = ExportNames.of(file.kind, window.firstDay, window.lastDay, file.extension)
         val zone = clock.zone
         return when (file) {
             ReportFile.TRIPS_CSV, ReportFile.TRIPS_JSON -> {
-                val all = trips.observeTripsBetween(window.startMs, window.endMs).first()
+                val all = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
                 val rows = TripExport.rows(all, money.summariesFor(all.map { it.id }), clock)
                 val text = if (file == ReportFile.TRIPS_CSV) TripExport.csv(rows, zone)
                 else TripExport.json(rows, zone, nowMs, window.firstDay, window.lastDay)
                 ReportOutput(name, file.mimeType, text.toByteArray(Charsets.UTF_8), rows.size)
             }
             ReportFile.EXPENSES_CSV, ReportFile.EXPENSES_JSON -> {
-                val data = expenses.getAll()
+                val data = expenseData(includeTest)
                 val rows = ExpenseExport.rows(data.fuel, data.expenses, window.firstDay, window.lastDay, clock)
                 val text = if (file == ReportFile.EXPENSES_CSV) ExpenseExport.csv(rows, zone)
                 else ExpenseExport.json(rows, zone, nowMs, window.firstDay, window.lastDay)
                 ReportOutput(name, file.mimeType, text.toByteArray(Charsets.UTF_8), rows.size)
             }
             ReportFile.DAILY_CSV -> {
-                val report = report(window, clock)
-                val data = expenses.getAll()
-                val sessions = online.getBetween(window.startMs, window.endMs)
+                val report = report(window, clock, includeTest)
+                val data = expenseData(includeTest)
+                val sessions = online.getBetween(window.startMs, window.endMs).filter { keep(it.id, includeTest) }
                 val rows = report.bars.map { bar ->
                     val dayStart = clock.startOf(bar.day)
                     val dayEnd = clock.startOf(bar.day.plusDays(1))
@@ -114,18 +176,18 @@ class ReportData(private val db: AppDatabase) {
                 ReportOutput(name, file.mimeType, DailyExport.csv(rows).toByteArray(Charsets.UTF_8), rows.size)
             }
             ReportFile.SUMMARY_PDF -> {
-                val s = periodSummary(window, clock, nowMs, workSharePct)
-                ReportOutput(name, file.mimeType, SummaryPdf.render(s), 1)
+                val s = periodSummary(window, clock, nowMs, workSharePct, includeTest)
+                ReportOutput(name, file.mimeType, SummaryPdf.render(s, extra = extraPdfSections), 1)
             }
         }
     }
 
-    suspend fun periodSummary(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, workSharePct: Int): PeriodSummary {
-        val report = report(window, clock)
-        val o = online(window, nowMs)
-        val data = expenses.getAll()
+    suspend fun periodSummary(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, workSharePct: Int, includeTest: Boolean = true): PeriodSummary {
+        val report = report(window, clock, includeTest)
+        val o = online(window, nowMs, includeTest)
+        val data = expenseData(includeTest)
         val spent = ExpenseRules.summarize(window.firstDay, window.lastDay, clock, data.fuel, data.expenses, data.recurring, workSharePct)
-        val segments = distances.getAll()
+        val segments = distances.getAll().filter { keep(it.id, includeTest) }
         return PeriodSummary(
             window = window,
             income = report.summary,
@@ -145,6 +207,8 @@ class ReportData(private val db: AppDatabase) {
         ExpenseRules.summarize(day, day, clock, data.fuel, data.expenses, data.recurring, workSharePct).workMinor
 
     companion object {
+        const val TEST_PREFIX = "TEST-"
+
         /** The week that just ended, for the Monday notification. */
         fun lastWeek(nowMs: Long, clock: WorkdayClock, weekStart: java.time.DayOfWeek): EarningsWindow =
             EarningsWindows.of(EarningsRange.WEEK, -1, nowMs, clock, weekStart)

@@ -19,13 +19,17 @@ object OfferParser {
      * several). A screen with one card gives the same offer as [parse].
      */
     fun parseAll(texts: List<String>): List<UberOffer> =
-        com.ubers.observador.domain.lifecycle.OfferCards.segments(texts).mapNotNull { card ->
+        com.ubers.observador.domain.lifecycle.OfferCards.cards(texts).mapNotNull { c ->
+            val card = c.texts
             parse(card)?.let { o ->
                 val places = com.ubers.observador.domain.lifecycle.OfferPlacesReader.read(card)
+                val product = com.ubers.observador.domain.lifecycle.OfferProductReader.read(c.header)
                 o.copy(
                     pickupAddress = places.pickup,
                     dropoffAddress = places.dropoff,
-                    cardAction = com.ubers.observador.domain.lifecycle.OfferCardAction.of(card)
+                    cardAction = com.ubers.observador.domain.lifecycle.OfferCardAction.of(card),
+                    product = product.product,
+                    exclusive = product.exclusive
                 )
             }
         }

@@ -70,6 +70,7 @@ import java.time.format.DateTimeFormatter
 fun DashboardScreen(
     accessibilityEnabled: Boolean,
     onOpenEarnings: (() -> Unit)? = null,
+    onOpenReports: ((com.ubers.observador.domain.StatsPeriod) -> Unit)? = null,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -196,7 +197,16 @@ fun DashboardScreen(
                                     showExportDialog = true
                                 }
                             )
-                            if (onOpenEarnings != null) {
+                            if (onOpenReports != null) {
+                                // Fase 8J: everything else, with filters and totals, on its own screen
+                                DropdownMenuItem(
+                                    text = { Text("Reportes y exportación…") },
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenReports(selectedPeriod)
+                                    }
+                                )
+                            } else if (onOpenEarnings != null) {
                                 // Fase 8D: trips, expenses, per-day summary and PDF are exported from Ganancias, by period
                                 DropdownMenuItem(
                                     text = { Text("Exportar viajes, gastos y resumen…") },
@@ -787,9 +797,15 @@ private fun OfferRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                offer.action?.let { a ->
+                // Fase 8J: modality, "Exclusivo" and the card's button
+                val card = listOfNotNull(
+                    offer.product,
+                    "Exclusivo".takeIf { offer.exclusive == true },
+                    offer.action?.let { "Tarjeta: ${it.label}" }
+                ).joinToString(" · ")
+                if (card.isNotEmpty()) {
                     Text(
-                        text = "Tarjeta: ${a.label}",
+                        text = card,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

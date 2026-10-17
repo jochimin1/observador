@@ -44,7 +44,10 @@ object CompletedTrips {
             netProfit = 0.0,
             score = offer.scoreAtDetection,
             pickupAddress = offer.pickupAddress,
-            dropoffAddress = offer.dropoffAddress
+            dropoffAddress = offer.dropoffAddress,
+            cardAction = offer.cardAction,
+            product = offer.product,
+            exclusive = offer.exclusive
         )
     }
 }

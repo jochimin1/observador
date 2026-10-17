@@ -50,7 +50,10 @@ fun Trip.toEntity() = TripEntity(
     settingWeightPickupMinPct = decision?.weights?.pickupMinPct,
     offerPickupAddress = offer?.pickupAddress,
     offerDropoffAddress = offer?.dropoffAddress,
-    riderName = riderName
+    riderName = riderName,
+    offerProduct = offer?.product,
+    offerExclusive = offer?.exclusive,
+    offerCardAction = offer?.cardAction
 )
 
 fun TripEntity.toDomain() = Trip(
@@ -87,7 +90,10 @@ private fun TripEntity.offerSnapshot(): TripOfferSnapshot? {
         scoreAtDetection = scoreAtDetection ?: return null,
         offerSeenAt = offerSeenAt ?: return null,
         pickupAddress = offerPickupAddress,
-        dropoffAddress = offerDropoffAddress
+        dropoffAddress = offerDropoffAddress,
+        product = offerProduct,
+        exclusive = offerExclusive,
+        cardAction = offerCardAction
     )
 }
 
@@ -150,5 +156,8 @@ fun OfferEntity.toTripOfferSnapshot() = TripOfferSnapshot(
     scoreAtDetection = score,
     offerSeenAt = detectedAt,
     pickupAddress = pickupAddress,
-    dropoffAddress = dropoffAddress
+    dropoffAddress = dropoffAddress,
+    product = product,
+    exclusive = exclusive,
+    cardAction = cardAction
 )

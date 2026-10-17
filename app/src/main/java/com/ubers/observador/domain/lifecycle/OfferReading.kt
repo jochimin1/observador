@@ -67,13 +67,60 @@ enum class OfferCardAction(val storageKey: String, val label: String) {
  */
 object OfferCards {
 
-    fun segments(texts: List<String>): List<List<String>> {
+    /**
+     * One card: [texts] from its price to the next card's price, and [header], the labels Uber
+     * writes above the price ("Moto", "Exclusivo"). The header of a card sits after the previous
+     * card's button (or at the top of the screen for the first one).
+     */
+    data class Card(val texts: List<String>, val header: List<String>)
+
+    fun segments(texts: List<String>): List<List<String>> = cards(texts).map { it.texts }
+
+    fun cards(texts: List<String>): List<Card> {
         val starts = texts.indices.filter { OfferPatterns.PRICE.containsMatchIn(texts[it]) }
         if (starts.isEmpty()) return emptyList()
         return starts.mapIndexed { n, from ->
             val until = starts.getOrNull(n + 1) ?: texts.size
-            texts.subList(from, until)
-        }.filter { OfferParseCheck.check(it) == OfferParseStep.OK }
+            val headerFrom = if (n == 0) 0 else {
+                val prev = starts[n - 1]
+                val button = (prev until from).lastOrNull { i -> isButton(texts[i]) }
+                (button ?: prev) + 1
+            }
+            Card(texts.subList(from, until), texts.subList(headerFrom, from))
+        }.filter { OfferParseCheck.check(it.texts) == OfferParseStep.OK }
+    }
+
+    private fun isButton(text: String): Boolean = text.lowercase().let { t -> OfferPatterns.ACCEPT_KEYWORDS.any { t.contains(it) } }
+}
+
+/** Fase 8J: the modality Uber prints above the price ("Moto") and whether the card is "Exclusivo". */
+data class OfferProduct(val product: String?, val exclusive: Boolean)
+
+/**
+ * Reads [OfferProduct] from a card's header. Known modalities are compared normalized and kept
+ * as Uber wrote them; an unknown short label right above the price is kept too, as it is, so a
+ * new modality is never lost. Confirmed on real cards (17/10): "Moto" and "Exclusivo".
+ */
+object OfferProductReader {
+
+    /** Normalized names of Uber's modalities; the first ones are confirmed, the rest candidates. */
+    val KNOWN = listOf(
+        "moto", "uber moto", "moto flash", "flash", "uberx", "uber x", "comfort", "xl", "black", "envios", "flash moto", "taxi"
+    )
+    const val EXCLUSIVE = "exclusivo"
+
+    /** Header texts that are never a modality. */
+    private val NOT_PRODUCT = setOf(EXCLUSIVE, "radar de solicitud de viaje", "cerrar", "x", "nuevo", "rechazar", "descartar", "menu")
+
+    fun read(header: List<String>): OfferProduct {
+        val norm = header.map { TextNormalizer.normalize(it).trim() }
+        val exclusive = norm.any { it == EXCLUSIVE }
+        val known = header.indices.firstOrNull { norm[it] in KNOWN }?.let { header[it].trim() }
+        val fallback = header.indices.reversed().firstOrNull { i ->
+            val n = norm[i]
+            n.isNotEmpty() && n.length <= 20 && n !in NOT_PRODUCT && n.none { it.isDigit() } && n.any { it.isLetter() }
+        }?.let { header[it].trim() }
+        return OfferProduct(known ?: fallback, exclusive)
     }
 }
 

@@ -14,6 +14,50 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.22.0] - 2026-10-17
+
+Reportes y exportación. Incluye todo lo de la 1.21.0. Base de datos 12 → 13 (solo añade columnas).
+
+### Añadido
+- **Pantalla «Reportes y exportación»**: Ajustes → «Reportes y exportación». También se abre desde
+  Inicio (⋮ → «Reportes y exportación…»), Ganancias y Gastos (botón de descarga) con el periodo que
+  estabas viendo. No es una pestaña nueva.
+  - **Periodo**: Hoy, Esta semana, Este mes, Semana pasada, Mes pasado o Rango personalizado
+    (calendario). Usa tu hora de inicio de jornada y tu día de inicio de semana.
+  - **Filtros con su conteo**: Origen (Todo / Ofertados / Tomados), Categoría (Excelentes / Buenas /
+    Malas, con tus ajustes de hoy), Botón (Me interesa / Aceptar) y Modalidad (Moto, Flash…).
+  - **Totales en pantalla antes de exportar**, y «Ver todos los totales».
+  - **Qué exportar**, con las filas de cada archivo: Ofertas y viajes (detalle), Totales del periodo,
+    Viajes y ganancias, Gastos, Resumen por jornada (CSV) y Resumen del periodo (PDF). CSV o JSON.
+    Un archivo sin datos sale deshabilitado con «Sin datos en este periodo».
+  - **Guardar en el teléfono** o **Compartir**; con varios archivos van juntos en un .zip.
+  - **Últimas exportaciones**: las 5 más recientes (solo el registro, no los archivos).
+- **Archivo «Ofertas y viajes»**: una fila por oferta con fecha, hora, jornada, origen, estado del
+  viaje, modalidad, exclusivo, botón, categoría, score de hoy y al detectar, ofertado (referencia),
+  km y minutos, RD$/km, RD$/hora, combustible y ganancia estimados, recogida, destino, pasajero, real
+  confirmado, propina, diferencia con lo ofertado y cobertura del dinero.
+- **Archivo «Totales del periodo»** (y segunda página del PDF): por origen y % de tomados; tomados
+  por estado; por categoría; por botón; por modalidad (cantidad, precio promedio, RD$/km promedio y
+  mediana); sumas (ofertado como referencia, real confirmado con su cobertura, propinas, km y minutos
+  de lo tomado, gastos y neto en semana y mes) y por jornada. Cada total es la suma del detalle.
+- **Modalidad de la tarjeta**: cada oferta guarda la etiqueta que Uber pone sobre el precio («Moto»,
+  y otras que aparezcan, tal cual) y si es «Exclusivo». Se ve en Inicio y en el detalle. Los viajes
+  copian modalidad, exclusivo y botón de su oferta. Las ofertas anteriores quedan como «Sin dato».
+
+### Cambiado
+- Los datos de prueba (TEST-) no se exportan desde la pantalla nueva; en compilaciones de depuración
+  hay un interruptor para incluirlos.
+
+### Pruebas
+- 12 pruebas JVM nuevas (`ReportsExportTest`): modalidad y «Exclusivo» en tarjetas sueltas y en el
+  Radar, filtros combinados, filas de detalle, totales que cuadran con el detalle, ofertado nunca como
+  ingreso, archivos CSV/JSON, .zip, historial y periodos con jornada a las 4:00 y semana desde lunes o
+  domingo.
+- Instrumentadas: `Migration12To13Test` (y las cadenas de migración hasta 13) y `ReportsScreenDataTest`
+  (un periodo con ambos botones, dos modalidades, viajes en varios estados y un tanqueo).
+- `schemas/12.json` se escribió a mano a partir de la 11 con la columna `card_action` (la 1.21.0 no
+  lo generó en tu PC); `13.json` lo genera Room al compilar.
+
 ## [1.21.0] - 2026-10-17
 
 Ofertas «Me interesa». Incluye todo lo de la 1.20.0. Base de datos 11 → 12 (solo añade una columna).

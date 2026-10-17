@@ -85,7 +85,11 @@ data class TripOfferSnapshot(
     val offerSeenAt: Long,
     /** Fase 8F: as Uber wrote them on the card. */
     val pickupAddress: String? = null,
-    val dropoffAddress: String? = null
+    val dropoffAddress: String? = null,
+    /** Fase 8J: modality, "Exclusivo" and the card's button (OfferCardAction.storageKey). */
+    val product: String? = null,
+    val exclusive: Boolean? = null,
+    val cardAction: String? = null
 )
 
 /** The settings that judged the offer, so "why was this good that day?" can be answered later. */

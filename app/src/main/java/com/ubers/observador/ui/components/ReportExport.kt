@@ -135,11 +135,13 @@ fun ReportExportEffects(exporter: ReportExporter, snackbar: SnackbarHostState) {
     val csv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { exporter.savePendingTo(it) }
     val json = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { exporter.savePendingTo(it) }
     val pdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { exporter.savePendingTo(it) }
+    val zip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { exporter.savePendingTo(it) }
     LaunchedEffect(exporter) {
         exporter.events.collect { event ->
             when (event) {
                 is ReportExportEvent.ReadyToSave -> when (event.mimeType) {
                     "application/pdf" -> pdf.launch(event.fileName)
+                    "application/zip" -> zip.launch(event.fileName)
                     "application/json" -> json.launch(event.fileName)
                     else -> csv.launch(event.fileName)
                 }
