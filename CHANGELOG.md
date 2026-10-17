@@ -14,6 +14,23 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.23.0] - 2026-10-17
+
+Botón «Cerrar Observador». Incluye todo lo de la 1.22.0. La base de datos no cambia (sigue en 13).
+
+### Añadido
+- **«Cerrar Observador»** en Inicio (menú ⋮), en Ajustes (debajo del interruptor de pausa) y como
+  botón «Cerrar» en la notificación fija. Deja de leer Uber, apaga el GPS, quita la notificación del
+  servicio y cierra la app.
+- Antes de cerrar pide confirmación. Si hay un viaje en curso lo avisa en rojo: Observador no verá
+  cómo termina y quedará sin cierre confirmado. Si se estaban midiendo km, dice que lo medido se guarda.
+- Al abrir la app de nuevo, vuelve a leer sola. Una pausa elegida con el interruptor de Ajustes, en
+  cambio, se respeta al abrir.
+
+### Pruebas
+- 3 pruebas JVM nuevas (`AppCloseTest`): cerrar pausa y marca, abrir reanuda solo si se cerró con el
+  botón, y el aviso según haya viaje en curso o medición.
+
 ## [1.22.0] - 2026-10-17
 
 Reportes y exportación. Incluye todo lo de la 1.21.0. Base de datos 12 → 13 (solo añade columnas).

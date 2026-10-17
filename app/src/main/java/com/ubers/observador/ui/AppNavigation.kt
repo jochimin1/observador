@@ -11,4 +11,7 @@ object AppNavigation {
     const val OPEN_LAST_WEEK = "earnings_last_week"
 
     val pending = MutableStateFlow<String?>(null)
+
+    /** Fase 8L: «Cerrar Observador» was chosen (in the app or the notification): the screen closes. */
+    val closeRequested = MutableStateFlow(false)
 }

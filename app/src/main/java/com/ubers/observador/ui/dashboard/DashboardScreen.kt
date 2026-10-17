@@ -83,6 +83,8 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
+    var showCloseDialog by remember { mutableStateOf(false) }
+    if (showCloseDialog) com.ubers.observador.ui.components.CloseAppDialog(onDismiss = { showCloseDialog = false })
     var showMenu by remember { mutableStateOf(false) }
     var selectedOfferId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Looked up in the current list: if the offer leaves the period, the panel closes by itself
@@ -195,6 +197,15 @@ fun DashboardScreen(
                                 onClick = {
                                     showMenu = false
                                     showExportDialog = true
+                                }
+                            )
+                            // Fase 8L: stop reading, GPS and notification, and leave
+                            DropdownMenuItem(
+                                text = { Text("Cerrar Observador") },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_power), contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    showCloseDialog = true
                                 }
                             )
                             if (onOpenReports != null) {

@@ -64,6 +64,7 @@ class ObservadorForegroundService : Service() {
         private const val ACTION_PAUSE = "com.ubers.observador.action.PAUSE"
         private const val ACTION_RESUME = "com.ubers.observador.action.RESUME"
         private const val ACTION_REFRESH = "com.ubers.observador.action.REFRESH"
+        private const val ACTION_CLOSE = "com.ubers.observador.action.CLOSE"
 
         /** Re-checks staleness of the online session and the permission this often. */
         private const val TICK_MS = 30_000L
@@ -173,6 +174,8 @@ class ObservadorForegroundService : Service() {
             ACTION_PAUSE -> scope.launch { settings.updateObserverEnabled(false) }
             ACTION_RESUME -> scope.launch { settings.updateObserverEnabled(true) }
             ACTION_REFRESH -> notification?.let { startForegroundTyped(it) }
+            // Fase 8L: «Cerrar» in the notification
+            ACTION_CLOSE -> scope.launch { AppCloser.close(applicationContext) }
         }
         return START_STICKY
     }
@@ -257,6 +260,15 @@ class ObservadorForegroundService : Service() {
             if (active) "Pausar" else "Reanudar",
             toggle
         ).build()
+        val close = Notification.Action.Builder(
+            Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+            "Cerrar",
+            PendingIntent.getService(
+                this, 3,
+                Intent(this, ObservadorForegroundService::class.java).setAction(ACTION_CLOSE),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        ).build()
         val text = when {
             !active -> "No se leen ofertas ni viajes"
             measuringText != null -> measuringText
@@ -268,6 +280,7 @@ class ObservadorForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(openIntent)
             .addAction(action)
+            .addAction(close)
             .setOngoing(true)
             .build()
     }

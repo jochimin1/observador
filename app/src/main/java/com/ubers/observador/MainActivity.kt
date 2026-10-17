@@ -53,6 +53,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestPermissionsIfNeeded()
+        // Fase 8L: opening the app after «Cerrar Observador» turns reading back on
+        com.ubers.observador.ui.AppNavigation.closeRequested.value = false
+        lifecycleScope.launch { com.ubers.observador.data.AppSettings(applicationContext).reopenAfterClose() }
+        lifecycleScope.launch {
+            com.ubers.observador.ui.AppNavigation.closeRequested.collect { close ->
+                if (close) {
+                    com.ubers.observador.ui.AppNavigation.closeRequested.value = false
+                    finishAndRemoveTask()
+                }
+            }
+        }
         ObservadorForegroundService.start(this)
         handleOpen(intent)
         setContent {

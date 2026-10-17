@@ -45,6 +45,7 @@ class AppSettings(private val context: Context) {
         private val KEY_WEIGHT_PICKUP_MIN = intPreferencesKey("weight_pickup_min_pct")
         private val KEY_SHADOW_MODEL = stringPreferencesKey("shadow_model_version_id")
         private val KEY_OBSERVER_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("observer_enabled")
+        private val KEY_CLOSED_BY_USER = androidx.datastore.preferences.core.booleanPreferencesKey("closed_by_user")
         private val KEY_PROFILES = stringPreferencesKey("settings_profiles")
         private val KEY_ACTIVE_PROFILE = stringPreferencesKey("active_profile_id")
         // Fase 8E: kilometres with GPS. Off until the driver turns it on and grants location
@@ -126,6 +127,24 @@ class AppSettings(private val context: Context) {
      * notifications, no trips, no money. Default true, so updating the app changes nothing.
      */
     val observerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_OBSERVER_ENABLED] ?: true }
+
+    /** Fase 8L: «Cerrar Observador». Paused like the switch, and marked so the next opening resumes. */
+    suspend fun closeByUser() = context.dataStore.edit {
+        val f = com.ubers.observador.domain.AppClose.onClose()
+        it[KEY_OBSERVER_ENABLED] = f.observerEnabled
+        it[KEY_CLOSED_BY_USER] = f.closedByUser
+        it[KEY_DISTANCE_MANUAL] = false
+    }
+
+    /** Fase 8L: on opening the app; resumes reading only if it was closed with the button. */
+    suspend fun reopenAfterClose() = context.dataStore.edit {
+        val now = com.ubers.observador.domain.AppClose.Flags(it[KEY_OBSERVER_ENABLED] ?: true, it[KEY_CLOSED_BY_USER] ?: false)
+        val next = com.ubers.observador.domain.AppClose.onOpen(now)
+        if (next != now) {
+            it[KEY_OBSERVER_ENABLED] = next.observerEnabled
+            it[KEY_CLOSED_BY_USER] = next.closedByUser
+        }
+    }
 
     suspend fun updateObserverEnabled(value: Boolean) = context.dataStore.edit {
         it[KEY_OBSERVER_ENABLED] = value

@@ -48,7 +48,7 @@ fun ObserverSwitchCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
             Text(
                 text = "En pausa no se leen ofertas ni viajes: sin tarjeta, sin avisos y sin registros. " +
                     "Si pausas durante un viaje, ese viaje queda como interrumpido. También puedes " +
-                    "pausar desde la notificación.",
+                    "pausar desde la notificación. Para apagar también el GPS y salir, usa «Cerrar Observador».",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

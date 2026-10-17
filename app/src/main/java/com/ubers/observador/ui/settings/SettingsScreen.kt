@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
@@ -103,6 +104,13 @@ fun SettingsScreen(
 
             val observing by viewModel.observerEnabled.collectAsState()
             ObserverSwitchCard(enabled = observing, onChange = { viewModel.setObserverEnabled(it) })
+            // Fase 8L: close everything with one button
+            var closing by remember { mutableStateOf(false) }
+            if (closing) com.ubers.observador.ui.components.CloseAppDialog(onDismiss = { closing = false })
+            OutlinedButton(onClick = { closing = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(painterResource(R.drawable.ic_power), contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Cerrar Observador", modifier = Modifier.padding(start = 8.dp))
+            }
 
             val profiles by viewModel.profiles.collectAsState()
             val profileMessage by viewModel.profileMessage.collectAsState()
