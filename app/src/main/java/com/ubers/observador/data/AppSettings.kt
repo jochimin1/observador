@@ -35,6 +35,7 @@ class AppSettings(private val context: Context) {
         private val KEY_OVERLAY_DURATION = intPreferencesKey("overlay_duration_seconds")
         private val KEY_MODE = stringPreferencesKey("operating_mode")
         private val KEY_SHOW_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("show_overlay")
+        private val KEY_OFFER_ALERTS = stringPreferencesKey("offer_alerts")
         private val KEY_GRACE_WINDOW = intPreferencesKey("grace_window_seconds")
         private val KEY_WORKDAY_START = intPreferencesKey("workday_start_hour")
         private val KEY_WEIGHT_KM = intPreferencesKey("weight_km_pct")
@@ -313,6 +314,14 @@ class AppSettings(private val context: Context) {
     val operatingMode: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_MODE] ?: MODE_OBSERVER
     }
+
+    /** Fase 8I: which offers notify ("Avisos de ofertas"). */
+    val offerAlerts: Flow<com.ubers.observador.domain.OfferAlerts> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.OfferAlerts.fromStorage(prefs[KEY_OFFER_ALERTS])
+    }
+
+    suspend fun updateOfferAlerts(value: com.ubers.observador.domain.OfferAlerts) =
+        context.dataStore.edit { it[KEY_OFFER_ALERTS] = value.storageKey }
 
     val showOverlay: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_SHOW_OVERLAY] ?: true

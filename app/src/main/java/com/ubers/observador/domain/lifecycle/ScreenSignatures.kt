@@ -37,8 +37,9 @@ object OfferPatterns {
     val TRIP_TIME_KM = Regex("""(?:Viaje:?\s+)?(\d+)\s*min\s*[\(·•]\s*([\d.]+)\s*km""")
     val TRIP_KM_TIME = Regex("""([\d.]+)\s*km\s*[·•]\s*(\d+)\s*min""")
 
-    // Partial match: "ACEPTAR", "Aceptar viaje", "Accept trip"...
-    val ACCEPT_KEYWORDS = listOf("aceptar", "accept", "aceitar")
+    // Partial match: "ACEPTAR", "Aceptar viaje", "Accept trip"... and "Me interesa", the button of
+    // the cards in Uber's "Radar de solicitud de viaje" (screenshots of 17/10)
+    val ACCEPT_KEYWORDS = listOf("aceptar", "accept", "aceitar", "me interesa")
 }
 
 /**

@@ -61,6 +61,8 @@ class UberAccessibilityService : AccessibilityService() {
          * events, so a still map with "Estás conectado" keeps the session seen. One read every 5 min.
          */
         private const val KEEP_ALIVE_MS = 5 * 60_000L
+        /** A Radar card already handled is not stored or notified again for this long. */
+        private const val EXTRA_CARD_MEMORY_MS = 10 * 60_000L
 
         /** Set while the service is connected; lets the app's UI reach the service-backed overlay. */
         @Volatile
@@ -144,23 +146,23 @@ class UberAccessibilityService : AccessibilityService() {
         }
         // The card is read from the active window; if it is not there (the card can be its own
         // window, or another app is in front), the other Uber windows are tried (Fase 8F)
-        val active = if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parse(snapshot.texts) else null
-        val found: Pair<UberOffer, ScreenSnapshot>? = active?.let { it to snapshot } ?: offerFromOtherWindows(snapshot.timestampMs)
+        // Fase 8I: Uber's Radar shows several cards at once; each one is read (top first)
+        val active = if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parseAll(snapshot.texts) else emptyList()
+        val found: Pair<List<UberOffer>, ScreenSnapshot>? =
+            active.takeIf { it.isNotEmpty() }?.let { it to snapshot } ?: offerFromOtherWindows(snapshot.timestampMs)
         val offerScreen = found?.second ?: snapshot.takeIf {
             it.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(it.texts)
         }
-        val offer: UberOffer? = found?.let { (o, s) ->
-            val places = OfferPlacesReader.read(s.texts)
-            o.copy(pickupAddress = places.pickup, dropoffAddress = places.dropoff)
-        }
+        val offer: UberOffer? = found?.first?.firstOrNull()
         offerScreen?.let { s ->
             OfferDebug.onOfferScreen(
                 s, if (offer != null) OfferParseStep.OK else OfferParseCheck.check(s.texts),
-                offer?.let { OfferPlaces(it.pickupAddress, it.dropoffAddress) }, otherWindow = found != null && active == null
+                offer?.let { OfferPlaces(it.pickupAddress, it.dropoffAddress) }, otherWindow = found != null && active.isEmpty()
             )
         }
         observeLifecycle(snapshot, offer?.offerHash())
         scheduleKeepAlive()
+        found?.first?.drop(1)?.forEach { recordExtraCard(it) }
 
         if (offer == null) {
             scheduleAbsenceCheck()
@@ -176,7 +178,7 @@ class UberAccessibilityService : AccessibilityService() {
 
     /** An offer card in an Uber window other than the active one, or null. Every node is released. */
     @Suppress("DEPRECATION")
-    private fun offerFromOtherWindows(atMs: Long): Pair<UberOffer, ScreenSnapshot>? {
+    private fun offerFromOtherWindows(atMs: Long): Pair<List<UberOffer>, ScreenSnapshot>? {
         val list = try {
             windows
         } catch (e: RuntimeException) {
@@ -189,8 +191,9 @@ class UberAccessibilityService : AccessibilityService() {
             try {
                 if (root.packageName?.toString() != UBER_DRIVER_PACKAGE) continue
                 val s = ScreenSnapshotFactory.from(root, atMs)
-                val o = OfferParser.parse(s.texts) ?: continue
-                return o to s
+                val cards = OfferParser.parseAll(s.texts)
+                if (cards.isEmpty()) continue
+                return cards to s
             } catch (e: RuntimeException) {
                 Log.w(TAG, "Could not read another window", e)
             } finally {
@@ -279,10 +282,10 @@ class UberAccessibilityService : AccessibilityService() {
                     settings.themeSettings.first(), night, java.time.LocalTime.now().hour
                 ) == com.ubers.observador.domain.ResolvedTheme.SUN
                 val overlaySeconds = settings.overlayDurationSeconds.first()
-                // Alerts only for a newly recorded GOOD or EXCELLENT offer, so a flicker never re-notifies
-                val notify = saved &&
-                    settings.operatingMode.first() == AppSettings.MODE_ASSISTED &&
-                    quality != OfferQuality.BAD
+                // Fase 8I: «Avisos de ofertas» decides; only a newly recorded offer notifies
+                val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
+                    saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
+                )
 
                 mainHandler.post {
                     // The card may already be gone or replaced while we were analysing
@@ -308,6 +311,37 @@ class UberAccessibilityService : AccessibilityService() {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Shadow scoring failed", e)
+            }
+        }
+    }
+
+    /** Hashes of the Radar's other cards already handled, with when (elapsed ms). Main thread only. */
+    private val extraCards = LinkedHashMap<String, Long>()
+
+    /**
+     * Fase 8I: a card of the Radar below the first one. It is stored (once, as any offer) and may
+     * notify on its own id; the floating card and the ride lifecycle stay with the first card.
+     */
+    private fun recordExtraCard(offer: UberOffer) {
+        val hash = offer.offerHash()
+        if (hash == tracker.activeHash) return
+        val now = SystemClock.elapsedRealtime()
+        extraCards.entries.removeAll { now - it.value > EXTRA_CARD_MEMORY_MS }
+        if (extraCards.containsKey(hash)) return
+        extraCards[hash] = now
+        scope.launch {
+            try {
+                val analysis = engine.analyze(offer, settings.engineSettings.first())
+                val quality = settings.qualityThresholds.first().classify(analysis.score)
+                val saved = repository.saveOrSkip(analysis, settings.graceWindowSeconds.first() * 1000L)
+                val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
+                    saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
+                )
+                if (notify) mainHandler.post { notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to process a Radar card $hash", e)
             }
         }
     }

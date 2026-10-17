@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -436,6 +437,8 @@ fun SettingsScreen(
                 goodFrom = thresholds.goodFrom,
                 onSelect = { viewModel.updateMode(it) }
             )
+            val alerts by viewModel.offerAlerts.collectAsState()
+            OfferAlertsCard(alerts, onSelect = { viewModel.updateOfferAlerts(it) })
 
             if (BuildConfig.DEBUG) {
                 val testMessage by viewModel.testDataMessage.collectAsState()
@@ -484,7 +487,7 @@ private fun OverlayPreviewCard(message: String?, onTest: () -> Unit, onTestNotif
             Text(
                 text = "Muestra la tarjeta flotante con una oferta de ejemplo (con recogida y destino). Cada toque alterna MALO, " +
                     "BUENO y EXCELENTE. Necesita el servicio de accesibilidad activo. «Probar notificación» envía el aviso " +
-                    "de oferta rentable, que con ofertas reales solo llega en modo Asistido.",
+                    "de oferta; con ofertas reales llega según «Avisos de ofertas».",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -833,17 +836,41 @@ private fun CutsBar(thresholds: QualityThresholds) {
     }
 }
 
+/** Fase 8I: which offers send a notification, whatever the mode. */
+@Composable
+private fun OfferAlertsCard(current: com.ubers.observador.domain.OfferAlerts, onSelect: (com.ubers.observador.domain.OfferAlerts) -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Avisos de ofertas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(
+                "Una notificación por cada oferta nueva que Observador lee, con su veredicto, recogida y destino. " +
+                    "En el Radar de Uber cada tarjeta avisa por separado.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.ubers.observador.domain.OfferAlerts.entries.forEach { option ->
+                    FilterChip(selected = option == current, onClick = { onSelect(option) }, label = { Text(option.label) })
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ModeSelector(current: String, goodFrom: Int, onSelect: (String) -> Unit) {
     val modes = listOf(
         ModeOption(
             AppSettings.MODE_OBSERVER, "Observador",
-            "Solo lee y guarda las ofertas. Tú decides todo y no recibes avisos.", true
+            "Lee y guarda las ofertas. Tú decides todo; los avisos siguen «Avisos de ofertas».", true
         ),
         ModeOption(
             AppSettings.MODE_ASSISTED, "Asistido",
-            "Te avisa con una notificación cuando aparece un viaje BUENO o EXCELENTE (score de $goodFrom " +
-                "o más). Tú sigues aceptando a mano.", true
+            "Además te avisa siempre de los viajes BUENOS o EXCELENTES (score de $goodFrom o más), " +
+                "aunque «Avisos de ofertas» esté en «Ninguna». Tú sigues aceptando a mano.", true
         ),
         ModeOption(
             AppSettings.MODE_AUTO, "Automático · próximamente",

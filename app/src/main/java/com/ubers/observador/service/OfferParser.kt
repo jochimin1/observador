@@ -14,6 +14,18 @@ object OfferParser {
 
     private const val TAG = "OfferParser"
 
+    /**
+     * Every offer card on the screen, top first, each with its addresses (Fase 8I: the Radar shows
+     * several). A screen with one card gives the same offer as [parse].
+     */
+    fun parseAll(texts: List<String>): List<UberOffer> =
+        com.ubers.observador.domain.lifecycle.OfferCards.segments(texts).mapNotNull { card ->
+            parse(card)?.let { o ->
+                val places = com.ubers.observador.domain.lifecycle.OfferPlacesReader.read(card)
+                o.copy(pickupAddress = places.pickup, dropoffAddress = places.dropoff)
+            }
+        }
+
     fun parse(texts: List<String>): UberOffer? {
         val fullText = texts.joinToString(" ")
         // Screen text can hold names and addresses: only debug builds may print it

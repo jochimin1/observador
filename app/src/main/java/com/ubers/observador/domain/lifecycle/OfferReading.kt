@@ -10,7 +10,7 @@ package com.ubers.observador.domain.lifecycle
 
 /** Where reading an offer card stopped, to explain on the debug panel why no card was shown. */
 enum class OfferParseStep(val label: String) {
-    NO_ACCEPT("Sin botón «Aceptar»"),
+    NO_ACCEPT("Sin botón «Aceptar» ni «Me interesa»"),
     NO_PRICE("No se encontró el precio"),
     NO_PICKUP("No se encontró la recogida (min y km)"),
     NO_TRIP("No se encontró el viaje (min y km)"),
@@ -33,6 +33,23 @@ object OfferParseCheck {
 
     fun hasAccept(texts: List<String>): Boolean =
         texts.any { t -> OfferPatterns.ACCEPT_KEYWORDS.any { t.lowercase().contains(it) } }
+}
+
+/**
+ * Uber's "Radar de solicitud de viaje" lists several offer cards on one screen, each with its own
+ * price and "Me interesa" button. The texts are cut at every price: each piece is one card, read
+ * on its own. Text before the first price (a half-scrolled card) has no price and is left out.
+ */
+object OfferCards {
+
+    fun segments(texts: List<String>): List<List<String>> {
+        val starts = texts.indices.filter { OfferPatterns.PRICE.containsMatchIn(texts[it]) }
+        if (starts.isEmpty()) return emptyList()
+        return starts.mapIndexed { n, from ->
+            val until = starts.getOrNull(n + 1) ?: texts.size
+            texts.subList(from, until)
+        }.filter { OfferParseCheck.check(it) == OfferParseStep.OK }
+    }
 }
 
 /** The two addresses of an offer card, as Uber wrote them. */

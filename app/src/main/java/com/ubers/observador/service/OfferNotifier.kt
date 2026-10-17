@@ -14,7 +14,10 @@ import androidx.core.content.ContextCompat
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.models.OfferAnalysis
 
-/** Heads-up alert for Assisted mode: tells the driver an offer on screen is worth taking. */
+/**
+ * Heads-up alert for an offer on screen, with its verdict. Which offers notify is chosen in
+ * Ajustes → «Avisos de ofertas» (Fase 8I); each card of Uber's Radar gets its own notification.
+ */
 class OfferNotifier(private val context: Context) {
 
     private val manager = context.getSystemService(NotificationManager::class.java)
@@ -22,16 +25,17 @@ class OfferNotifier(private val context: Context) {
     init {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Ofertas rentables",
+            "Ofertas de Uber",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Aviso cuando una oferta es BUENA o EXCELENTE (modo Asistido)"
+            description = "Aviso de cada oferta que Observador lee, con su veredicto (según «Avisos de ofertas»)"
             enableVibration(true)
         }
         manager.createNotificationChannel(channel)
     }
 
-    fun notifyGoodOffer(analysis: OfferAnalysis, quality: OfferQuality) {
+    /** [id]: the main card uses the fixed id; other cards of the Radar use [idFor] so each keeps its own. */
+    fun notifyGoodOffer(analysis: OfferAnalysis, quality: OfferQuality, id: Int = NOTIFICATION_ID) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
@@ -71,8 +75,11 @@ class OfferNotifier(private val context: Context) {
             .setAutoCancel(true)
             .setTimeoutAfter(TIMEOUT_MS)
             .build()
-        manager.notify(NOTIFICATION_ID, notification)
+        manager.notify(id, notification)
     }
+
+    /** A stable id per offer for the extra cards of the Radar; they close on their own after the timeout. */
+    fun idFor(offerHash: String): Int = EXTRA_ID_BASE + (offerHash.hashCode() and 0xFFF)
 
     fun cancel() {
         manager.cancel(NOTIFICATION_ID)
@@ -82,6 +89,7 @@ class OfferNotifier(private val context: Context) {
         const val TAG = "OfferNotifier"
         const val CHANNEL_ID = "observador_offers"
         const val NOTIFICATION_ID = 2
+        const val EXTRA_ID_BASE = 10_000
         const val ACTION_NOOP = "com.ubers.observador.action.NOOP"
         const val TIMEOUT_MS = 30_000L
     }

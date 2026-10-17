@@ -14,6 +14,32 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.20.0] - 2026-10-17
+
+Radar de ofertas y avisos. Incluye todo lo de la 1.19.0. La base de datos no cambia (sigue en 11).
+
+### Corregido
+- **Las ofertas con «Me interesa» no se guardaban.** Observador solo reconocía tarjetas con el
+  botón «Aceptar»; las del «Radar de solicitud de viaje» (y muchas otras de Uber Moto) dicen «Me
+  interesa». Por eso faltaban ofertas por día en Inicio, no salía la tarjeta flotante ni el aviso.
+  Confirmado con tus capturas del 17/10.
+- **El Radar muestra varias tarjetas a la vez** y solo se leía la primera. Ahora se lee cada una
+  (de arriba abajo), con su precio, recogida, destino y direcciones. La tarjeta flotante y el ciclo
+  del viaje siguen con la primera; las demás se guardan y avisan por su cuenta. Una tarjeta cortada
+  arriba (sin precio a la vista) no se lee hasta que se vea completa.
+
+### Añadido
+- Ajustes → «Avisos de ofertas»: **Todas** (por defecto), **Buenas y excelentes** o **Ninguna**.
+  Antes solo avisaba el modo Asistido, y el modo por defecto (Observador) nunca avisaba. Cada
+  oferta nueva avisa una sola vez, con veredicto, score, recogida y destino; en el Radar cada
+  tarjeta tiene su propio aviso. El modo Asistido sigue avisando siempre de BUENAS y EXCELENTES.
+- El canal de notificaciones se llama ahora «Ofertas de Uber».
+
+### Pruebas
+- 7 pruebas JVM nuevas (`OfferRadarTest`) con los textos de tus capturas: tarjeta con «Me
+  interesa», Radar con dos tarjetas en orden y sin mezclar direcciones, tarjeta cortada arriba,
+  tarjeta exclusiva con «Aceptar», un precio suelto que no es oferta, y qué ofertas avisan.
+
 ## [1.19.0] - 2026-10-16
 
 Registro de viajes y ofertas. Incluye todo lo de la 1.18.0. La base de datos no cambia (sigue en 11).

@@ -92,6 +92,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateOverlayDuration(v: Int) = viewModelScope.launch { appSettings.updateOverlayDuration(v) }
     fun updateShowOverlay(v: Boolean) = viewModelScope.launch { appSettings.updateShowOverlay(v) }
     fun updateMode(v: String) = viewModelScope.launch { appSettings.updateMode(v) }
+
+    /** Fase 8I: «Avisos de ofertas». */
+    val offerAlerts: StateFlow<com.ubers.observador.domain.OfferAlerts> = appSettings.offerAlerts
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), com.ubers.observador.domain.OfferAlerts.DEFAULT)
+
+    fun updateOfferAlerts(v: com.ubers.observador.domain.OfferAlerts) = viewModelScope.launch { appSettings.updateOfferAlerts(v) }
     fun updateGraceWindow(v: Int) = viewModelScope.launch { appSettings.updateGraceWindow(v) }
     fun updateExcellentScore(v: Int) = viewModelScope.launch { appSettings.updateExcellentScore(v) }
     fun updateWorkdayStartHour(v: Int) = viewModelScope.launch { appSettings.updateWorkdayStartHour(v) }
@@ -307,10 +313,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         val analysis = OfferAnalysis(offer, 10.8, 25, 12.60, 326.5, 16.2, 119.86, 72)
         com.ubers.observador.service.OfferNotifier(app).notifyGoodOffer(analysis, OfferQuality.GOOD)
         val channelOff = manager.getNotificationChannel("observador_offers")?.importance == android.app.NotificationManager.IMPORTANCE_NONE
-        val mode = appSettings.operatingMode.first()
+        val alerts = appSettings.offerAlerts.first()
+        val assisted = appSettings.operatingMode.first() == AppSettings.MODE_ASSISTED
         _overlayTestMessage.value = when {
-            channelOff -> "El canal «Ofertas rentables» está apagado en Android: actívalo en los ajustes de notificaciones de Observador."
-            mode != AppSettings.MODE_ASSISTED -> "Notificación de prueba enviada. Ojo: con las ofertas reales solo avisa en modo Asistido, y ahora estás en otro modo."
+            channelOff -> "El canal «Ofertas de Uber» está apagado en Android: actívalo en los ajustes de notificaciones de Observador."
+            alerts == com.ubers.observador.domain.OfferAlerts.OFF && !assisted ->
+                "Notificación de prueba enviada. Ojo: «Avisos de ofertas» está en «Ninguna», así que las ofertas reales no avisan."
+            alerts == com.ubers.observador.domain.OfferAlerts.ALL -> "Notificación de prueba enviada. Cada oferta nueva que Observador lea avisa así."
             else -> "Notificación de prueba enviada. Las ofertas reales BUENAS o EXCELENTES avisan así."
         }
     }
