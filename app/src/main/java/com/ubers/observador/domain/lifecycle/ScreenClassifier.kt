@@ -85,7 +85,12 @@ class SignatureDetector(
     private val signatures: ScreenSignatures,
     private val required: List<EvidenceCode>,
     private val supporting: List<EvidenceCode> = emptyList(),
-    private val excluded: List<EvidenceCode> = emptyList()
+    private val excluded: List<EvidenceCode> = emptyList(),
+    /**
+     * A required phrase already confirmed on a real screen is enough for MEDIUM confidence on its
+     * own (two signals' worth). Without it, one signal stays LOW and the screen is never acted on.
+     */
+    private val selfSufficient: Boolean = false
 ) : ScreenDetector {
 
     override fun evaluate(snapshot: ScreenSnapshot): ScreenDetection? {
@@ -94,12 +99,14 @@ class SignatureDetector(
         val found = ArrayList<ScreenEvidence>()
         for (code in required) {
             val phrase = signatures.match(code, texts) ?: return null
-            found += ScreenEvidence(code, phrase, signatures.isValidated(code))
+            found += ScreenEvidence(code, phrase, signatures.isValidatedMatch(code, phrase))
         }
         for (code in supporting) {
-            signatures.match(code, texts)?.let { found += ScreenEvidence(code, it, signatures.isValidated(code)) }
+            signatures.match(code, texts)?.let { found += ScreenEvidence(code, it, signatures.isValidatedMatch(code, it)) }
         }
-        return ScreenDetection(type, ClassifierPolicy.confidenceFor(found.size), found)
+        val proven = selfSufficient && found.any { it.validated && it.code in required }
+        val count = if (proven) maxOf(found.size, 2) else found.size
+        return ScreenDetection(type, ClassifierPolicy.confidenceFor(count), found)
     }
 }
 
@@ -177,7 +184,8 @@ class UberScreenClassifier(
                         UberScreenType.PICKUP_NAVIGATION, signatures,
                         required = listOf(EvidenceCode.PICKUP_HEADER),
                         supporting = listOf(EvidenceCode.ARRIVED_ACTION),
-                        excluded = listOf(EvidenceCode.START_TRIP_ACTION, EvidenceCode.END_TRIP_ACTION)
+                        excluded = listOf(EvidenceCode.START_TRIP_ACTION, EvidenceCode.END_TRIP_ACTION),
+                        selfSufficient = true
                     ),
                     SignatureDetector(
                         UberScreenType.ARRIVED_OR_WAITING, signatures,

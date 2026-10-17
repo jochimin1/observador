@@ -49,12 +49,21 @@ object OfferPatterns {
 data class ScreenSignatures(
     val language: String,
     val phrases: Map<EvidenceCode, List<String>>,
-    val validated: Set<EvidenceCode>
+    val validated: Set<EvidenceCode>,
+    /** Single phrases confirmed on a real screen while the rest of their code is still a guess. */
+    val validatedPhrases: Map<EvidenceCode, Set<String>> = emptyMap()
 ) {
     private val normalized: Map<EvidenceCode, List<String>> =
         phrases.mapValues { (_, list) -> list.map(TextNormalizer::normalize).filter { it.isNotEmpty() } }
 
     fun isValidated(code: EvidenceCode): Boolean = code in validated
+
+    private val validatedNormalized: Map<EvidenceCode, Set<String>> =
+        validatedPhrases.mapValues { (_, set) -> set.map(TextNormalizer::normalize).toSet() }
+
+    /** True when [code] is confirmed as a whole, or the very phrase that matched was seen on a real screen. */
+    fun isValidatedMatch(code: EvidenceCode, matchedPhrase: String): Boolean =
+        code in validated || matchedPhrase in validatedNormalized[code].orEmpty()
 
     /** The phrase of [code] found in one of [normalizedTexts], or null. */
     fun match(code: EvidenceCode, normalizedTexts: List<String>): String? =
@@ -76,7 +85,8 @@ data class ScreenSignatures(
                 EvidenceCode.OFFER_ACCEPT_ACTION to OfferPatterns.ACCEPT_KEYWORDS,
                 EvidenceCode.SEARCHING_STATUS to listOf("buscando viajes", "estas conectado", "estas en linea"),
                 EvidenceCode.ONLINE_TOGGLE to listOf("desconectarte", "desconectarse", "dejar de recibir"),
-                EvidenceCode.PICKUP_HEADER to listOf("recoger a", "recogida en", "ir a recoger"),
+                // "Llegar por <nombre>" is the title Uber showed after accepting (screenshot of 14/10)
+                EvidenceCode.PICKUP_HEADER to listOf("llegar por", "recoger a", "recogida en", "ir a recoger"),
                 EvidenceCode.ARRIVED_ACTION to listOf("llegue", "he llegado", "avisar llegada"),
                 EvidenceCode.WAITING_STATUS to listOf("esperando a", "esperando al pasajero", "pasajero fue notificado"),
                 EvidenceCode.START_TRIP_ACTION to listOf("iniciar viaje", "comenzar viaje", "empezar viaje"),
@@ -92,7 +102,8 @@ data class ScreenSignatures(
                 EvidenceCode.OFFER_ACCEPT_ACTION,
                 EvidenceCode.OFFER_PRICE,
                 EvidenceCode.OFFER_PICKUP_ETA
-            )
+            ),
+            validatedPhrases = mapOf(EvidenceCode.PICKUP_HEADER to setOf("llegar por"))
         )
     }
 }

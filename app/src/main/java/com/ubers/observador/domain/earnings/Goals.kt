@@ -17,6 +17,9 @@ data class GoalSettings(
 /** "A tu ritmo de hoy": real income per confirmed hour online, and the time the rest would take at that pace. */
 data class GoalPace(val perHourMinor: Long, val minutesToGoal: Long)
 
+/** Where the progress figure of a goal comes from. */
+enum class GoalSource { OWN, UBER }
+
 data class GoalProgress(
     val goalMinor: Long,
     /** Real income only (confirmed trips + confirmed period income). Pending amounts never count. */
@@ -28,7 +31,9 @@ data class GoalProgress(
     val pace: GoalPace? = null,
     /** Weekly goal: what is left split over the working days left (a division, not a forecast). */
     val perDayMinor: Long? = null,
-    val daysLeft: Int? = null
+    val daysLeft: Int? = null,
+    /** UBER: the figure is Uber's own "HOY" total from the map, used because it is higher than what Observador confirmed. */
+    val source: GoalSource = GoalSource.OWN
 )
 
 object Goals {
@@ -58,6 +63,17 @@ object Goals {
         val perHour = divHalfUp(earned * HOUR_MS, confirmedOnlineMs)
         val minutes = ceilDiv(base.remainingMinor * confirmedOnlineMs, earned * MINUTE_MS)
         return base.copy(pace = GoalPace(perHour, minutes))
+    }
+
+    /**
+     * Fase 8H: Uber's "HOY" figure (the pill above the map, read from the screen) as today's
+     * progress when it is higher than the income Observador confirmed trip by trip, which stays
+     * low while Uber's money screens are not recognised. Never lowers the confirmed figure and
+     * has no pace (that needs confirmed trips).
+     */
+    fun withUberFigure(base: GoalProgress?, uberMinor: Long?): GoalProgress? {
+        if (base == null || uberMinor == null || uberMinor <= base.earnedMinor) return base
+        return progress(base.goalMinor, uberMinor)?.copy(source = GoalSource.UBER)
     }
 
     /** This week's goal, with what is left per working day in the [daysLeft] days still to come (today included). */

@@ -108,4 +108,20 @@ interface TripDao {
 
     @Query("SELECT * FROM trips WHERE status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to")
     suspend fun getTripsCompletedBetween(from: Long, to: Long): List<TripEntity>
+
+    /**
+     * Trips that ended in [from, to) for the earnings screens: completed ones, and trips taken
+     * that Uber closed by going back to searching (INTERRUPTED with no anomaly) when the summary
+     * screen was not recognised. Keep in step with TripOutcome.endedAt.
+     */
+    @Query(
+        "SELECT * FROM trips WHERE (status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to) OR " +
+            "(status = 'INTERRUPTED' AND has_anomalies = 0 AND (accepted_at IS NOT NULL OR pickup_navigation_at IS NOT NULL) " +
+            "AND interrupted_at >= :from AND interrupted_at < :to)"
+    )
+    suspend fun getTripsEndedBetween(from: Long, to: Long): List<TripEntity>
+
+    /** Every trip created from [from] on, for the "tomados" mark of the home list (Fase 8H). */
+    @Query("SELECT * FROM trips WHERE created_at >= :from ORDER BY created_at DESC")
+    fun observeCreatedSince(from: Long): Flow<List<TripEntity>>
 }

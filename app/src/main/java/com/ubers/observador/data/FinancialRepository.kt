@@ -115,7 +115,7 @@ class FinancialRepository(private val db: AppDatabase) {
     /** Real money of trips completed in [from, to) plus unassigned amounts seen then. Offers never count. */
     suspend fun periodEarnings(from: Long, to: Long, currencyCode: String = Currencies.DOP): EarningsPeriodSummary =
         db.withTransaction {
-            val completed = trips.getTripsCompletedBetween(from, to).map { it.id }
+            val completed = trips.getTripsEndedBetween(from, to).map { it.id }
             val stored = if (completed.isEmpty()) emptyMap() else money.getSummaries(completed).associateBy { it.tripId }
             val summaries = completed.map { id ->
                 stored[id]?.toDomain(currencyCode) ?: TripFinancialSummary(
@@ -130,7 +130,7 @@ class FinancialRepository(private val db: AppDatabase) {
 
     /** What Ganancias needs for [from, to), read in one transaction so it is consistent. */
     suspend fun earningsInputs(from: Long, to: Long, currencyCode: String = Currencies.DOP): EarningsInputs = db.withTransaction {
-        val completed = trips.getTripsCompletedBetween(from, to).map { it.toDomain() }
+        val completed = trips.getTripsEndedBetween(from, to).map { it.toDomain() }
         val ids = completed.map { it.id }
         val summaries = if (ids.isEmpty()) emptyMap() else money.getSummaries(ids).associate { it.tripId to it.toDomain(currencyCode) }
         EarningsInputs(completed, summaries, unassignedWithVoids(from, to))
@@ -153,7 +153,7 @@ class FinancialRepository(private val db: AppDatabase) {
     suspend fun assignmentCandidates(observationId: String, clock: WorkdayClock): List<Pair<Trip, TripFinancialSummary?>> = db.withTransaction {
         val o = money.getObservation(observationId)?.toDomain() ?: return@withTransaction emptyList()
         val day = clock.workdayOf(o.observedAtMs)
-        val pool = trips.getTripsCompletedBetween(clock.startOf(day.minusDays(1)), clock.startOf(day.plusDays(1))).map { it.toDomain() }
+        val pool = trips.getTripsEndedBetween(clock.startOf(day.minusDays(1)), clock.startOf(day.plusDays(1))).map { it.toDomain() }
         val candidates = ManualAssignment.candidates(o, pool, clock)
         val summaries = if (candidates.isEmpty()) emptyMap() else money.getSummaries(candidates.map { it.id }).associateBy { it.tripId }
         candidates.map { it to summaries[it.id]?.toDomain(Currencies.DOP) }

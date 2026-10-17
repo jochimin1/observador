@@ -42,7 +42,13 @@ data class LifecycleInput(
     val offerHash: String? = null,
     val screen: UberScreenType = UberScreenType.UNKNOWN,
     val confidence: Double = 0.0,
-    val evidence: List<EvidenceCode> = emptyList()
+    val evidence: List<EvidenceCode> = emptyList(),
+    /**
+     * Only for SEARCHING_CONFIRMED: Uber has shown the searching screen, with no ride screen
+     * between, for long enough that the trip under way has ended. The pipeline decides that
+     * (see LifecycleConfig.searchEndsTripMs); the stored trip becomes INTERRUPTED, never COMPLETED.
+     */
+    val closesActiveTrip: Boolean = false
 )
 
 /**
@@ -198,7 +204,9 @@ class RideLifecycleStateMachine(private val newSessionId: () -> String) {
             }
 
             RideLifecycleEventType.SEARCHING_CONFIRMED -> when {
-                state.isActiveTrip -> ignore(input, IgnoreReason.SEARCHING_DURING_ACTIVE_TRIP)
+                state.isActiveTrip ->
+                    if (input.closesActiveTrip) end(input, RideLifecycleState.IDLE)
+                    else ignore(input, IgnoreReason.SEARCHING_DURING_ACTIVE_TRIP)
                 state == RideLifecycleState.IDLE -> ignore(input, IgnoreReason.DUPLICATE)
                 // Terminal, a visible offer that went away, or UNKNOWN: back to idle, lifecycle closed
                 else -> end(input, RideLifecycleState.IDLE)

@@ -90,6 +90,9 @@ class TripRepository(private val db: AppDatabase) {
     fun observeCompletedSince(from: Long): Flow<List<Trip>> =
         trips.observeCompletedSince(from).map { list -> list.map { it.toDomain() } }
 
+    fun observeCreatedSince(from: Long): Flow<List<Trip>> =
+        trips.observeCreatedSince(from).map { list -> list.map { it.toDomain() } }
+
     fun observeTripsBetween(from: Long, to: Long): Flow<List<Trip>> =
         trips.observeTripsBetween(from, to).map { list -> list.map { it.toDomain() } }
 

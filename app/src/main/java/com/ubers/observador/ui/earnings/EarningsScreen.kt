@@ -212,7 +212,9 @@ fun EarningsScreen(viewModel: EarningsViewModel = viewModel()) {
                 if (state.manual.isNotEmpty()) item { ManualCard(state.manual, onUndo = { viewModel.undo(it) }) }
                 item {
                     Text(
-                        "Viajes realizados (${report.trips.size})",
+                        "Viajes realizados (${report.trips.size})" + report.trips.count { !it.endConfirmed }.let { n ->
+                            if (n > 0) " · $n sin cierre confirmado" else ""
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.semantics { heading() }
@@ -419,6 +421,9 @@ private fun GoalBlock(title: String, p: GoalProgress) {
             InfoLine(R.drawable.ic_check_circle, "¡Meta alcanzada!", tint = MaterialTheme.colorScheme.tertiary)
         } else {
             Text("Te faltan ${rd(p.remainingMinor)}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            if (p.source == com.ubers.observador.domain.earnings.GoalSource.UBER) {
+                InfoLine(R.drawable.ic_info, "Avance según la cifra HOY que Uber muestra sobre el mapa; Observador aún no tiene el dinero de cada viaje.")
+            }
             p.pace?.let {
                 InfoLine(R.drawable.ic_speed, "${EarningsFormat.pace(it)} (${rd(it.perHourMinor)}/h en línea). Es una referencia, no una promesa.")
             }
@@ -691,7 +696,7 @@ private fun AssignSheetContent(sheet: AssignSheet, onChoose: (Trip) -> Unit) {
                         Icon(painterResource(R.drawable.ic_two_wheeler), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
                             Text(
-                                "Terminó ${dayTime(requireNotNull(trip.completedAt))}" + (trip.riderName?.let { " · $it" } ?: ""),
+                                "Terminó ${dayTime(requireNotNull(com.ubers.observador.domain.trips.TripOutcome.endedAt(trip)))}" + (trip.riderName?.let { " · $it" } ?: ""),
                                 style = MaterialTheme.typography.titleSmall
                             )
                             trip.offer?.dropoffAddress?.let {
@@ -721,7 +726,7 @@ private fun AssignConfirmDialog(amount: FinancialObservation, trip: Trip, previe
         title = { Text("¿Asignar a este viaje?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${EarningsFormat.typeLabel(amount.type)} de ${MoneyFormat.format(amount.amount)} al viaje que terminó ${dayTime(requireNotNull(trip.completedAt))}.")
+                Text("${EarningsFormat.typeLabel(amount.type)} de ${MoneyFormat.format(amount.amount)} al viaje que terminó ${dayTime(requireNotNull(com.ubers.observador.domain.trips.TripOutcome.endedAt(trip)))}.")
                 Text(
                     "Real del viaje: ${preview.before.effectiveEarnings?.let { MoneyFormat.format(it) } ?: "sin confirmar"} → " +
                         (preview.after.effectiveEarnings?.let { MoneyFormat.format(it) } ?: "sin confirmar"),
@@ -775,6 +780,13 @@ private fun TripRow(row: TripMoneyRow, showDay: Boolean, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(statusColor))
                     Text(statusText, style = MaterialTheme.typography.labelMedium, color = statusColor)
+                }
+                if (!row.endConfirmed) {
+                    Text(
+                        "Cierre sin confirmar: Uber volvió a buscando",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             Column(horizontalAlignment = Alignment.End) {

@@ -13,6 +13,7 @@ import com.ubers.observador.domain.finance.TripFinancialSummary
 import com.ubers.observador.domain.money.Currencies
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.trips.Trip
+import com.ubers.observador.domain.trips.TripOutcome
 import com.ubers.observador.domain.trips.TripStatus
 import java.math.BigDecimal
 import java.time.DayOfWeek
@@ -70,7 +71,10 @@ object EarningsWindows {
 /** One completed trip as Ganancias lists it: what the offer said next to the real money. */
 data class TripMoneyRow(
     val tripId: String,
+    /** When the trip ended (completed, or closed by Uber going back to searching). */
     val completedAt: Long,
+    /** False when only the return to searching was seen: it may not have been completed. */
+    val endConfirmed: Boolean = true,
     /** A reference, never income. */
     val offered: MoneyAmount?,
     /** Null unless a total was observed (CONFIRMED). */
@@ -132,8 +136,8 @@ object EarningsReports {
         currencyCode: String = Currencies.DOP
     ): EarningsReport {
         val completed = trips.filter { t ->
-            val at = t.completedAt
-            t.status == TripStatus.COMPLETED && at != null && at >= window.startMs && at < window.endMs
+            val at = TripOutcome.endedAt(t)
+            at != null && at >= window.startMs && at < window.endMs
         }
         fun summaryOf(t: Trip) = summaries[t.id] ?: TripFinancialSummary(
             tripId = t.id, currencyCode = null,
@@ -145,20 +149,21 @@ object EarningsReports {
         val summary = EarningsPeriods.summarize(currencyCode, completed.map(::summaryOf), inWindow + voids)
 
         val bars = window.days.map { day ->
-            val dayTrips = completed.filter { clock.workdayOf(requireNotNull(it.completedAt)) == day }
+            val dayTrips = completed.filter { clock.workdayOf(requireNotNull(TripOutcome.endedAt(it))) == day }
             val dayAmounts = inWindow.filter { clock.workdayOf(it.observedAtMs) == day }
             val s = EarningsPeriods.summarize(currencyCode, dayTrips.map(::summaryOf), dayAmounts + voids)
             DayBar(day, s.totalObservedEarnings, s.completedTripCount, s.confirmedTripCount)
         }
         val best = bars.filter { it.incomeMinor > 0 }.maxWithOrNull(compareBy<DayBar> { it.incomeMinor }.thenByDescending { it.day })
 
-        val rows = completed.sortedByDescending { it.completedAt }.map { t ->
+        val rows = completed.sortedByDescending { TripOutcome.endedAt(it) }.map { t ->
             val s = summaryOf(t)
             val offered = s.offeredAmount ?: t.offer?.offeredAmount?.let { MoneyAmount.fromLegacyDouble(it, currencyCode) }
             val diff = s.copy(offeredAmount = offered).differenceFromOffer()
             TripMoneyRow(
                 tripId = t.id,
-                completedAt = requireNotNull(t.completedAt),
+                completedAt = requireNotNull(TripOutcome.endedAt(t)),
+                endConfirmed = TripOutcome.isConfirmed(t),
                 offered = offered,
                 real = if (s.completeness == FinancialCompleteness.CONFIRMED) s.effectiveEarnings else null,
                 completeness = s.completeness,

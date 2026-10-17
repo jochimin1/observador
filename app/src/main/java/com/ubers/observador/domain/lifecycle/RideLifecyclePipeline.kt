@@ -10,6 +10,12 @@ data class LifecycleConfig(
     val offerStaleMs: Long = 60_000L,
     /** A ride with no ride screen for this long becomes UNKNOWN (observation lost), never completed or cancelled. */
     val activeStaleMs: Long = 15 * 60_000L,
+    /**
+     * A trip under way and the searching screen seen for this long with no ride screen or offer
+     * in between: the ride is over. Stored as INTERRUPTED (ended without proof of how), because
+     * the summary screen may not have been recognised. One glimpse of "buscando" proves nothing.
+     */
+    val searchEndsTripMs: Long = 45_000L,
     /** Size of the in-memory history shown in the debug panel. */
     val historySize: Int = 50
 )
@@ -145,6 +151,7 @@ class RideLifecyclePipeline(
 
         val out = Output()
         handleScreen(classification, offerHash, now, out)
+        checkSearchingEnd(classification, now, out)
         checkTimeouts(now, out)
         return PipelineResult(
             classification = classification,
@@ -178,9 +185,11 @@ class RideLifecyclePipeline(
         forgetScreens()
         lastOfferSeenAt = null
         lastRideScreenAt = null
+        searchingSince = null
     }
 
     private fun forgetScreens() {
+        searchingSince = null
         lastFingerprint = null
         lastClassification = null
         lastHandledKey = null
@@ -235,6 +244,44 @@ class RideLifecyclePipeline(
                 screen = c.type,
                 confidence = c.confidence,
                 evidence = c.evidence.map { it.code }
+            ),
+            out
+        )
+    }
+
+    private var searchingSince: Long? = null
+
+    /**
+     * The searching screen replaces a trip under way only when it stays: seen again
+     * [LifecycleConfig.searchEndsTripMs] later with nothing from the ride in between. Screens
+     * Observador cannot read (the map while driving) do not interrupt the count.
+     */
+    private fun checkSearchingEnd(c: ScreenClassification, now: Long, out: Output) {
+        if (!machine.context.state.isActiveTrip) {
+            searchingSince = null
+            return
+        }
+        if (c.type != UberScreenType.SEARCHING) {
+            if (c.type in RIDE_SCREENS || c.type == UberScreenType.OFFER) searchingSince = null
+            return
+        }
+        val since = searchingSince ?: now.also { searchingSince = it }
+        val waited = now - since
+        if (waited < config.searchEndsTripMs) {
+            val left = config.searchEndsTripMs - waited
+            out.recheckAfterMs = out.recheckAfterMs?.let { minOf(it, left) } ?: left
+            return
+        }
+        searchingSince = null
+        lastHandledKey = null
+        apply(
+            LifecycleInput(
+                type = RideLifecycleEventType.SEARCHING_CONFIRMED,
+                atMs = now,
+                screen = c.type,
+                confidence = c.confidence,
+                evidence = c.evidence.map { it.code },
+                closesActiveTrip = true
             ),
             out
         )

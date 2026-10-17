@@ -205,7 +205,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 km = km,
                 reconciliation = reconciliation,
                 uberCapturedAt = snapshot?.capturedAtMs,
-                goals = goals(i.config.goals, clock, now, if (i.range == EarningsRange.DAY && i.offset == 0) report to onlineSummary else null),
+                goals = goals(i.config.goals, clock, now, if (i.range == EarningsRange.DAY && i.offset == 0) report to onlineSummary else null, i.extra.daySnap),
                 manual = ManualAssignment.live(i.changes.manual).filter { it.tripId in tripIds },
                 weekly = weekly,
                 clock = clock
@@ -217,13 +217,13 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Today's and this week's goals; [today] reuses what was already computed when browsing today. */
-    private suspend fun goals(g: GoalSettings, clock: WorkdayClock, now: Long, today: Pair<EarningsReport, OnlineSummary>?): GoalsUi {
+    private suspend fun goals(g: GoalSettings, clock: WorkdayClock, now: Long, today: Pair<EarningsReport, OnlineSummary>?, uberToday: PlatformEarningsSnapshot?): GoalsUi {
         if (!g.hasAny) return GoalsUi(g)
         val daily = if (g.dailyMinor <= 0) null else {
             val w = EarningsWindows.of(EarningsRange.DAY, 0, now, clock)
             val income = today?.first?.summary ?: money.periodEarnings(w.startMs, w.endMs)
             val onlineMs = today?.second?.confirmedMs ?: online.summarize(online.getBetween(w.startMs, w.endMs), w.startMs, w.endMs, now).confirmedMs
-            Goals.daily(g.dailyMinor, income, onlineMs)
+            Goals.withUberFigure(Goals.daily(g.dailyMinor, income, onlineMs), todayFigure(uberToday, w.startMs, w.endMs))
         }
         val weekly = if (g.weeklyMinor <= 0) null else {
             val w = EarningsWindows.of(EarningsRange.WEEK, 0, now, clock, g.weekStart)
@@ -231,6 +231,10 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
         }
         return GoalsUi(g, daily, weekly)
     }
+
+    /** Uber's "HOY" figure, only if it was read today and in pesos. */
+    private fun todayFigure(s: PlatformEarningsSnapshot?, from: Long, to: Long): Long? =
+        s?.takeIf { it.capturedAtMs in from until to && it.amount.currencyCode == Currencies.DOP && !it.amount.isNegative }?.amount?.minorUnits
 
     fun select(range: EarningsRange) {
         selection.value = range to 0

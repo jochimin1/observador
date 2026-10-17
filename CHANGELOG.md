@@ -14,6 +14,38 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.19.0] - 2026-10-16
+
+Registro de viajes y ofertas. Incluye todo lo de la 1.18.0. La base de datos no cambia (sigue en 11).
+
+### Corregido
+- **Los viajes tomados no se registraban** y «Viajes realizados» marcaba 0. Causa: la pantalla de ir
+  a recoger se buscaba con frases adivinadas («recoger a…») y Uber muestra «Llegar por <nombre>»,
+  así que el viaje nunca pasaba de oferta a viaje. Ahora «Llegar por» es una frase confirmada con tu
+  captura y basta por sí sola (confianza media, confirmada medio segundo después).
+- Si Uber vuelve a «Buscando viajes» y se queda 45 segundos sin ninguna pantalla del viaje ni oferta
+  nueva, Observador da el viaje por terminado. Se guarda como **terminó sin confirmar** (INTERRUPTED),
+  nunca como completado: puede que se haya cancelado y Observador no lo sabe. Un solo vistazo a
+  «buscando» no cierra nada.
+
+### Añadido
+- **Inicio** muestra todas las ofertas con tres filtros: **Todo**, **Ofertados** (los que viste y no
+  tomaste) y **Tomados** (los que aceptaste), cada uno con su cantidad. Las ofertas tomadas llevan
+  su estado: yendo a recoger, en viaje, terminado, cancelado o terminó sin confirmar. El resumen, las
+  tarjetas por categoría y «Mejores horas» siguen el filtro elegido; «Mejores horas» usa los viajes tomados.
+- **Ganancias** cuenta los viajes tomados que Uber cerró al volver a buscando («N sin cierre
+  confirmado») y los marca así en la lista. No suman dinero por sí solos; el dinero de cada uno se
+  puede asignar a mano como antes.
+- **Meta de hoy** usa la cifra **HOY** que Uber muestra sobre el mapa cuando es mayor que el dinero
+  confirmado viaje por viaje, y lo dice («según la cifra HOY de Uber»). Esa cifra no tiene ritmo
+  porque el ritmo necesita viajes con dinero confirmado.
+
+### Pruebas
+- 14 pruebas JVM nuevas (`TripRegistrationTest`): «Llegar por» como pantalla de recogida, cierre al
+  quedarse en «buscando», un vistazo no cierra, una oferta reinicia la cuenta, qué viajes cuentan
+  como hechos, asignación manual a un viaje sin confirmar, Meta de hoy con la cifra de Uber y los
+  tres filtros de Inicio.
+
 ## [1.18.0] - 2026-10-14
 
 Fase 8G: temas. Incluye todo lo de la 1.17.0. La base de datos no cambia (sigue en 11).

@@ -13,6 +13,7 @@ import com.ubers.observador.domain.finance.TripFinancialSummary
 import com.ubers.observador.domain.money.Currencies
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.trips.Trip
+import com.ubers.observador.domain.trips.TripOutcome
 import com.ubers.observador.domain.trips.TripStatus
 import java.security.MessageDigest
 
@@ -66,9 +67,9 @@ object ManualAssignment {
         val day = clock.workdayOf(o.observedAtMs)
         val days = setOf(day, day.minusDays(1))
         return trips.filter { t ->
-            val at = t.completedAt
-            t.status == TripStatus.COMPLETED && at != null && clock.workdayOf(at) in days
-        }.sortedWith(compareBy<Trip> { Math.abs(requireNotNull(it.completedAt) - o.observedAtMs) }.thenBy { it.id })
+            val at = TripOutcome.endedAt(t)
+            at != null && clock.workdayOf(at) in days
+        }.sortedWith(compareBy<Trip> { Math.abs(requireNotNull(TripOutcome.endedAt(it)) - o.observedAtMs) }.thenBy { it.id })
     }
 
     /**
@@ -85,7 +86,7 @@ object ManualAssignment {
     ): AssignCheck {
         if (alreadyVoided || o.tripId != null || o.type == FinancialObservationType.VOID) return AssignCheck.Rejected(AssignRejection.NOT_PENDING)
         if (!isAssignable(o, currencyCode)) return AssignCheck.Rejected(AssignRejection.NOT_ASSIGNABLE)
-        if (trip.status != TripStatus.COMPLETED || trip.completedAt == null) return AssignCheck.Rejected(AssignRejection.TRIP_NOT_COMPLETED)
+        if (TripOutcome.endedAt(trip) == null) return AssignCheck.Rejected(AssignRejection.TRIP_NOT_COMPLETED)
         val before = TripFinancialAggregator.aggregate(trip.id, offered, tripObservations)
         if (before.currencyCode != null && before.currencyCode != o.amount.currencyCode) return AssignCheck.Rejected(AssignRejection.CURRENCY_MISMATCH)
         val copy = linkedCopy(o, trip.id, 0L)

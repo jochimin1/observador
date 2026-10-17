@@ -10,6 +10,64 @@ enum class CategoryFilter(val label: String, val quality: OfferQuality?) {
     BAD("Malas", OfferQuality.BAD)
 }
 
+/**
+ * Fase 8H: which of the offers seen the list shows. "Tomados" are the offers the driver accepted
+ * (they have a trip); "Ofertados" are the ones that were only offered, not taken.
+ */
+enum class TakenFilter(val label: String) {
+    ALL("Todo"),
+    OFFERED("Ofertados"),
+    TAKEN("Tomados")
+}
+
+data class TakenCounts(val all: Int = 0, val offered: Int = 0, val taken: Int = 0) {
+    fun of(filter: TakenFilter): Int = when (filter) {
+        TakenFilter.ALL -> all
+        TakenFilter.OFFERED -> offered
+        TakenFilter.TAKEN -> taken
+    }
+}
+
+/** Every offer seen, with the status of the trip it became (null = only offered). */
+data class OfferLedger(val rows: List<OfferEntity>, val tripStatus: Map<Long, com.ubers.observador.domain.trips.TripStatus>) {
+
+    val counts: TakenCounts
+        get() = TakenCounts(all = rows.size, offered = rows.count { it.id !in tripStatus }, taken = tripStatus.size)
+
+    fun filtered(filter: TakenFilter): List<OfferEntity> = when (filter) {
+        TakenFilter.ALL -> rows
+        TakenFilter.OFFERED -> rows.filter { it.id !in tripStatus }
+        TakenFilter.TAKEN -> rows.filter { it.id in tripStatus }
+    }
+
+    companion object {
+        /**
+         * All offers seen, plus the trips whose offer row is gone (deleted, or never stored) as
+         * rows of their own, so a trip taken never disappears from the list. An offer is taken
+         * when a trip points at its hash; with several trips for one hash the newest decides.
+         */
+        fun of(offers: List<OfferEntity>, trips: List<com.ubers.observador.domain.trips.Trip>): OfferLedger {
+            val byHash = trips.filter { it.relatedOfferHash != null }
+                .sortedBy { it.updatedAt }
+                .associateBy { requireNotNull(it.relatedOfferHash) }
+            val status = HashMap<Long, com.ubers.observador.domain.trips.TripStatus>()
+            offers.forEach { o -> byHash[o.offerHash]?.let { status[o.id] = it.status } }
+            val seen = offers.map { it.offerHash }.toSet()
+            val orphan = trips.filter { it.relatedOfferHash == null || it.relatedOfferHash !in seen }
+            val extra = orphan.mapNotNull { t -> CompletedTrips.offerRowOf(t)?.let { it to t.status } }
+            val used = offers.map { it.id }.toMutableSet()
+            val added = ArrayList<OfferEntity>()
+            extra.forEach { (row, st) ->
+                if (used.add(row.id)) {
+                    added += row
+                    status[row.id] = st
+                }
+            }
+            return OfferLedger((offers + added).sortedByDescending { it.detectedAt }, status)
+        }
+    }
+}
+
 /** How offers are ordered inside each working day. All orders put the best first. */
 enum class OfferSort(val label: String) {
     TIME("Hora"),

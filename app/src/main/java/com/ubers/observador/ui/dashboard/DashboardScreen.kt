@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.data.db.OfferEntity
 import com.ubers.observador.domain.CategoryFilter
+import com.ubers.observador.domain.TakenFilter
+import com.ubers.observador.domain.trips.TripStatus
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
 import com.ubers.observador.domain.OfferDetails
@@ -271,6 +273,9 @@ fun DashboardScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
+                if (!state.loading && state.originCounts.all > 0) {
+                    item { OriginChips(state, onOrigin = viewModel::selectOrigin) }
+                }
                 if (state.summary.count > 0) {
                     item {
                         ListControls(
@@ -286,9 +291,11 @@ fun DashboardScreen(
                             text = when {
                                 state.summary.count > 0 && state.filter != CategoryFilter.ALL ->
                                     "No hay viajes ${state.filter.quality?.label} en este periodo."
+                                state.origin == TakenFilter.TAKEN -> "No hay viajes tomados en este periodo.\nAparecen cuando aceptas una oferta y Observador ve la pantalla de recogida."
+                                state.origin == TakenFilter.OFFERED -> "No hay viajes solo ofertados en este periodo."
                                 state.period == StatsPeriod.ALL ->
-                                    "Aún no hay viajes realizados.\nAparecen cuando Observador ve un viaje de principio a fin."
-                                else -> "No hay viajes realizados en este periodo."
+                                    "Aún no hay ofertas ni viajes.\nAparecen cuando Observador lee una oferta de Uber."
+                                else -> "No hay ofertas ni viajes en este periodo."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -307,6 +314,7 @@ fun DashboardScreen(
                             OfferRow(
                                 offer = offer,
                                 thresholds = state.thresholds,
+                                tripStatus = state.tripStatus[offer.id],
                                 onClick = { selectedOfferId = offer.id }
                             )
                         }
@@ -435,9 +443,17 @@ private fun SummaryCard(
 ) {
     val summary = state.summary
     SectionCard(
-        title = "Viajes realizados",
+        title = when (state.origin) {
+            TakenFilter.ALL -> "Ofertas y viajes"
+            TakenFilter.OFFERED -> "Viajes ofertados"
+            TakenFilter.TAKEN -> "Viajes tomados"
+        },
         icon = R.drawable.ic_leaderboard,
-        subtitle = "Solo los viajes que hiciste, juzgados con tus ajustes de hoy"
+        subtitle = when (state.origin) {
+            TakenFilter.ALL -> "Todo lo que Uber te ofreció, juzgado con tus ajustes de hoy"
+            TakenFilter.OFFERED -> "Ofertas que viste y no tomaste"
+            TakenFilter.TAKEN -> "Ofertas que aceptaste, juzgadas con tus ajustes de hoy"
+        }
     ) {
         // Scrolls sideways if a large system font makes the chips wider than the screen
         Row(
@@ -455,7 +471,7 @@ private fun SummaryCard(
         when {
             state.loading -> Unit
             summary.count == 0 -> Text(
-                text = "Sin viajes realizados en este periodo.",
+                text = "Sin ofertas ni viajes en este periodo.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -642,6 +658,34 @@ private fun DayHeader(
     }
 }
 
+/** Fase 8H: Todo / Ofertados / Tomados, each with how many offers it holds in the period. */
+@Composable
+private fun OriginChips(state: DashboardUiState, onOrigin: (TakenFilter) -> Unit) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TakenFilter.entries.forEach { origin ->
+            FilterChip(
+                selected = origin == state.origin,
+                onClick = { onOrigin(origin) },
+                label = { Text("${origin.label} ${state.originCounts.of(origin)}") }
+            )
+        }
+    }
+}
+
+/** What happened to an offer that was taken, in the driver's words. */
+private fun tripStatusLabel(status: TripStatus): String = when (status) {
+    TripStatus.TO_PICKUP -> "Tomado · yendo a recoger"
+    TripStatus.ARRIVED_OR_WAITING -> "Tomado · esperando al pasajero"
+    TripStatus.IN_TRIP -> "Tomado · en viaje"
+    TripStatus.COMPLETED -> "Tomado · terminado"
+    TripStatus.CANCELLED -> "Tomado · cancelado"
+    TripStatus.INTERRUPTED -> "Tomado · terminó sin confirmar"
+    TripStatus.UNKNOWN -> "Tomado"
+}
+
 /** Category chips with their counts, and the order of the offers inside each working day. */
 @Composable
 private fun ListControls(
@@ -691,6 +735,7 @@ private fun ListControls(
 private fun OfferRow(
     offer: OfferEntity,
     thresholds: QualityThresholds,
+    tripStatus: TripStatus?,
     onClick: () -> Unit
 ) {
     val time = remember(offer.detectedAt) {
@@ -730,6 +775,14 @@ private fun OfferRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (tripStatus != null) {
+                    Text(
+                        text = tripStatusLabel(tripStatus),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
             }
             ScoreBadge(score = offer.score, quality = quality)
         }

@@ -27,7 +27,11 @@ import com.ubers.observador.domain.CategoryFilter
 import com.ubers.observador.domain.DashboardStats
 import com.ubers.observador.domain.DayGroup
 import com.ubers.observador.domain.EngineSettings
+import com.ubers.observador.domain.OfferLedger
 import com.ubers.observador.domain.OfferListOptions
+import com.ubers.observador.domain.TakenCounts
+import com.ubers.observador.domain.TakenFilter
+import com.ubers.observador.domain.trips.TripStatus
 import com.ubers.observador.domain.OfferSort
 import com.ubers.observador.domain.PeriodSummary
 import com.ubers.observador.domain.QualityThresholds
@@ -80,7 +84,13 @@ data class DashboardUiState(
     val nowMillis: Long = 0L,
     /** Which offers the list shows and in what order; [days] already reflects both. */
     val filter: CategoryFilter = CategoryFilter.ALL,
-    val sort: OfferSort = OfferSort.TIME
+    val sort: OfferSort = OfferSort.TIME,
+    /** Fase 8H: Todo / Ofertados / Tomados. [summary] and [days] already reflect it. */
+    val origin: TakenFilter = TakenFilter.ALL,
+    /** How many offers each origin chip would show in this period. */
+    val originCounts: TakenCounts = TakenCounts(),
+    /** Offer row id -> status of the trip it became; absent = only offered. */
+    val tripStatus: Map<Long, TripStatus> = emptyMap()
 )
 
 /** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
@@ -135,9 +145,15 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val onlineRepository = OnlineRepository(db)
     private val tripRepository = com.ubers.observador.data.TripRepository(db)
 
-    /** Trips done since [since], as rows with what their offer promised (offers merely seen are left out). */
-    private fun tripRowsSince(since: Long?): Flow<List<OfferEntity>> =
-        tripRepository.observeCompletedSince(since ?: 0L).map { com.ubers.observador.domain.CompletedTrips.asOfferRows(it) }
+    /** Fase 8H: every offer seen since [since], each with the trip it became (if any). */
+    private fun ledgerSince(since: Long?): Flow<OfferLedger> =
+        combine(repository.observeSince(since ?: 0L), tripRepository.observeCreatedSince(since ?: 0L)) { offers, trips ->
+            OfferLedger.of(offers, trips)
+        }
+
+    /** The offers the driver took, for "Mejores horas para salir". */
+    private fun takenRowsSince(since: Long?): Flow<List<OfferEntity>> =
+        ledgerSince(since).map { it.filtered(TakenFilter.TAKEN) }
     private val distanceRepository = DistanceRepository(db)
 
     private val _exportEvents = MutableSharedFlow<ExportEvent>(extraBufferCapacity = 1)
@@ -251,11 +267,11 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { w ->
             // The whole period is loaded, so no day is ever cut short. At ~50 offers a day,
             // even a year of history is a few MB; revisit with paging if that changes.
-            // Trips done only: an offer seen may have gone to someone else or been let go
-            val rows = tripRowsSince(w.since)
-            combine(rows, settings.engineSettings, settings.qualityThresholds) { offers, engine, cuts ->
+            // Fase 8H: every offer seen, with the trip it became; the origin chip picks which are shown
+            val ledger = ledgerSince(w.since)
+            combine(ledger, origin, settings.engineSettings, settings.qualityThresholds) { all, o, engine, cuts ->
                 // D1: judge the whole period with the current settings
-                val scored = DashboardStats.rescore(offers, engine)
+                val scored = DashboardStats.rescore(all.filtered(o), engine)
                 DashboardUiState(
                     period = w.period,
                     summary = DashboardStats.summarize(scored, cuts),
@@ -263,7 +279,10 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     thresholds = cuts,
                     currentWorkday = w.currentWorkday,
                     loading = false,
-                    engineSettings = engine
+                    engineSettings = engine,
+                    origin = o,
+                    originCounts = all.counts,
+                    tripStatus = all.tripStatus
                 )
             }
         }
@@ -273,6 +292,11 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
 
     private val filter = MutableStateFlow(CategoryFilter.ALL)
     private val sort = MutableStateFlow(OfferSort.TIME)
+    private val origin = MutableStateFlow(TakenFilter.ALL)
+
+    fun selectOrigin(newOrigin: TakenFilter) {
+        origin.value = newOrigin
+    }
 
     fun selectFilter(newFilter: CategoryFilter) {
         filter.value = newFilter
@@ -327,7 +351,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         .distinctUntilChanged()
         .flatMapLatest { w ->
             combine(
-                tripRowsSince(w.since),
+                takenRowsSince(w.since),
                 settings.engineSettings,
                 settings.qualityThresholds
             ) { offers, engine, cuts ->

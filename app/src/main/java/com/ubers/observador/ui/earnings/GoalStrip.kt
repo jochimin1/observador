@@ -78,9 +78,16 @@ class GoalStripViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val state: StateFlow<GoalStripState?> = combine(
-        settings.goals, settings.workdayStartHour, money.observeRecentObservations(1), trips.observeCounts(), ticker
-    ) { goals, hour, _, _, now -> Triple(goals, hour, now) }
-        .mapLatest { (goals, hour, now) ->
+        settings.goals, settings.workdayStartHour, money.observeRecentObservations(1), trips.observeCounts(), ticker,
+        money.observeLatestPlatformSnapshot(com.ubers.observador.domain.finance.PlatformPeriodType.DAY)
+    ) { values ->
+        arrayOf<Any?>(values[0], values[1], values[4], values[5])
+    }
+        .mapLatest { v ->
+            val goals = v[0] as com.ubers.observador.domain.earnings.GoalSettings
+            val hour = v[1] as Int
+            val now = v[2] as Long
+            val uber = v[3] as com.ubers.observador.domain.finance.PlatformEarningsSnapshot?
             try {
                 val clock = WorkdayClock(hour, ZoneId.systemDefault())
                 when {
@@ -88,7 +95,10 @@ class GoalStripViewModel(app: Application) : AndroidViewModel(app) {
                         val w = EarningsWindows.of(EarningsRange.DAY, 0, now, clock)
                         val income = money.periodEarnings(w.startMs, w.endMs)
                         val onlineMs = online.summarize(online.getBetween(w.startMs, w.endMs), w.startMs, w.endMs, now).confirmedMs
-                        Goals.daily(goals.dailyMinor, income, onlineMs)?.let { GoalStripState("Meta de hoy", it) }
+                        val figure = uber?.takeIf {
+                            it.capturedAtMs in w.startMs until w.endMs && it.amount.currencyCode == Currencies.DOP && !it.amount.isNegative
+                        }?.amount?.minorUnits
+                        Goals.withUberFigure(Goals.daily(goals.dailyMinor, income, onlineMs), figure)?.let { GoalStripState("Meta de hoy", it) }
                     }
                     goals.weeklyMinor > 0 -> {
                         val w = EarningsWindows.of(EarningsRange.WEEK, 0, now, clock, goals.weekStart)
@@ -113,7 +123,8 @@ fun GoalStrip(onOpen: (() -> Unit)?, modifier: Modifier = Modifier, viewModel: G
     val s = strip ?: return
     val p = s.progress
     val money = { minor: Long -> EarningsFormat.money(minor, Currencies.DOP) }
-    val line = if (p.reached) "¡Meta alcanzada! ${money(p.earnedMinor)}" else "Te faltan ${money(p.remainingMinor)}"
+    val line = (if (p.reached) "¡Meta alcanzada! ${money(p.earnedMinor)}" else "Te faltan ${money(p.remainingMinor)}") +
+        (if (p.source == com.ubers.observador.domain.earnings.GoalSource.UBER) " · según la cifra HOY de Uber" else "")
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.tertiaryContainer,

@@ -18,30 +18,33 @@ object CompletedTrips {
     fun asOfferRows(trips: List<Trip>): List<OfferEntity> =
         trips.asSequence()
             .filter { it.status == TripStatus.COMPLETED }
-            .mapNotNull { t ->
-                val offer = t.offer ?: return@mapNotNull null
-                OfferEntity(
-                    // Unique and stable for a completed trip: the list keys and the detail use it
-                    id = t.completedAt ?: t.updatedAt,
-                    offerHash = t.relatedOfferHash ?: t.id,
-                    detectedAt = offer.offerSeenAt,
-                    price = offer.offeredAmount,
-                    pickupKm = offer.pickupKm,
-                    pickupMin = offer.pickupMinutes,
-                    tripKm = offer.tripKm,
-                    tripMin = offer.tripMinutes,
-                    totalKm = offer.pickupKm + offer.tripKm,
-                    totalMin = offer.pickupMinutes + offer.tripMinutes,
-                    rdpPerKm = 0.0,
-                    rdpPerHour = 0.0,
-                    fuelCost = 0.0,
-                    netProfit = 0.0,
-                    score = offer.scoreAtDetection,
-                    pickupAddress = offer.pickupAddress,
-                    dropoffAddress = offer.dropoffAddress
-                )
-            }
+            .mapNotNull(::offerRowOf)
             .distinctBy { it.id }
             .sortedByDescending { it.detectedAt }
             .toList()
+
+    /** One trip as the row of its offer; null when the offer was not seen (a trip joined mid-way). */
+    fun offerRowOf(t: Trip): OfferEntity? {
+        val offer = t.offer ?: return null
+        return OfferEntity(
+            // Unique and stable for a completed trip: the list keys and the detail use it
+            id = t.completedAt ?: t.updatedAt,
+            offerHash = t.relatedOfferHash ?: t.id,
+            detectedAt = offer.offerSeenAt,
+            price = offer.offeredAmount,
+            pickupKm = offer.pickupKm,
+            pickupMin = offer.pickupMinutes,
+            tripKm = offer.tripKm,
+            tripMin = offer.tripMinutes,
+            totalKm = offer.pickupKm + offer.tripKm,
+            totalMin = offer.pickupMinutes + offer.tripMinutes,
+            rdpPerKm = 0.0,
+            rdpPerHour = 0.0,
+            fuelCost = 0.0,
+            netProfit = 0.0,
+            score = offer.scoreAtDetection,
+            pickupAddress = offer.pickupAddress,
+            dropoffAddress = offer.dropoffAddress
+        )
+    }
 }

@@ -99,6 +99,9 @@ object TripTimeline {
         trip.pickupNavigationAt?.let { "Rumbo a recoger" to it },
         trip.arrivedAt?.let { "Llegaste al punto" to it },
         trip.tripStartedAt?.let { "Viaje iniciado" to it },
-        trip.completedAt?.let { "Viaje terminado" to it }
+        trip.completedAt?.let { "Viaje terminado" to it },
+        // Only the return to searching was seen: not proof that the trip was completed
+        trip.interruptedAt?.takeIf { trip.completedAt == null && trip.cancelledAt == null }
+            ?.let { "Uber volvió a buscando (cierre sin confirmar)" to it }
     ).sortedBy { it.second }
 }

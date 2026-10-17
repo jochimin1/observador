@@ -197,3 +197,22 @@ data class TripEventInput(
         }
     }
 }
+
+/**
+ * What counts as a trip done (Fase 8H). Uber's summary screen was never confirmed on a real phone,
+ * so waiting for it left every trip out. A trip that was taken (accepted or heading to the rider)
+ * and then closed by Uber going back to searching, with no anomaly, is counted too, but marked as
+ * not confirmed: it may have been cancelled instead, and Observador does not know.
+ */
+object TripOutcome {
+
+    /** When the trip ended for counting purposes, or null if it does not count as done. */
+    fun endedAt(t: Trip): Long? = when {
+        t.status == TripStatus.COMPLETED -> t.completedAt
+        t.status == TripStatus.INTERRUPTED && !t.hasAnomalies && (t.acceptedAt != null || t.pickupNavigationAt != null) -> t.interruptedAt
+        else -> null
+    }
+
+    /** True only when the screen that closes a trip was seen. */
+    fun isConfirmed(t: Trip): Boolean = t.status == TripStatus.COMPLETED
+}
