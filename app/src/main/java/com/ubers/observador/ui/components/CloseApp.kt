@@ -10,7 +10,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -20,13 +19,11 @@ import com.ubers.observador.domain.AppClose
 import com.ubers.observador.service.AppCloser
 import com.ubers.observador.service.DistanceMonitor
 import com.ubers.observador.service.RideLifecycleMonitor
-import kotlinx.coroutines.launch
 
 /** Fase 8L: asks before closing, and says what an open trip or measurement would lose. */
 @Composable
 fun CloseAppDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val ride by RideLifecycleMonitor.state.collectAsState()
     val distance by DistanceMonitor.state.collectAsState()
     val rideActive = ride.context.state.isActiveTrip
@@ -49,9 +46,10 @@ fun CloseAppDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = {
+                // Started outside this dialog's scope: closing the dialog must not cancel it
+                AppCloser.closeAsync(context)
                 onDismiss()
-                scope.launch { AppCloser.close(context) }
-            }) { Text(if (rideActive) "Cerrar de todos modos" else "Cerrar") }
+            }) { Text(if (rideActive) "Apagar de todos modos" else "Apagar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )

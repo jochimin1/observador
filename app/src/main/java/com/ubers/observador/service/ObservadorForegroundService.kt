@@ -174,8 +174,8 @@ class ObservadorForegroundService : Service() {
             ACTION_PAUSE -> scope.launch { settings.updateObserverEnabled(false) }
             ACTION_RESUME -> scope.launch { settings.updateObserverEnabled(true) }
             ACTION_REFRESH -> notification?.let { startForegroundTyped(it) }
-            // Fase 8L: «Cerrar» in the notification
-            ACTION_CLOSE -> scope.launch { AppCloser.close(applicationContext) }
+            // Fase 8L: «Apagar» in the notification
+            ACTION_CLOSE -> AppCloser.closeAsync(applicationContext)
         }
         return START_STICKY
     }
@@ -262,7 +262,7 @@ class ObservadorForegroundService : Service() {
         ).build()
         val close = Notification.Action.Builder(
             Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
-            "Cerrar",
+            "Apagar",
             PendingIntent.getService(
                 this, 3,
                 Intent(this, ObservadorForegroundService::class.java).setAction(ACTION_CLOSE),

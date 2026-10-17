@@ -1,13 +1,13 @@
 package com.ubers.observador.domain
 
 /**
- * Fase 8L: «Cerrar Observador». Closing is a stronger pause: nothing is read from Uber, the GPS
+ * Fase 8L: «Apagar Observador» (the power icon in Inicio). Closing is a stronger pause: nothing is read from Uber, the GPS
  * and the service notification go away and the app leaves the screen. Opening the app again
  * turns reading back on by itself, so a closed app never stays paused by mistake.
  */
 object AppClose {
 
-    const val TITLE = "¿Cerrar Observador?"
+    const val TITLE = "¿Apagar Observador?"
 
     const val BASE = "Observador deja de leer Uber, apaga el GPS, quita su notificación y se cierra. " +
         "Al abrirla de nuevo vuelve a leer sola."

@@ -199,15 +199,6 @@ fun DashboardScreen(
                                     showExportDialog = true
                                 }
                             )
-                            // Fase 8L: stop reading, GPS and notification, and leave
-                            DropdownMenuItem(
-                                text = { Text("Cerrar Observador") },
-                                leadingIcon = { Icon(painterResource(R.drawable.ic_power), contentDescription = null) },
-                                onClick = {
-                                    showMenu = false
-                                    showCloseDialog = true
-                                }
-                            )
                             if (onOpenReports != null) {
                                 // Fase 8J: everything else, with filters and totals, on its own screen
                                 DropdownMenuItem(
@@ -249,7 +240,8 @@ fun DashboardScreen(
                 loading = state.loading,
                 online = online.status,
                 onEnable = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                onToggle = { viewModel.setObserverEnabled(!observing) }
+                onToggle = { viewModel.setObserverEnabled(!observing) },
+                onClose = { showCloseDialog = true }
             )
             LazyColumn(
                 modifier = Modifier
@@ -361,7 +353,8 @@ private fun ServiceStatusBar(
     loading: Boolean,
     online: OnlineStatusLine?,
     onEnable: () -> Unit,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onClose: () -> Unit
 ) {
     val reading = enabled && !paused
     val scheme = MaterialTheme.colorScheme
@@ -415,17 +408,30 @@ private fun ServiceStatusBar(
                 // Uber's own state only means something while Observador is reading it
                 if (reading && online != null) OnlineStatusRow(online)
             }
-            when {
-                !enabled -> Button(onClick = onEnable) { Text("Activar") }
-                paused -> Button(onClick = onToggle) {
-                    Icon(painterResource(R.drawable.ic_play_circle), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Reanudar")
+            // Pause or resume on top; Fase 8L: the power icon right under it closes Observador
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                when {
+                    !enabled -> Button(onClick = onEnable) { Text("Activar") }
+                    paused -> Button(onClick = onToggle) {
+                        Icon(painterResource(R.drawable.ic_play_circle), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Reanudar")
+                    }
+                    reading -> OutlinedButton(onClick = onToggle) {
+                        Icon(painterResource(R.drawable.ic_pause_circle), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Pausar")
+                    }
                 }
-                reading -> OutlinedButton(onClick = onToggle) {
-                    Icon(painterResource(R.drawable.ic_pause_circle), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Pausar")
+                FilledTonalIconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(44.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = scheme.errorContainer,
+                        contentColor = scheme.onErrorContainer
+                    )
+                ) {
+                    Icon(painterResource(R.drawable.ic_power), contentDescription = "Apagar Observador", modifier = Modifier.size(24.dp))
                 }
             }
         }

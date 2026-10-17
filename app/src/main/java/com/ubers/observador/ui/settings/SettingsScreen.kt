@@ -109,7 +109,7 @@ fun SettingsScreen(
             if (closing) com.ubers.observador.ui.components.CloseAppDialog(onDismiss = { closing = false })
             OutlinedButton(onClick = { closing = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(painterResource(R.drawable.ic_power), contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Cerrar Observador", modifier = Modifier.padding(start = 8.dp))
+                Text("Apagar Observador", modifier = Modifier.padding(start = 8.dp))
             }
 
             val profiles by viewModel.profiles.collectAsState()

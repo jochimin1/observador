@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.23.1] - 2026-10-17
+
+Corrección del botón de cerrar. Incluye todo lo de la 1.23.0. La base de datos no cambia (sigue en 13).
+
+### Corregido
+- **«Cerrar» no hacía nada.** El cierre se lanzaba dentro del diálogo de confirmación, y al
+  desaparecer el diálogo Android cancelaba ese trabajo antes de guardar la pausa. Ahora corre aparte
+  y termina siempre: pausa, apaga el GPS, quita la notificación y cierra la app.
+
+### Cambiado
+- **Ícono de apagar en Inicio**, en la barra de estado, justo debajo de «Pausar» / «Reanudar», en
+  rojo suave. Sale del menú ⋮.
+- Se llama ahora «Apagar Observador» en el diálogo, en Ajustes y en el botón de la notificación.
+
 ## [1.23.0] - 2026-10-17
 
 Botón «Cerrar Observador». Incluye todo lo de la 1.22.0. La base de datos no cambia (sigue en 13).
