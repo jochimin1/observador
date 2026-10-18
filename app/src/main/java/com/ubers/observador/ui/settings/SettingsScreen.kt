@@ -512,6 +512,9 @@ fun SettingsScreen(
                 FinanceDebugCard()
             }
 
+            // 1.31.0: backup of everything the app keeps (restore and reset follow)
+            BackupSection()
+
             // Which build is installed, to match a bug or a screenshot with CHANGELOG.md
             Text(
                 text = "Observador ${BuildConfig.VERSION_NAME} · compilación ${BuildConfig.VERSION_CODE}",

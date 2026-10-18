@@ -16,6 +16,7 @@ import com.ubers.observador.domain.ScoreWeights
 import com.ubers.observador.domain.SettingsProfile
 import com.ubers.observador.domain.SettingsProfileCodec
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -48,6 +49,8 @@ class AppSettings(private val context: Context) {
         private val KEY_CLOSED_BY_USER = androidx.datastore.preferences.core.booleanPreferencesKey("closed_by_user")
         // 1.29.0: the first-launch welcome. Absent = never decided (see Onboarding.shouldShow)
         private val KEY_ONBOARDING_DONE = androidx.datastore.preferences.core.booleanPreferencesKey("onboarding_done")
+        // 1.31.0: when the last backup was made (not part of a backup itself)
+        private val KEY_LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
         private val KEY_PROFILES = stringPreferencesKey("settings_profiles")
         private val KEY_ACTIVE_PROFILE = stringPreferencesKey("active_profile_id")
         // Fase 8E: kilometres with GPS. Off until the driver turns it on and grants location
@@ -139,6 +142,14 @@ class AppSettings(private val context: Context) {
         it[KEY_CLOSED_BY_USER] = f.closedByUser
         it[KEY_DISTANCE_MANUAL] = false
     }
+
+    /** 1.31.0: every stored setting by name, for the backup (BackupFormat decides which travel). */
+    suspend fun backupSnapshot(): Map<String, Any?> =
+        context.dataStore.data.first().asMap().entries.associate { it.key.name to it.value }
+
+    val lastBackupAt: Flow<Long?> = context.dataStore.data.map { it[KEY_LAST_BACKUP_AT] }
+
+    suspend fun updateLastBackupAt(ms: Long) = context.dataStore.edit { it[KEY_LAST_BACKUP_AT] = ms }
 
     /** 1.29.0: null until the welcome is finished or skipped; false after «Ver bienvenida». */
     val onboardingDone: Flow<Boolean?> = context.dataStore.data.map { it[KEY_ONBOARDING_DONE] }

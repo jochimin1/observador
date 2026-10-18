@@ -14,6 +14,15 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.31.0] - 2026-10-18
+
+### Añadido
+- **Ajustes › Respaldo y datos › Crear respaldo.** Guarda en un solo `.zip` (con la fecha en el nombre) la base de datos completa —ofertas, viajes, dinero, gastos, kilómetros, recorridos y análisis— y tus ajustes. Eliges dónde guardarlo (Descargas, Drive…); la app no lo envía a ningún sitio. Antes de guardar avisa que lleva nombres de pasajeros, direcciones y recorridos.
+- La base se copia con `VACUUM INTO` (una foto consistente aunque la lectura esté escribiendo), se revisa con `integrity_check`, y el `.zip` se vuelve a leer y se comprueba (SHA-256 de cada pieza) antes de entregarlo. Si algo falla, no queda ningún archivo a medias y tus datos no se tocan.
+- No viajan los ajustes que describen el momento y no tus decisiones: medición de km en curso, pausa, «cerrada con el botón», bienvenida ya vista, avisos ya enviados y el historial de exportaciones.
+- La tarjeta muestra cuántas ofertas, viajes y gastos hay ahora y la fecha del último respaldo.
+- Restaurar un respaldo y Borrar todos los datos llegan en las versiones 1.32.0 y 1.33.0.
+
 ## [1.30.0] - 2026-10-18
 
 ### Añadido
