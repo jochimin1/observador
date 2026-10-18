@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.28.0] - 2026-10-17
+
+Gráficos con Vico, fase 3 del plan de diseño. Incluye todo lo de la 1.27.0. La base de datos no cambia (sigue en 14). Los otros temas no cambian.
+
+### Añadido (solo con el tema Violeta)
+- **Ganancias › Por jornada** como gráfico de columnas moradas redondeadas, con RD$ a la izquierda,
+  el día abajo y animación al aparecer. Mismas cifras que antes; los días con viajes sin dinero
+  confirmado se listan debajo.
+
+### Técnico
+- Nueva dependencia **Vico 3.2.3** (`compose` y `compose-m3`, licencia Apache 2.0). Es la versión más
+  nueva compilada con Kotlin 2.3: la 3.3.x necesita Kotlin 2.4 y la app usa 2.2.10. La API se tomó
+  del código fuente de esa versión.
+
 ## [1.27.0] - 2026-10-17
 
 Inicio en el tema Violeta, fase 2 del plan de diseño. Incluye todo lo de la 1.26.0. La base de datos no cambia (sigue en 14). Los otros temas no cambian.

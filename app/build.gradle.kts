@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 29
-        versionName = "1.27.0"
+        versionCode = 30
+        versionName = "1.28.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -81,6 +81,10 @@ dependencies {
 
     // Location (Fase 8E): fused provider, only while measuring kilometres
     implementation(libs.play.services.location)
+
+    // 1.28.0: charts of the Violeta theme (Apache 2.0)
+    implementation(libs.vico.compose)
+    implementation(libs.vico.compose.m3)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

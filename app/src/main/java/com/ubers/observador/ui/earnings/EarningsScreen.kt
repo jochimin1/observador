@@ -497,6 +497,18 @@ private fun BarsCard(report: EarningsReport) {
         val bestColor = MaterialTheme.colorScheme.tertiary
         val normal = MaterialTheme.colorScheme.primary
         val dense = bars.size > 10
+        // 1.28.0, Violeta: the same figures as a Vico column chart
+        if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+            EarningsColumnsChart(bars, bars.joinToString(". ") { barDescription(it, best?.day == it.day) })
+            if (bars.any { it.unconfirmedTrips > 0 }) {
+                Text(
+                    "Días con viajes sin dinero confirmado: " + bars.filter { it.unconfirmedTrips > 0 }.joinToString(", ") { EarningsFormat.dayShort(it.day) + " " + it.day.dayOfMonth },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            return@SectionCard
+        }
         Row(
             Modifier.fillMaxWidth().height(140.dp),
             horizontalArrangement = Arrangement.spacedBy(if (dense) 2.dp else 6.dp),
