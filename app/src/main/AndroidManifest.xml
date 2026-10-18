@@ -23,6 +23,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Observador">
 
+        <!-- 1.32.1: opens the app again after a restore. It lives in its own process so it survives the kill of the main one -->
+        <activity
+            android:name=".data.backup.RestartActivity"
+            android:exported="false"
+            android:process=":restart"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

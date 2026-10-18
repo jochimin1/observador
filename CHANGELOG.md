@@ -14,6 +14,11 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.32.1] - 2026-10-18
+
+### Corregido
+- Al restaurar un respaldo la app se cerraba y no volvía a abrirse: el reinicio se llevaba por delante su propio arranque. Ahora una actividad mínima en un proceso aparte abre la app de nuevo cuando el proceso principal ya terminó.
+
 ## [1.32.0] - 2026-10-18
 
 ### Añadido

@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 37
-        versionName = "1.32.0"
+        versionCode = 38
+        versionName = "1.32.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
