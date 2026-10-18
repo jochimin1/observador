@@ -79,6 +79,9 @@ fun DashboardScreen(
     val bestHoursPeriod by viewModel.selectedBestHoursPeriod.collectAsState()
     val online by viewModel.online.collectAsState()
     val distance by viewModel.distance.collectAsState()
+    // 1.27.0: Inicio in Violeta (goal card with ring, «En curso», «Grupos», strip of days)
+    val violet = com.ubers.observador.ui.theme.LocalPastelBackground.current
+    var selectedDay by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -255,7 +258,15 @@ fun DashboardScreen(
             ) {
                 item {
                     // Fase 8C: today's goal, only when the driver set one
-                    com.ubers.observador.ui.earnings.GoalStrip(onOpen = onOpenEarnings, modifier = Modifier.padding(bottom = 16.dp))
+                    if (violet) {
+                        GoalHeroCard(onOpen = onOpenEarnings, modifier = Modifier.padding(bottom = 20.dp))
+                    } else {
+                        com.ubers.observador.ui.earnings.GoalStrip(onOpen = onOpenEarnings, modifier = Modifier.padding(bottom = 16.dp))
+                    }
+                }
+                if (violet) {
+                    item { JourneyCarousel(state, online, distance, Modifier.padding(bottom = 20.dp)) }
+                    if (state.summary.count > 0) item { QualityGroupsCard(state, Modifier.padding(bottom = 20.dp)) }
                 }
                 item {
                     SummaryCard(state = state, selected = selectedPeriod, onSelect = viewModel::selectPeriod)
@@ -291,6 +302,23 @@ fun DashboardScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
+                if (violet && !state.loading) {
+                    item {
+                        DayStripRow(
+                            days = stripDays(state),
+                            selected = selectedDay,
+                            onSelect = { day ->
+                                selectedDay = day
+                                val today = state.currentWorkday
+                                if (day != null && today != null) {
+                                    val needed = com.ubers.observador.domain.DayStrip.periodFor(day, today, state.period)
+                                    if (needed != state.period) viewModel.selectPeriod(needed)
+                                }
+                            },
+                            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                        )
+                    }
+                }
                 if (!state.loading && state.originCounts.all > 0) {
                     item { OriginChips(state, onOrigin = viewModel::selectOrigin) }
                 }
@@ -320,7 +348,8 @@ fun DashboardScreen(
                         )
                     }
                 } else {
-                    state.days.forEach { day ->
+                    // Violeta: a day chosen in the strip shows only that day
+                    state.days.filter { selectedDay == null || !violet || it.date == selectedDay }.forEach { day ->
                         item(key = "day-${day.date}") {
                             DayHeader(
                                 day = day,

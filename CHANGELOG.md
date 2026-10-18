@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.27.0] - 2026-10-17
+
+Inicio en el tema Violeta, fase 2 del plan de diseño. Incluye todo lo de la 1.26.0. La base de datos no cambia (sigue en 14). Los otros temas no cambian.
+
+### Añadido (solo con el tema Violeta)
+- **Tarjeta morada de la meta** con anillo de porcentaje, lo ganado y lo que falta; toca para ir a Ganancias.
+- **«En curso»**: carrusel de tarjetas de color con ofertas y tomadas, tiempo en línea (y % con viaje) y km de hoy (y con pasajero), cada una con su barra.
+- **«Grupos»**: Excelentes, Buenas y Malas del periodo con su anillo de porcentaje.
+- **Tira de días**: los últimos 7 días de trabajo con sus ofertas; tocar uno muestra solo ese día (pasa a «7 días» si hace falta) y tocarlo otra vez quita el filtro.
+- **Botón + central** en la barra inferior: iniciar o detener el recorrido de km, cargar combustible o gasto, y Reportes y exportación.
+
+### Técnico
+- `Rings`, `DayStrip` y `QualityGroups`: porcentajes siempre entre 0 y 100, tira según el día de trabajo. 3 pruebas JVM nuevas.
+
 ## [1.26.0] - 2026-10-17
 
 Tema «Violeta», primera fase del plan de diseño. Incluye todo lo de la 1.25.0. La base de datos no cambia (sigue en 14).

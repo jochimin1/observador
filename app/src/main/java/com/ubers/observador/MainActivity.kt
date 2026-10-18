@@ -164,6 +164,13 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
     }
     Scaffold(
         containerColor = com.ubers.observador.ui.theme.screenBackground(),
+        // 1.27.0, Violeta: the + in the middle opens the quick actions
+        floatingActionButton = {
+            if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+                QuickActionsButton(onExpenses = { open(Tab.EXPENSES) }, onReports = { openReports(null) })
+            }
+        },
+        floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { tab ->
@@ -213,6 +220,49 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             composable(Tab.SETTINGS.route) {
                 SettingsScreen(onNavigateBack = null, onOpenReports = { openReports(null) })
             }
+        }
+    }
+}
+
+/**
+ * The + of the Violeta bottom bar (1.27.0): start or stop measuring km by hand, add a fill-up or
+ * an expense (Gastos), or open «Reportes y exportación».
+ */
+@Composable
+private fun QuickActionsButton(onExpenses: () -> Unit, onReports: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = androidx.compose.runtime.remember { com.ubers.observador.data.AppSettings(context.applicationContext) }
+    val manual by settings.distanceManual.collectAsState(initial = false)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.foundation.layout.Box {
+        androidx.compose.material3.FloatingActionButton(
+            onClick = { open = true },
+            shape = androidx.compose.foundation.shape.CircleShape,
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = "Acciones rápidas")
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(if (manual) "Detener recorrido de km" else "Iniciar recorrido de km") },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_route), contentDescription = null) },
+                onClick = {
+                    open = false
+                    scope.launch { settings.updateDistanceManual(!manual) }
+                }
+            )
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Cargar combustible o gasto") },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_local_gas_station), contentDescription = null) },
+                onClick = { open = false; onExpenses() }
+            )
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Reportes y exportación") },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_download), contentDescription = null) },
+                onClick = { open = false; onReports() }
+            )
         }
     }
 }
