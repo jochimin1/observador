@@ -127,18 +127,19 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
         ) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IntelligencePeriod.entries.forEach { p ->
-                    FilterChip(selected = state.period == p, onClick = { viewModel.selectPeriod(p) }, label = { Text(p.label) })
+                    com.ubers.observador.ui.components.AppFilterChip(selected = state.period == p, onClick = { viewModel.selectPeriod(p) }, label = { Text(p.label) })
                 }
                 // Since 1.25.0: the trips closed by «Buscando» count too, unless switched off here
-                FilterChip(
+                com.ubers.observador.ui.components.AppFilterChip(
                     selected = state.includeUnconfirmed,
                     onClick = { viewModel.setIncludeUnconfirmed(!state.includeUnconfirmed) },
                     label = { Text("Incluir sin confirmar") }
                 )
             }
             message?.let {
-                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                // 1.30.0: in Violeta a white card without border, like the rest
+                com.ubers.observador.ui.components.SheetGroup {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                         TextButton(onClick = { viewModel.clearMessage() }) { Text("OK") }
                     }
@@ -150,6 +151,7 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                 state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 state.failed || report == null -> Body("No se pudo calcular el análisis. Tus datos no se tocaron.")
                 else -> {
+                    if (com.ubers.observador.ui.theme.LocalPastelBackground.current) AnalysisHeroCard(report)
                     state.waits?.let { WaitsCard(it) }
                     DataQuality(report, state.usesTestData)
                     ModelState(report, state.active)
@@ -301,11 +303,15 @@ private fun Bar(label: String, value: Double?, max: Double, detail: String, spok
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
-        Box(Modifier.weight(1f).height(14.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))) {
+        // 1.30.0: in Violeta a rounded pill on a soft purple track
+        val pill = com.ubers.observador.ui.theme.LocalPastelBackground.current
+        val shape = RoundedCornerShape(if (pill) 50 else 4)
+        val track = if (pill) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
+        Box(Modifier.weight(1f).height(14.dp).background(track, shape)) {
             if (value != null && max > 0) {
                 Box(
                     Modifier.fillMaxWidth((value / max).toFloat().coerceIn(0.02f, 1f)).height(14.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.primary, shape)
                 )
             }
         }
@@ -527,5 +533,51 @@ private fun History(versions: List<ProfitModelVersion>, active: ProfitModelVersi
         }
         Muted("Los modelos de distintas fechas operaron en mercados distintos; la comparación justa es la prueba en sombra.")
         if (previous != null) OutlinedButton(onClick = onRollback) { Text("Restaurar v${previous.number}") }
+    }
+}
+
+/**
+ * 1.30.0, Violeta: the summary on top of Análisis. The ring is the share of the period's trips
+ * with a real RD$/hour; the counts are the same as «Calidad de datos». Nothing is estimated.
+ */
+@Composable
+private fun AnalysisHeroCard(r: IntelligenceReport) {
+    val h = com.ubers.observador.domain.AnalysisHeroes.of(r.quality)
+    val scheme = MaterialTheme.colorScheme
+    androidx.compose.material3.Surface(
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+            contentDescription = "${h.percentWithResult} por ciento de los viajes con resultado real: ${h.withResult} de ${h.trips}. " +
+                "${h.withMoney} con dinero confirmado, ${h.withGpsKm} con kilómetros del GPS. Muestra: ${IntelligenceTexts.confidence(r.confidence)}."
+        },
+        shape = RoundedCornerShape(28.dp),
+        color = scheme.primary
+    ) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            com.ubers.observador.ui.dashboard.ProgressRing(
+                percent = h.percentWithResult,
+                color = scheme.onPrimary,
+                track = scheme.onPrimary.copy(alpha = 0.25f),
+                size = 84.dp,
+                stroke = 9.dp,
+                textColor = scheme.onPrimary
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Viajes con resultado real", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = scheme.onPrimary)
+                Text("${h.withResult} de ${h.trips} viajes", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimary)
+                Text(
+                    "${h.withMoney} con dinero confirmado · ${h.withGpsKm} con km del GPS",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onPrimary.copy(alpha = 0.85f)
+                )
+                androidx.compose.material3.Surface(shape = RoundedCornerShape(50), color = scheme.onPrimary.copy(alpha = 0.18f)) {
+                    Text(
+                        "Muestra: ${IntelligenceTexts.confidence(r.confidence)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
     }
 }

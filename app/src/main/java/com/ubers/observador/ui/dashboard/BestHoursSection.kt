@@ -74,7 +74,7 @@ fun BestHoursSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 BestHours.PERIODS.forEach { period ->
-                    FilterChip(
+                    com.ubers.observador.ui.components.AppFilterChip(
                         selected = period == selectedPeriod,
                         onClick = { onSelectPeriod(period) },
                         label = { Text(period.label) }
@@ -244,7 +244,7 @@ private fun TopSlots(ranked: List<TimeSlotStats>, use24Hour: Boolean, onSelect: 
 fun SlotDetailSheet(slot: TimeSlotStats, isBest: Boolean, onDismiss: () -> Unit) {
     val use24Hour = DateFormat.is24HourFormat(LocalContext.current)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

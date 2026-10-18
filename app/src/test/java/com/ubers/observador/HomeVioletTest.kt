@@ -1,6 +1,8 @@
 package com.ubers.observador
 
+import com.ubers.observador.domain.AnalysisHeroes
 import com.ubers.observador.domain.DayGroup
+import com.ubers.observador.domain.intelligence.DataQualityReport
 import com.ubers.observador.domain.DayStrip
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.PeriodSummary
@@ -54,5 +56,18 @@ class HomeVioletTest {
         assertEquals(listOf(OfferQuality.EXCELLENT, OfferQuality.GOOD, OfferQuality.BAD), g.map { it.quality })
         assertEquals(listOf(25, 45, 30), g.map { it.percent })
         assertEquals(listOf(0, 0, 0), QualityGroups.of(PeriodSummary()).map { it.percent })
+    }
+
+    /** 1.30.0: the Análisis summary only repeats «Calidad de datos»; nothing is estimated. */
+    @Test fun theAnalysisRingIsTheShareWithARealResult() {
+        fun q(done: Int, usable: Int) = DataQualityReport(
+            completedTrips = done, withConfirmedMoney = 7, withPartialMoney = 0, withoutMoney = 0, withFullTimes = 0,
+            usableForHourly = usable, recovered = 0, missingAcceptedAt = 0, invalidTimeline = 0, currencyMismatch = 0,
+            withoutOffer = 0, withoutSettingsSnapshot = 0, withRealDistance = 3
+        )
+        val h = AnalysisHeroes.of(q(done = 12, usable = 9))
+        assertEquals(75, h.percentWithResult)
+        assertEquals(listOf(12, 9, 7, 3), listOf(h.trips, h.withResult, h.withMoney, h.withGpsKm))
+        assertEquals(0, AnalysisHeroes.of(q(done = 0, usable = 0)).percentWithResult)
     }
 }

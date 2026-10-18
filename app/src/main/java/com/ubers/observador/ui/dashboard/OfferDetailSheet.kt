@@ -45,7 +45,7 @@ fun OfferDetailSheet(
     trip: com.ubers.observador.domain.trips.Trip? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = onDismiss, sheetState = sheetState) {
         OfferDetailContent(detail, onDelete, trip)
     }
 }
@@ -78,7 +78,8 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?, tri
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Surface(color = Color(quality.backgroundArgb), shape = RoundedCornerShape(8.dp)) {
+            val pill = com.ubers.observador.ui.theme.LocalPastelBackground.current
+            Surface(color = Color(quality.backgroundArgb), shape = RoundedCornerShape(if (pill) 50 else 8)) {
                 Text(
                     text = "${o.score} · ${quality.label}",
                     color = Color(quality.foregroundArgb),
@@ -152,7 +153,8 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?, tri
 
 @Composable
 private fun DetailSection(title: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // 1.30.0: a white card of its own in Violeta
+    com.ubers.observador.ui.components.SheetGroup {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
@@ -197,9 +199,6 @@ private fun ScorePart(label: String, weightPct: Int, points: Double) {
                 fontWeight = FontWeight.Medium
             )
         }
-        LinearProgressIndicator(
-            progress = { (points / 100.0).toFloat().coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth()
-        )
+        com.ubers.observador.ui.components.AppProgressBar((points / 100.0).toFloat())
     }
 }

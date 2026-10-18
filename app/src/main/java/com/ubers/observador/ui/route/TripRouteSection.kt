@@ -88,7 +88,7 @@ private fun Line(label: String, value: String, note: String? = null) {
 fun TripSheetCard(s: TripSheet) {
     val zone = ZoneId.systemDefault()
     fun h(ms: Long?) = ms?.let { TripSheets.hour(it, zone) } ?: "—"
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    com.ubers.observador.ui.components.SheetGroup {
         Title("Ficha del viaje")
         s.riderName?.let { InfoLine(R.drawable.ic_info, "Pasajero: $it") }
         Line("Aceptado", h(s.acceptedAt))
@@ -144,7 +144,7 @@ private fun RouteCard(state: RouteUi, onExport: (RouteFormat, Boolean) -> Unit, 
     var deleting by rememberSaveable { mutableStateOf(false) }
     val summary = state.summary
     val trip = state.trip
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    com.ubers.observador.ui.components.SheetGroup {
         Title("Recorrido")
         when {
             state.loading -> Text("Cargando…", style = MaterialTheme.typography.bodySmall)

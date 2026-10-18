@@ -14,6 +14,16 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.30.0] - 2026-10-18
+
+### Añadido
+- **Análisis en Violeta:** tarjeta morada arriba con un anillo del porcentaje de viajes con resultado real (RD$/hora), cuántos tienen dinero confirmado y km del GPS, y el tamaño de la muestra. Son los mismos números de «Calidad de datos»; no se estima nada.
+
+### Cambiado
+- En Violeta, los filtros de todas las pantallas (Análisis, Reportes, Inicio, Gastos, Ajustes) son píldoras sin borde, moradas al elegirlas.
+- En Violeta, la ficha de una oferta o de un viaje tiene fondo pastel y cada parte (Recorrido, Dinero, Score, Ficha del viaje, mapa, Línea de tiempo) va en su tarjeta blanca. Las barras del score y de Análisis son redondeadas y el sello de calidad es una píldora.
+- Los otros temas no cambian.
+
 ## [1.29.2] - 2026-10-18
 
 ### Corregido

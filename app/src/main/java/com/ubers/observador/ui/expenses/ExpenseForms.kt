@@ -235,7 +235,7 @@ fun ExpenseDialog(initial: ExpenseEntry?, timeline: List<OdometerPoint>, onDismi
             Text(group.label, style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ExpenseType.entries.filter { it.group == group }.forEach { t ->
-                    FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.label) })
+                    com.ubers.observador.ui.components.AppFilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.label) })
                 }
             }
         }
@@ -277,11 +277,11 @@ fun RecurringDialog(initial: RecurringCost?, onDismiss: () -> Unit, onSave: (Rec
         )
     }) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            RecurringType.entries.forEach { t -> FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.label) }) }
+            RecurringType.entries.forEach { t -> com.ubers.observador.ui.components.AppFilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.label) }) }
         }
         NumberField("Importe", amount, { amount = it }, amountR.error(), "RD$")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Frequency.entries.forEach { f -> FilterChip(selected = frequency == f, onClick = { frequency = f }, label = { Text(f.label) }) }
+            Frequency.entries.forEach { f -> com.ubers.observador.ui.components.AppFilterChip(selected = frequency == f, onClick = { frequency = f }, label = { Text(f.label) }) }
         }
         Text(
             when (frequency) {

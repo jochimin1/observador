@@ -523,7 +523,7 @@ private fun SummaryCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StatsPeriod.entries.forEach { period ->
-                FilterChip(
+                com.ubers.observador.ui.components.AppFilterChip(
                     selected = period == selected,
                     onClick = { onSelect(period) },
                     label = { Text(period.label) }
@@ -729,7 +729,7 @@ private fun OriginChips(state: DashboardUiState, onOrigin: (TakenFilter) -> Unit
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TakenFilter.entries.forEach { origin ->
-                FilterChip(
+                com.ubers.observador.ui.components.AppFilterChip(
                     selected = origin == state.origin,
                     onClick = { onOrigin(origin) },
                     label = { Text("${origin.label} ${state.originCounts.of(origin)}") }
@@ -773,7 +773,7 @@ private fun ListControls(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryFilter.entries.forEach { filter ->
-                FilterChip(
+                com.ubers.observador.ui.components.AppFilterChip(
                     selected = filter == state.filter,
                     onClick = { onFilter(filter) },
                     label = { Text("${filter.label} ${OfferListOptions.countFor(filter, state.summary)}") }

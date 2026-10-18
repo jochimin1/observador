@@ -264,3 +264,63 @@ fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
         content()
     }
 }
+
+/**
+ * 1.30.0: the filter chip of every screen. In Violeta it is a borderless pill, purple when
+ * selected; elsewhere Material's own chip, as before.
+ */
+@Composable
+fun AppFilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier) {
+    if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+        androidx.compose.material3.FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = label,
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            border = null,
+            colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+            )
+        )
+    } else {
+        androidx.compose.material3.FilterChip(selected = selected, onClick = onClick, label = label, modifier = modifier)
+    }
+}
+
+/**
+ * 1.30.0: one group of a detail sheet (Recorrido, Dinero, Ficha del viaje…). In Violeta a white
+ * rounded card on the pastel sheet; elsewhere the plain column it always was.
+ */
+@Composable
+fun SheetGroup(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+        Surface(
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        }
+    } else {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+}
+
+/** 1.30.0: a 0..1 bar. In Violeta a rounded purple pill on a soft track; elsewhere Material's bar. */
+@Composable
+fun AppProgressBar(progress: Float, modifier: Modifier = Modifier) {
+    val p = progress.coerceIn(0f, 1f)
+    if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+        val primary = MaterialTheme.colorScheme.primary
+        Box(modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(primary.copy(alpha = 0.12f))) {
+            if (p > 0f) Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.04f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(primary))
+        }
+    } else {
+        androidx.compose.material3.LinearProgressIndicator(progress = { p }, modifier = modifier.fillMaxWidth())
+    }
+}

@@ -109,7 +109,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = viewModel())
                 SectionCard(title = "Periodo", icon = R.drawable.ic_calendar_month, subtitle = state.periodLabel.ifEmpty { null }) {
                     Chips {
                         ReportPeriod.entries.forEach { p ->
-                            FilterChip(
+                            com.ubers.observador.ui.components.AppFilterChip(
                                 selected = p == state.period,
                                 onClick = {
                                     viewModel.selectPeriod(p)
@@ -217,26 +217,26 @@ private fun FiltersCard(state: ReportsUiState, vm: ReportsViewModel) {
         Label("Origen")
         Chips {
             TakenFilter.entries.forEach { o ->
-                FilterChip(selected = f.origin == o, onClick = { vm.setOrigin(o) }, label = { Text("${o.label} ${n.origin[o] ?: 0}") })
+                com.ubers.observador.ui.components.AppFilterChip(selected = f.origin == o, onClick = { vm.setOrigin(o) }, label = { Text("${o.label} ${n.origin[o] ?: 0}") })
             }
         }
         Label("Categoría")
         Chips {
             CategoryFilter.entries.forEach { q ->
-                FilterChip(selected = f.quality == q, onClick = { vm.setQuality(q) }, label = { Text("${q.label} ${n.quality[q] ?: 0}") })
+                com.ubers.observador.ui.components.AppFilterChip(selected = f.quality == q, onClick = { vm.setQuality(q) }, label = { Text("${q.label} ${n.quality[q] ?: 0}") })
             }
         }
         Label("Botón de la tarjeta")
         Chips {
             ButtonFilter.entries.forEach { b ->
-                FilterChip(selected = f.button == b, onClick = { vm.setButton(b) }, label = { Text("${b.label} ${n.button[b] ?: 0}") })
+                com.ubers.observador.ui.components.AppFilterChip(selected = f.button == b, onClick = { vm.setButton(b) }, label = { Text("${b.label} ${n.button[b] ?: 0}") })
             }
         }
         Label("Modalidad")
         Chips {
-            FilterChip(selected = f.product == null, onClick = { vm.setProduct(null) }, label = { Text("Todas ${n.products.sumOf { it.second }}") })
+            com.ubers.observador.ui.components.AppFilterChip(selected = f.product == null, onClick = { vm.setProduct(null) }, label = { Text("Todas ${n.products.sumOf { it.second }}") })
             n.products.forEach { (p, count) ->
-                FilterChip(selected = f.product == p, onClick = { vm.setProduct(p) }, label = { Text("$p $count") })
+                com.ubers.observador.ui.components.AppFilterChip(selected = f.product == p, onClick = { vm.setProduct(p) }, label = { Text("$p $count") })
             }
         }
     }
@@ -272,7 +272,7 @@ private fun FilesCard(state: ReportsUiState, vm: ReportsViewModel) {
         Label("Formato (ofertas, totales, viajes y gastos)")
         Chips {
             ReportFormat.entries.forEach { fmt ->
-                FilterChip(selected = state.format == fmt, onClick = { vm.setFormat(fmt) }, label = { Text(fmt.label) })
+                com.ubers.observador.ui.components.AppFilterChip(selected = state.format == fmt, onClick = { vm.setFormat(fmt) }, label = { Text(fmt.label) })
             }
         }
         if (BuildConfig.DEBUG) {

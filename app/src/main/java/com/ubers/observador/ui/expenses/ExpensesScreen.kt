@@ -203,7 +203,7 @@ fun ExpensesScreen(
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ExpensePeriod.entries.forEach { p ->
-                        FilterChip(selected = state.period == p, onClick = { viewModel.selectPeriod(p) }, label = { Text(p.label) })
+                        com.ubers.observador.ui.components.AppFilterChip(selected = state.period == p, onClick = { viewModel.selectPeriod(p) }, label = { Text(p.label) })
                     }
                 }
             }
@@ -222,7 +222,7 @@ fun ExpensesScreen(
                     Text("Registros", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ExpenseFilter.entries.forEach { f ->
-                            FilterChip(selected = state.filter == f, onClick = { viewModel.selectFilter(f) }, label = { Text(f.label) })
+                            com.ubers.observador.ui.components.AppFilterChip(selected = state.filter == f, onClick = { viewModel.selectFilter(f) }, label = { Text(f.label) })
                         }
                     }
                 }

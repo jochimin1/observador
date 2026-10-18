@@ -147,7 +147,7 @@ fun EarningsScreen(
     }
 
     assign?.let { sheet ->
-        ModalBottomSheet(onDismissRequest = { viewModel.closeAssign() }) {
+        ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = { viewModel.closeAssign() }) {
             AssignSheetContent(sheet, onChoose = { viewModel.choose(it) })
         }
     }
@@ -178,7 +178,7 @@ fun EarningsScreen(
         )
     }
     detail?.let { d ->
-        ModalBottomSheet(onDismissRequest = { viewModel.closeTrip() }) { TripDetailContent(d) }
+        ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = { viewModel.closeTrip() }) { TripDetailContent(d) }
     }
 
     Scaffold(
@@ -857,7 +857,7 @@ private fun TripDetailContent(d: TripDetail) {
         val trip = d.trip
         // Fase 8K: who, when and where, offered against real, and the route on the map
         if (trip != null) com.ubers.observador.ui.route.TripRouteSection(trip.id)
-        if (trip != null) {
+        if (trip != null) com.ubers.observador.ui.components.SheetGroup {
             Text("Línea de tiempo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             TripTimeline.of(trip).forEach { (label, at) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

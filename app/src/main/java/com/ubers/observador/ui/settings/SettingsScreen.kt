@@ -373,7 +373,7 @@ fun SettingsScreen(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(java.time.DayOfWeek.MONDAY to "Lunes", java.time.DayOfWeek.SUNDAY to "Domingo").forEach { (day, label) ->
-                        FilterChip(selected = goals.weekStart == day, onClick = { viewModel.setWeekStart(day) }, label = { Text(label) })
+                        com.ubers.observador.ui.components.AppFilterChip(selected = goals.weekStart == day, onClick = { viewModel.setWeekStart(day) }, label = { Text(label) })
                     }
                 }
             }
@@ -911,7 +911,7 @@ private fun OfferAlertsCard(current: com.ubers.observador.domain.OfferAlerts, on
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 com.ubers.observador.domain.OfferAlerts.entries.forEach { option ->
-                    FilterChip(selected = option == current, onClick = { onSelect(option) }, label = { Text(option.label) })
+                    com.ubers.observador.ui.components.AppFilterChip(selected = option == current, onClick = { onSelect(option) }, label = { Text(option.label) })
                 }
             }
         }

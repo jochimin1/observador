@@ -193,3 +193,9 @@ fun appFieldColors(): androidx.compose.material3.TextFieldColors =
 @androidx.compose.runtime.Composable
 fun appFieldShape(): androidx.compose.ui.graphics.Shape =
     if (LocalPastelBackground.current) RoundedCornerShape(16.dp) else androidx.compose.material3.OutlinedTextFieldDefaults.shape
+
+/** Bottom sheets: the pastel background in Violeta, so the white groups inside stand out. */
+@androidx.compose.runtime.Composable
+fun sheetContainerColor(): Color =
+    if (LocalPastelBackground.current) MaterialTheme.colorScheme.background
+    else androidx.compose.material3.BottomSheetDefaults.ContainerColor

@@ -1,5 +1,6 @@
 package com.ubers.observador.domain
 
+import com.ubers.observador.domain.intelligence.DataQualityReport
 import java.time.LocalDate
 
 /**
@@ -57,4 +58,20 @@ object QualityGroups {
             QualityGroup(OfferQuality.BAD, summary.bad, Rings.percent(summary.bad.toLong(), total))
         )
     }
+}
+
+/**
+ * 1.30.0: the summary card of Análisis in Violeta. The ring is the share of the period's trips
+ * with a real RD$/hour (money and times seen); the rest are counts already in «Calidad de datos».
+ */
+data class AnalysisHero(val percentWithResult: Int, val trips: Int, val withResult: Int, val withMoney: Int, val withGpsKm: Int)
+
+object AnalysisHeroes {
+    fun of(q: DataQualityReport): AnalysisHero = AnalysisHero(
+        percentWithResult = Rings.percent(q.usableForHourly.toLong(), q.completedTrips.toLong()),
+        trips = q.completedTrips,
+        withResult = q.usableForHourly,
+        withMoney = q.withConfirmedMoney,
+        withGpsKm = q.withRealDistance
+    )
 }
