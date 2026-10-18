@@ -14,6 +14,11 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.29.2] - 2026-10-18
+
+### Corregido
+- En el tema Violeta la app se cerraba al mostrar los gráficos de Mejores horas, y el de Ganancias con más de 10 días (por ejemplo «Mes»). La librería de gráficos (Vico) se detiene si una etiqueta del eje queda vacía, y se dejaban vacías para que no se amontonaran. Ahora cada columna tiene su etiqueta y el eje muestra una de cada 2 (horas) o de cada 5 (días). Error encontrado con el registro del teléfono (adb logcat) del 18/10.
+
 ## [1.29.1] - 2026-10-18
 
 ### Corregido

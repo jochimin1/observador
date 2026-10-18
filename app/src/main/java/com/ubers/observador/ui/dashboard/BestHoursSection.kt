@@ -99,7 +99,8 @@ fun BestHoursSection(
                         // 1.28.0, Violeta: Vico columns; the slots are opened from the list below
                         com.ubers.observador.ui.earnings.VioletColumns(
                             values = stats.slots.map { it.medianRdpPerHour },
-                            labels = stats.slots.mapIndexed { i, s -> if (i % 2 == 0) BestHours.axisLabel(s.startHour, use24Hour) else "" },
+                            labels = stats.slots.map { s -> BestHours.axisLabel(s.startHour, use24Hour) },
+                            labelEvery = 2,
                             description = stats.slots.joinToString(". ") { BestHours.describe(it, isBest = it.startHour == best?.startHour) }
                         )
                     } else {

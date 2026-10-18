@@ -23,6 +23,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
+import com.ubers.observador.domain.ChartAxis
 import com.ubers.observador.domain.earnings.DayBar
 import com.ubers.observador.domain.earnings.EarningsFormat
 
@@ -34,16 +35,11 @@ import com.ubers.observador.domain.earnings.EarningsFormat
 fun EarningsColumnsChart(bars: List<DayBar>, description: String, modifier: Modifier = Modifier) {
     if (bars.isEmpty()) return
     val dense = bars.size > 10
+    // Every column has its label (Vico stops on a blank one); the axis shows 1 of each 5 when dense
     val labels = remember(bars) {
-        bars.mapIndexed { i, b ->
-            when {
-                !dense -> EarningsFormat.dayShort(b.day)
-                i % 5 == 0 || i == bars.lastIndex -> b.day.dayOfMonth.toString()
-                else -> ""
-            }
-        }
+        bars.map { b -> if (dense) b.day.dayOfMonth.toString() else EarningsFormat.dayShort(b.day) }
     }
-    VioletColumns(bars.map { it.incomeMinor / 100.0 }, labels, description, modifier)
+    VioletColumns(bars.map { it.incomeMinor / 100.0 }, labels, description, modifier, labelEvery = ChartAxis.every(bars.size))
 }
 
 /**
@@ -51,7 +47,13 @@ fun EarningsColumnsChart(bars: List<DayBar>, description: String, modifier: Modi
  * slot), one [labels] entry under each. TalkBack reads [description] instead of the drawing.
  */
 @Composable
-fun VioletColumns(values: List<Double?>, labels: List<String>, description: String, modifier: Modifier = Modifier) {
+fun VioletColumns(
+    values: List<Double?>,
+    labels: List<String>,
+    description: String,
+    modifier: Modifier = Modifier,
+    labelEvery: Int = 1
+) {
     if (values.isEmpty()) return
     val model = remember(values) {
         CartesianChartModel(ColumnCartesianLayerModel.build { series(values.map { it ?: 0.0 }) })
@@ -73,7 +75,8 @@ fun VioletColumns(values: List<Double?>, labels: List<String>, description: Stri
                     valueFormatter = remember { CartesianValueFormatter.decimal(decimalCount = 0, thousandsSeparator = ",", prefix = "RD$") }
                 ),
                 bottomAxis = HorizontalAxis.rememberBottom(
-                    valueFormatter = remember(labels) { CartesianValueFormatter { _, x, _ -> labels.getOrElse(x.toInt()) { "" } } }
+                    valueFormatter = remember(labels) { CartesianValueFormatter { _, x, _ -> ChartAxis.label(labels, x.toInt()) } },
+                    itemPlacer = remember(labelEvery) { HorizontalAxis.ItemPlacer.aligned(spacing = { labelEvery.coerceAtLeast(1) }) }
                 )
             ),
             model = model,
