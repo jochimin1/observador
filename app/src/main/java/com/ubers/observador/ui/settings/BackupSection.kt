@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -26,8 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.R
 import com.ubers.observador.domain.backup.BackupFormat
+import com.ubers.observador.domain.backup.RestoreStep
 import com.ubers.observador.ui.components.IconSectionHeader
 import com.ubers.observador.ui.components.SectionCard
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -95,6 +98,30 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
         }
     }
 
+    state.progress?.let { current ->
+        // Cannot be dismissed: the data is being replaced
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Restaurando respaldo") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val steps = RestoreStep.SHOWN
+                    val index = steps.indexOf(current).coerceAtLeast(0)
+                    LinearProgressIndicator(progress = { (index + 1f) / steps.size }, modifier = Modifier.fillMaxWidth())
+                    steps.forEachIndexed { i, step ->
+                        Text(
+                            (if (i < index) "✓  " else if (i == index) "›  " else "    ") + step.label + (if (i == index) "…" else ""),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (i > index) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text("No cierres la app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     state.preview?.let { preview ->
         AlertDialog(
             onDismissRequest = { viewModel.cancelRestore() },
@@ -130,4 +157,24 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
             dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancelar") } }
         )
     }
+}
+
+/**
+ * 1.32.2: the result of a restore. The app restarts after restoring and opens on Inicio, so the result
+ * waits in the settings and is shown here, over whatever screen opens, until the driver closes it.
+ */
+@Composable
+fun RestoreResultDialog() {
+    val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val settings = androidx.compose.runtime.remember { com.ubers.observador.data.AppSettings(context) }
+    val notice by settings.pendingNotice.collectAsState(initial = null)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val text = notice ?: return
+    val ok = text.startsWith("Respaldo restaurado")
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(if (ok) "Respaldo restaurado" else "No se restauró") },
+        text = { Text(if (ok) "Ahora tienes: " + text.removePrefix("Respaldo restaurado: ") else text) },
+        confirmButton = { TextButton(onClick = { scope.launch { settings.setPendingNotice(null) } }) { Text("Listo") } }
+    )
 }

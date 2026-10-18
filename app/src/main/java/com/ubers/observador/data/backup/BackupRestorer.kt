@@ -8,6 +8,7 @@ import com.ubers.observador.domain.backup.BackupFormat
 import com.ubers.observador.domain.backup.BackupManifest
 import com.ubers.observador.domain.backup.RestoreCompat
 import com.ubers.observador.domain.backup.RestoreRules
+import com.ubers.observador.domain.backup.RestoreStep
 import com.ubers.observador.domain.backup.ValidatedSettings
 import com.ubers.observador.service.PersistenceQueue
 import kotlinx.coroutines.CompletableDeferred
@@ -89,12 +90,13 @@ class BackupRestorer(context: Context) {
      * app). Throws [BackupException] if nothing was touched (no restart needed) or [RestoreRolledBack] if it failed
      * after Room was closed and the old data was put back (restart needed).
      */
-    suspend fun restore(p: Prepared): Unit = withContext(Dispatchers.IO) {
+    suspend fun restore(p: Prepared, onStep: (RestoreStep) -> Unit = {}): Unit = withContext(Dispatchers.IO) {
         val settings = AppSettings(app)
         val before = settings.backupSnapshot()
         val wasEnabled = before["observer_enabled"] as? Boolean ?: true
 
         // 3. safety backup (only the last one stays)
+        onStep(RestoreStep.SAFETY_BACKUP)
         val safety = File(app.filesDir, "$SAFETY_NAME.nuevo")
         try {
             safety.outputStream().use { BackupWriter(app).write(it, markAsLast = false) }
@@ -110,10 +112,12 @@ class BackupRestorer(context: Context) {
         val dbFile = app.getDatabasePath(DB_NAME)
         val old = File(dbFile.path + ".anterior")
         try {
+            onStep(RestoreStep.PAUSE_READING)
             settings.updateObserverEnabled(false)
             drainWrites()
             AppDatabase.getInstance(app).close()
             // 7. replace the database (the old one is kept aside until everything worked)
+            onStep(RestoreStep.REPLACE_DATABASE)
             old.delete()
             if (dbFile.exists() && !dbFile.renameTo(old)) throw java.io.IOException("No se pudo apartar la base de datos actual")
             replaced = true
@@ -121,6 +125,7 @@ class BackupRestorer(context: Context) {
             p.db.copyTo(dbFile, overwrite = true)
             // The copy must open as it should before the settings are touched
             checkDatabase(dbFile, p.manifest)
+            onStep(RestoreStep.REPLACE_SETTINGS)
             // 8. replace the settings in one step, then put back the moment's state (paused or not)
             settings.replaceWithRestored(p.settings.values)
             settings.updateObserverEnabled(wasEnabled)

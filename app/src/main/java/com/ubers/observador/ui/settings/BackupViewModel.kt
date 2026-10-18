@@ -13,6 +13,7 @@ import com.ubers.observador.data.backup.BackupRestorer
 import com.ubers.observador.data.backup.BackupWriter
 import com.ubers.observador.data.backup.RestoreRolledBack
 import com.ubers.observador.domain.backup.RestoreRules
+import com.ubers.observador.domain.backup.RestoreStep
 import com.ubers.observador.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +35,9 @@ data class BackupUiState(
     val trips: Int = 0,
     val expenses: Int = 0,
     /** A chosen backup that passed every check and waits for «Restaurar». */
-    val preview: RestorePreview? = null
+    val preview: RestorePreview? = null,
+    /** Set while restoring: the step being done (for the progress dialog). */
+    val progress: RestoreStep? = null
 )
 
 /** What the confirmation dialog shows. */
@@ -65,10 +68,7 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
             }
             val last = settings.lastBackupAt.first()
             nowRows = mapOf("detected_offers" to counts.first, "trips" to counts.second, "expense_entries" to counts.third)
-            // The result of a restore waits here: the app restarts after it
-            val notice = settings.pendingNotice.first()
-            if (notice != null) settings.setPendingNotice(null)
-            _state.update { it.copy(message = notice ?: it.message, lastBackupAt = last, offers = counts.first, trips = counts.second, expenses = counts.third) }
+            _state.update { it.copy(lastBackupAt = last, offers = counts.first, trips = counts.second, expenses = counts.third) }
         }
     }
 
@@ -132,18 +132,20 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     fun confirmRestore() {
         val p = prepared ?: return
         if (_state.value.busy) return
-        _state.update { it.copy(busy = true, busyLabel = "Restaurando…", preview = null, message = null) }
+        _state.update { it.copy(busy = true, busyLabel = "Restaurando…", preview = null, message = null, progress = RestoreStep.SAFETY_BACKUP) }
         viewModelScope.launch {
             try {
-                restorer.restore(p)
+                restorer.restore(p) { step -> _state.update { it.copy(progress = step) } }
+                _state.update { it.copy(progress = RestoreStep.RESTART) }
+                kotlinx.coroutines.delay(900) // long enough to see the last step before the app closes
                 AppRestart.now(app)
             } catch (e: RestoreRolledBack) {
                 AppRestart.now(app)
             } catch (e: BackupException) {
-                _state.update { it.copy(busy = false, message = e.message) }
+                _state.update { it.copy(busy = false, progress = null, message = e.message) }
             } catch (e: Exception) {
                 Log.w(TAG, "Restore failed", e)
-                _state.update { it.copy(busy = false, message = RestoreRules.ROLLED_BACK) }
+                _state.update { it.copy(busy = false, progress = null, message = RestoreRules.ROLLED_BACK) }
             }
             prepared = null
         }

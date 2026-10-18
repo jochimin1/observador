@@ -114,6 +114,7 @@ class MainActivity : ComponentActivity() {
             val done by appSettings.onboardingDone.collectAsState(initial = onboardingDone)
             androidx.compose.runtime.LaunchedEffect(done) { if (done == false) onboarding = true }
             ObservadorTheme(resolved) {
+                com.ubers.observador.ui.settings.RestoreResultDialog()
                 if (onboarding) {
                     com.ubers.observador.ui.onboarding.OnboardingScreen(
                         accessibilityOn = accessibilityEnabled,

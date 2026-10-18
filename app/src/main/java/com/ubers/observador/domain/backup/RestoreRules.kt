@@ -23,9 +23,19 @@ data class ValidatedSettings(
 )
 
 /** The order in which a restore runs. A failure at or after [REPLACE_DATABASE] rolls back. */
-enum class RestoreStep {
-    VERIFY_FILE, CHECK_COPY, SAFETY_BACKUP, PAUSE_READING, DRAIN_WRITES, CLOSE_DATABASE,
-    REPLACE_DATABASE, REPLACE_SETTINGS, RESTART;
+enum class RestoreStep(val label: String) {
+    VERIFY_FILE("Revisando el archivo"),
+    CHECK_COPY("Comprobando la base de datos"),
+    SAFETY_BACKUP("Guardando copia de seguridad"),
+    PAUSE_READING("Pausando la lectura"),
+    DRAIN_WRITES("Guardando lo pendiente"),
+    CLOSE_DATABASE("Cerrando la base de datos"),
+    REPLACE_DATABASE("Reemplazando datos"),
+    REPLACE_SETTINGS("Aplicando ajustes"),
+    RESTART("Reiniciando la app");
+
+    /** The steps the driver sees while restoring (the file was already checked when it was chosen). */
+    companion object { val SHOWN: List<RestoreStep> = listOf(SAFETY_BACKUP, PAUSE_READING, REPLACE_DATABASE, REPLACE_SETTINGS, RESTART) }
 
     val needsRollback: Boolean get() = ordinal >= REPLACE_DATABASE.ordinal && this != RESTART
 }

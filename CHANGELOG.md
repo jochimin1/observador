@@ -14,6 +14,12 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.32.2] - 2026-10-18
+
+### Cambiado
+- Restaurar respaldo muestra el progreso paso a paso (copia de seguridad, pausa de la lectura, reemplazo de datos, ajustes, reinicio) con una barra, y no se puede cerrar mientras se reemplazan los datos.
+- Al reabrirse la app, un cuadro «Respaldo restaurado» muestra lo que quedó (ofertas, viajes y gastos), si el respaldo era de una versión anterior y los ajustes que volvieron a su valor original. Si la restauración falló y se revirtió, el cuadro dice «No se restauró» y que tus datos están como antes.
+
 ## [1.32.1] - 2026-10-18
 
 ### Corregido
