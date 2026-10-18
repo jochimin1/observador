@@ -14,6 +14,12 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.29.1] - 2026-10-18
+
+### Corregido
+- Las tarjetas con el recargo «+DOP5.25 incluido» (nuevo en Uber, 18/10) salían con precio RD$5.25 en vez del precio real (DOP92.60, DOP48.31, DOP47.88…). Ese recargo ya va dentro del precio: ahora no cuenta como precio ni corta la tarjeta en dos, y se toma el precio grande. Probado con los textos de las capturas del 18/10, en tarjeta sola y en el Radar.
+- Las ofertas guardadas antes con RD$5.25 por este error no se pueden corregir solas: la app no guarda el texto de la pantalla, y no se inventa el precio.
+
 ## [1.29.0] - 2026-10-17
 
 ### Añadido

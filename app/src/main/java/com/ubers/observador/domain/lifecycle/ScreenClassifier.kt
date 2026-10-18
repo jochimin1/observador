@@ -118,7 +118,7 @@ class OfferScreenDetector(private val signatures: ScreenSignatures) : ScreenDete
     override fun evaluate(snapshot: ScreenSnapshot): ScreenDetection? {
         val accept = signatures.match(EvidenceCode.OFFER_ACCEPT_ACTION, snapshot.normalizedTexts) ?: return null
         val raw = snapshot.texts.joinToString(" ")
-        if (OfferPatterns.PRICE.find(raw) == null || OfferPatterns.PICKUP.find(raw) == null) return null
+        if (OfferPatterns.fare(raw) == null || OfferPatterns.PICKUP.find(raw) == null) return null
         val evidence = listOf(
             ScreenEvidence(EvidenceCode.OFFER_ACCEPT_ACTION, accept, signatures.isValidated(EvidenceCode.OFFER_ACCEPT_ACTION)),
             ScreenEvidence(EvidenceCode.OFFER_PRICE, "precio", signatures.isValidated(EvidenceCode.OFFER_PRICE)),

@@ -79,10 +79,7 @@ object OfferParser {
         if (BuildConfig.DEBUG) Log.d(TAG, message())
     }
 
-    private fun extractPrice(text: String): Double? {
-        val match = OfferPatterns.PRICE.find(text) ?: return null
-        return match.groupValues[1].replace(",", "").toDoubleOrNull()
-    }
+    private fun extractPrice(text: String): Double? = OfferPatterns.fareValue(text)
 
     private fun extractPickup(text: String): Pair<Int, Double>? {
         val match = OfferPatterns.PICKUP.find(text) ?: return null

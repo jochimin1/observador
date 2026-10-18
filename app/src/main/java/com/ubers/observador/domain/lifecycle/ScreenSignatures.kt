@@ -30,6 +30,26 @@ object OfferPatterns {
     // "DOP136.06" or "DOP 136.06" or "RD$136.06"
     val PRICE = Regex("""(?:DOP|RD\$)\s*([\d,]+\.?\d*)""")
 
+    /**
+     * The fare of the card: the first price that is not written as an extra. Uber's chip
+     * "+DOP5.25 incluido" (18/10) is a surcharge already inside the fare; read as a price it cut
+     * the card in two and gave RD$5.25 instead of DOP92.60.
+     */
+    fun fare(text: String): MatchResult? = PRICE.findAll(text).firstOrNull { !isExtra(text, it) }
+
+    /** The value of [fare] in pesos, or null. */
+    fun fareValue(text: String): Double? = fare(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+
+    private val EXTRA_AFTER = listOf("incluid", "included", "adicional", "extra")
+
+    private fun isExtra(text: String, m: MatchResult): Boolean {
+        var i = m.range.first - 1
+        while (i >= 0 && text[i].isWhitespace()) i--
+        if (i >= 0 && text[i] == '+') return true
+        val after = text.substring(m.range.last + 1).trimStart().lowercase()
+        return EXTRA_AFTER.any { after.startsWith(it) }
+    }
+
     // Pickup: "A 7 min (4.1 km)" | "En 7 min (4.1 km)" | "A 7 min · 4.1 km"
     val PICKUP = Regex("""(?:A|En)\s+(\d+)\s*min\s*[\(·•]\s*([\d.]+)\s*km""")
 

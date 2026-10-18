@@ -23,7 +23,7 @@ object OfferParseCheck {
     fun check(texts: List<String>): OfferParseStep {
         if (!hasAccept(texts)) return OfferParseStep.NO_ACCEPT
         val full = texts.joinToString(" ")
-        if (OfferPatterns.PRICE.find(full) == null) return OfferParseStep.NO_PRICE
+        if (OfferPatterns.fare(full) == null) return OfferParseStep.NO_PRICE
         val pickup = OfferPatterns.PICKUP.find(full) ?: return OfferParseStep.NO_PICKUP
         val pickupKey = pickup.groupValues[1] to pickup.groupValues[2]
         val trip = OfferPatterns.TRIP_TIME_KM.findAll(full).any { (it.groupValues[1] to it.groupValues[2]) != pickupKey } ||
@@ -77,7 +77,7 @@ object OfferCards {
     fun segments(texts: List<String>): List<List<String>> = cards(texts).map { it.texts }
 
     fun cards(texts: List<String>): List<Card> {
-        val starts = texts.indices.filter { OfferPatterns.PRICE.containsMatchIn(texts[it]) }
+        val starts = texts.indices.filter { OfferPatterns.fare(texts[it]) != null }
         if (starts.isEmpty()) return emptyList()
         return starts.mapIndexed { n, from ->
             val until = starts.getOrNull(n + 1) ?: texts.size

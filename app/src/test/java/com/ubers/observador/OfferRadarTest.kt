@@ -12,6 +12,7 @@ import com.ubers.observador.domain.lifecycle.OfferParseCheck
 import com.ubers.observador.domain.lifecycle.OfferParseStep
 import com.ubers.observador.domain.lifecycle.OfferPatterns
 import com.ubers.observador.domain.lifecycle.OfferPlacesReader
+import com.ubers.observador.domain.lifecycle.OfferProductReader
 import com.ubers.observador.domain.lifecycle.UberScreenType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -143,5 +144,55 @@ class OfferRadarTest {
         assertEquals(0, ledger.counts.taken)
         assertEquals(OfferCardAction.INTEREST, row(1, OfferCardAction.INTEREST).action)
         assertNull(row(4, null).action)
+    }
+
+    // 18/10: Uber's chip "+DOP5.25 incluido" (a surcharge already inside the fare) was read as
+    // the price, cut the card in two and gave RD$5.25. Texts copied from those screenshots.
+    private val withSurcharge = listOf(
+        "Moto", "Exclusivo", "DOP92.60", "Documento de identidad oficial verifica…", "4.85 (423)", "+DOP5.25 incluido",
+        "A 2 min (0.4 km)", "Av. Coronel Juan María Lora Fernández, Los Ríos", "Viaje: 4 min (1.4 km)",
+        "Av. Jardines de Fontainebleau 209, Los Jardínes", "Aceptar"
+    )
+
+    @Test
+    fun `the included surcharge chip is not the fare`() {
+        val cards = OfferCards.cards(withSurcharge)
+        assertEquals(1, cards.size)
+        val card = cards.single()
+        assertEquals(92.60, OfferPatterns.fareValue(card.texts.joinToString(" "))!!, 0.0001)
+        val product = OfferProductReader.read(card.header)
+        assertEquals("Moto", product.product)
+        assertTrue(product.exclusive)
+        val places = OfferPlacesReader.read(card.texts)
+        assertEquals("Av. Coronel Juan María Lora Fernández, Los Ríos", places.pickup)
+        assertEquals("Av. Jardines de Fontainebleau 209, Los Jardínes", places.dropoff)
+        assertEquals("0.4", OfferPatterns.PICKUP.find(card.texts.joinToString(" "))!!.groupValues[2])
+    }
+
+    @Test
+    fun `the Radar with surcharge chips keeps each card's own fare`() {
+        val texts = listOf("Radar de solicitud de viaje",
+            "Moto", "DOP48.31", "Identidad digital verificada o Tarjeta de …", "4.91 (93)", "+DOP5.25 incluido",
+            "A 6 min (2.4 km)", "Av. Isabel Aguiar, Zona Industrial de Herrera, Santo Domingo Oeste", "Viaje: 4 min (1.3 km)",
+            "Av. México 200, Buenos Aires de Herrera, Santo Domingo Oeste", "Me interesa",
+            "Moto", "Exclusivo", "DOP47.88", "Documento de identidad oficial verifica…", "4.88 (646)", "+DOP5.25 incluido",
+            "A 3 min (1.3 km)", "C. Calas, Los Jardínes", "Viaje: 3 min (0.7 km)", "C. 1ra 13, Los Jardínes", "Me interesa")
+        val cards = OfferCards.cards(texts)
+        assertEquals(listOf(48.31, 47.88), cards.map { OfferPatterns.fareValue(it.texts.joinToString(" ")) })
+        assertEquals("C. Calas, Los Jardínes", OfferPlacesReader.read(cards[1].texts).pickup)
+        assertTrue(OfferProductReader.read(cards[1].header).exclusive)
+        assertFalse(OfferProductReader.read(cards[0].header).exclusive)
+    }
+
+    @Test
+    fun `only a price written as an extra is skipped`() {
+        assertNull(OfferPatterns.fare("+DOP5.25 incluido"))
+        assertNull(OfferPatterns.fare("+ DOP5.25"))
+        assertNull(OfferPatterns.fare("DOP5.25 incluido"))
+        assertEquals(47.88, OfferPatterns.fareValue("+DOP5.25 incluido DOP47.88")!!, 0.0001)
+        assertEquals(1978.38, OfferPatterns.fareValue("RD$1,978.38")!!, 0.0001)
+        assertEquals(136.06, OfferPatterns.fareValue("DOP 136.06 · 4.9")!!, 0.0001)
+        // A card with only the chip and no fare is not an offer: nothing is invented
+        assertEquals(OfferParseStep.NO_PRICE, OfferParseCheck.check(listOf("+DOP5.25 incluido", "A 2 min (0.4 km)", "Viaje: 4 min (1.4 km)", "Aceptar")))
     }
 }
