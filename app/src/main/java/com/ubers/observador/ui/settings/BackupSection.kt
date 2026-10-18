@@ -13,6 +13,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.R
 import com.ubers.observador.domain.backup.BackupFormat
-import com.ubers.observador.domain.backup.RestoreStep
+import com.ubers.observador.domain.backup.ResetRules
 import com.ubers.observador.ui.components.IconSectionHeader
 import com.ubers.observador.ui.components.SectionCard
 import kotlinx.coroutines.launch
@@ -47,6 +48,8 @@ private val LAST_BACKUP_FORMAT = DateTimeFormatter.ofPattern("d/M/yyyy h:mm a", 
 fun BackupSection(viewModel: BackupViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     var confirming by rememberSaveable { mutableStateOf(false) }
+    var eraseStep by rememberSaveable { mutableStateOf(0) } // 0 none, 1 warning, 2 type BORRAR
+    var typed by rememberSaveable { mutableStateOf("") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         viewModel.create(uri)
     }
@@ -95,24 +98,27 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Restaurar respaldo") }
+            TextButton(
+                onClick = { typed = ""; eraseStep = 1 },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Borrar todos los datos", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }
 
-    state.progress?.let { current ->
-        // Cannot be dismissed: the data is being replaced
+    state.progress?.let { progress ->
+        // Cannot be dismissed: the data is being replaced or erased
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Restaurando respaldo") },
+            title = { Text(progress.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val steps = RestoreStep.SHOWN
-                    val index = steps.indexOf(current).coerceAtLeast(0)
-                    LinearProgressIndicator(progress = { (index + 1f) / steps.size }, modifier = Modifier.fillMaxWidth())
-                    steps.forEachIndexed { i, step ->
+                    LinearProgressIndicator(progress = { (progress.index + 1f) / progress.steps.size }, modifier = Modifier.fillMaxWidth())
+                    progress.steps.forEachIndexed { i, label ->
                         Text(
-                            (if (i < index) "✓  " else if (i == index) "›  " else "    ") + step.label + (if (i == index) "…" else ""),
+                            (if (i < progress.index) "✓  " else if (i == progress.index) "›  " else "    ") + label + (if (i == progress.index) "…" else ""),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (i > index) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                            color = if (i > progress.index) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     Text("No cierres la app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -134,6 +140,47 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
             },
             confirmButton = { TextButton(onClick = { viewModel.confirmRestore() }) { Text("Restaurar") } },
             dismissButton = { TextButton(onClick = { viewModel.cancelRestore() }) { Text("Cancelar") } }
+        )
+    }
+
+    if (eraseStep == 1) {
+        AlertDialog(
+            onDismissRequest = { eraseStep = 0 },
+            title = { Text("Borrar todos los datos") },
+            text = {
+                Text(
+                    ResetRules.warningText(
+                        mapOf("detected_offers" to state.offers, "trips" to state.trips, "expense_entries" to state.expenses)
+                    ) + "\n\n¿Quieres guardar un respaldo antes?"
+                )
+            },
+            confirmButton = { TextButton(onClick = { eraseStep = 2 }) { Text("Continuar sin respaldo", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { eraseStep = 0 }) { Text("Cancelar") }
+                    TextButton(onClick = { eraseStep = 0; confirming = true }) { Text("Hacer respaldo") }
+                }
+            }
+        )
+    }
+
+    if (eraseStep == 2) {
+        AlertDialog(
+            onDismissRequest = { eraseStep = 0 },
+            title = { Text("Escribe ${ResetRules.CONFIRM_WORD} para confirmar") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Esto vacía la app como si acabaras de instalarla. No se puede deshacer.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = typed, onValueChange = { typed = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = ResetRules.isConfirmed(typed),
+                    onClick = { eraseStep = 0; typed = ""; viewModel.eraseAll() }
+                ) { Text("Borrar todo", color = if (ResetRules.isConfirmed(typed)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
+            },
+            dismissButton = { TextButton(onClick = { eraseStep = 0; typed = "" }) { Text("Cancelar") } }
         )
     }
 
@@ -170,11 +217,10 @@ fun RestoreResultDialog() {
     val notice by settings.pendingNotice.collectAsState(initial = null)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val text = notice ?: return
-    val ok = text.startsWith("Respaldo restaurado")
     AlertDialog(
         onDismissRequest = {},
-        title = { Text(if (ok) "Respaldo restaurado" else "No se restauró") },
-        text = { Text(if (ok) "Ahora tienes: " + text.removePrefix("Respaldo restaurado: ") else text) },
+        title = { Text(ResetRules.noticeTitle(text)) },
+        text = { Text(ResetRules.noticeBody(text)) },
         confirmButton = { TextButton(onClick = { scope.launch { settings.setPendingNotice(null) } }) { Text("Listo") } }
     )
 }

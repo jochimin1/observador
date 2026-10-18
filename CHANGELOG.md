@@ -14,6 +14,14 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.33.0] - 2026-10-18
+
+### Añadido
+- Ajustes › Respaldo y datos › **Borrar todos los datos** (botón pequeño y rojo): muestra lo que se va a perder, ofrece hacer un respaldo antes y pide escribir BORRAR para confirmar.
+- Borra la base de datos completa (ofertas, viajes, dinero, kilómetros, recorridos, gastos), restablece los ajustes de fábrica, elimina la copia de seguridad automática y los archivos temporales, y reinicia la app mostrando la bienvenida. El permiso de accesibilidad no se toca.
+- Con barra de progreso paso a paso; si algo falla, la base de datos y los ajustes de antes vuelven y el cuadro dice «No se borró».
+- Al reabrirse, un cuadro «Datos borrados» resume lo que se eliminó.
+
 ## [1.32.2] - 2026-10-18
 
 ### Cambiado

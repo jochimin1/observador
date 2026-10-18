@@ -14,6 +14,10 @@ import com.ubers.observador.data.backup.BackupWriter
 import com.ubers.observador.data.backup.RestoreRolledBack
 import com.ubers.observador.domain.backup.RestoreRules
 import com.ubers.observador.domain.backup.RestoreStep
+import com.ubers.observador.domain.backup.ResetRules
+import com.ubers.observador.domain.backup.ResetStep
+import com.ubers.observador.data.backup.DataEraser
+import com.ubers.observador.data.backup.EraseRolledBack
 import com.ubers.observador.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,9 +40,12 @@ data class BackupUiState(
     val expenses: Int = 0,
     /** A chosen backup that passed every check and waits for «Restaurar». */
     val preview: RestorePreview? = null,
-    /** Set while restoring: the step being done (for the progress dialog). */
-    val progress: RestoreStep? = null
+    /** Set while restoring or erasing: the step being done (for the progress dialog). */
+    val progress: ProgressUi? = null
 )
+
+/** The progress dialog: [index] is the step being done among [steps]. */
+data class ProgressUi(val title: String, val steps: List<String>, val index: Int)
 
 /** What the confirmation dialog shows. */
 data class RestorePreview(val text: String, val warning: String?)
@@ -123,6 +130,36 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun restoreProgress(step: RestoreStep, previous: ProgressUi? = null): ProgressUi {
+        val i = RestoreStep.SHOWN.indexOf(step)
+        return ProgressUi("Restaurando respaldo", RestoreStep.SHOWN.map { it.label }, if (i >= 0) i else previous?.index ?: 0)
+    }
+
+    private fun eraseProgress(step: ResetStep, previous: ProgressUi? = null): ProgressUi {
+        val i = ResetStep.SHOWN.indexOf(step)
+        return ProgressUi("Borrando datos", ResetStep.SHOWN.map { it.label }, if (i >= 0) i else previous?.index ?: 0)
+    }
+
+    /** «Borrar todos los datos», after both confirmations. Empties the app and restarts it. */
+    fun eraseAll() {
+        if (_state.value.busy) return
+        val rows = nowRows
+        _state.update { it.copy(busy = true, busyLabel = "Borrando…", message = null, progress = eraseProgress(ResetStep.PAUSE_READING)) }
+        viewModelScope.launch {
+            try {
+                DataEraser(app).erase(ResetRules.erasedText(rows)) { step -> _state.update { it.copy(progress = eraseProgress(step, it.progress)) } }
+                _state.update { it.copy(progress = eraseProgress(ResetStep.RESTART)) }
+                kotlinx.coroutines.delay(900)
+                AppRestart.now(app)
+            } catch (e: EraseRolledBack) {
+                AppRestart.now(app)
+            } catch (e: Exception) {
+                Log.w(TAG, "Erase failed", e)
+                _state.update { it.copy(busy = false, progress = null, message = ResetRules.ROLLED_BACK) }
+            }
+        }
+    }
+
     fun cancelRestore() {
         prepared = null
         _state.update { it.copy(preview = null) }
@@ -132,11 +169,11 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     fun confirmRestore() {
         val p = prepared ?: return
         if (_state.value.busy) return
-        _state.update { it.copy(busy = true, busyLabel = "Restaurando…", preview = null, message = null, progress = RestoreStep.SAFETY_BACKUP) }
+        _state.update { it.copy(busy = true, busyLabel = "Restaurando…", preview = null, message = null, progress = restoreProgress(RestoreStep.SAFETY_BACKUP)) }
         viewModelScope.launch {
             try {
-                restorer.restore(p) { step -> _state.update { it.copy(progress = step) } }
-                _state.update { it.copy(progress = RestoreStep.RESTART) }
+                restorer.restore(p) { step -> _state.update { it.copy(progress = restoreProgress(step, it.progress)) } }
+                _state.update { it.copy(progress = restoreProgress(RestoreStep.RESTART)) }
                 kotlinx.coroutines.delay(900) // long enough to see the last step before the app closes
                 AppRestart.now(app)
             } catch (e: RestoreRolledBack) {
