@@ -231,6 +231,8 @@ private fun NameDialog(
         title = { Text(title) },
         text = {
             OutlinedTextField(
+                colors = com.ubers.observador.ui.theme.appFieldColors(),
+                shape = com.ubers.observador.ui.theme.appFieldShape(),
                 value = name,
                 onValueChange = { name = it; touched = true },
                 label = { Text("Nombre (ej. Noche, Lluvia)") },

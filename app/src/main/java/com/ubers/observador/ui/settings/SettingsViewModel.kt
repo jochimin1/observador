@@ -138,6 +138,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setAutoNight(on: Boolean) = viewModelScope.launch { appSettings.updateAutoNight(on) }
 
+    /** 1.29.0: «Ver bienvenida»; MainActivity sees the change and opens the welcome. */
+    fun showOnboardingAgain() = viewModelScope.launch { appSettings.updateOnboardingDone(false) }
+
     fun setNightHours(from: Int, to: Int) = viewModelScope.launch { appSettings.updateNightHours(from, to) }
 
     // ---- Goals (Fase 8C) ----

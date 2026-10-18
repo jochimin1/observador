@@ -466,11 +466,15 @@ private fun GoalDialog(dailyMinor: Long, weeklyMinor: Long, onDismiss: () -> Uni
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("En pesos, sobre el ingreso bruto real. Deja vacío o 0 para no usar esa meta.", style = MaterialTheme.typography.bodySmall)
                 androidx.compose.material3.OutlinedTextField(
+                    colors = com.ubers.observador.ui.theme.appFieldColors(),
+                    shape = com.ubers.observador.ui.theme.appFieldShape(),
                     value = daily, onValueChange = { daily = it.filter { c -> c.isDigit() }.take(7) },
                     label = { Text("Meta diaria (RD$)") }, singleLine = true, isError = d == null,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                 )
                 androidx.compose.material3.OutlinedTextField(
+                    colors = com.ubers.observador.ui.theme.appFieldColors(),
+                    shape = com.ubers.observador.ui.theme.appFieldShape(),
                     value = weekly, onValueChange = { weekly = it.filter { c -> c.isDigit() }.take(7) },
                     label = { Text("Meta semanal (RD$)") }, singleLine = true, isError = w == null,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)

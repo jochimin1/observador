@@ -174,3 +174,22 @@ fun topBarColors(): androidx.compose.material3.TopAppBarColors =
     } else {
         androidx.compose.material3.TopAppBarDefaults.topAppBarColors()
     }
+
+/** Text fields: white, borderless and rounded in Violeta (like the cards); the theme's own elsewhere. */
+@androidx.compose.runtime.Composable
+fun appFieldColors(): androidx.compose.material3.TextFieldColors =
+    if (LocalPastelBackground.current) {
+        androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            errorContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            unfocusedBorderColor = Color.Transparent,
+            focusedBorderColor = MaterialTheme.colorScheme.primary
+        )
+    } else {
+        androidx.compose.material3.OutlinedTextFieldDefaults.colors()
+    }
+
+@androidx.compose.runtime.Composable
+fun appFieldShape(): androidx.compose.ui.graphics.Shape =
+    if (LocalPastelBackground.current) RoundedCornerShape(16.dp) else androidx.compose.material3.OutlinedTextFieldDefaults.shape

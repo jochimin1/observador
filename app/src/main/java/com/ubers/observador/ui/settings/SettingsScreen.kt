@@ -180,6 +180,14 @@ fun SettingsScreen(
                 )
             }
 
+            SettingCard(
+                title = "Bienvenida",
+                description = "Vuelve a ver la presentación de Observador y el estado de sus permisos: accesibilidad, ubicación y avisos.",
+                field = { _ ->
+                    androidx.compose.material3.TextButton(onClick = { viewModel.showOnboardingAgain() }) { Text("Ver") }
+                }
+            )
+
             SectionHeader("Costos operativos", R.drawable.ic_local_gas_station)
             DecimalSettingCard(
                 title = "Precio del combustible",
@@ -757,6 +765,8 @@ private fun <T> ValidatedField(
     }
 
     OutlinedTextField(
+        colors = com.ubers.observador.ui.theme.appFieldColors(),
+        shape = com.ubers.observador.ui.theme.appFieldShape(),
         value = text,
         onValueChange = { input ->
             text = input

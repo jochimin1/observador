@@ -14,6 +14,16 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.29.0] - 2026-10-17
+
+### Añadido
+- Bienvenida al abrir la app por primera vez: qué hace Observador (con un dibujo propio en los colores del tema) y una página por permiso — accesibilidad para leer las ofertas, ubicación para los kilómetros y avisos (solo Android 13 o más). Cada página explica, abre la pantalla de Android y muestra el estado real («Activado» / «Pendiente»); «Saltar» siempre está.
+- Ajustes › Apariencia › Bienvenida › «Ver» la abre otra vez.
+
+### Cambiado
+- Quien actualiza con la lectura ya activada no ve la bienvenida. Mientras se muestra, el permiso de avisos se pide desde su página y no al abrir.
+- En Violeta, los campos de texto (Gastos, metas, Ajustes, perfiles) son blancos, sin borde y con esquinas redondeadas, como las tarjetas.
+
 ## [1.28.1] - 2026-10-17
 
 Más gráficos con Vico en el tema Violeta. Incluye todo lo de la 1.28.0. La base de datos no cambia (sigue en 14).

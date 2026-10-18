@@ -44,15 +44,32 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* start service regardless */ }
+    ) { notificationsGranted = hasNotificationPermission() /* start service regardless */ }
 
     // Refreshed on every resume so the dashboard reflects the system accessibility toggle
     private var accessibilityEnabled by mutableStateOf(false)
 
+    // 1.29.0: shown on the welcome's «Avisos» page, read again on every resume
+    private var notificationsGranted by mutableStateOf(true)
+
+    private fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        requestPermissionsIfNeeded()
+        val appSettings = com.ubers.observador.data.AppSettings(applicationContext)
+        accessibilityEnabled = UberAccessibilityService.isEnabled(this)
+        notificationsGranted = hasNotificationPermission()
+        // 1.29.0: the welcome asks for the permissions itself; a driver updating from an older
+        // version (reading already on) skips it and is never asked again
+        val onboardingDone = kotlinx.coroutines.runBlocking { appSettings.onboardingDone.first() }
+        val showOnboarding = com.ubers.observador.domain.Onboarding.shouldShow(onboardingDone, accessibilityEnabled)
+        if (!showOnboarding) {
+            if (onboardingDone == null) lifecycleScope.launch { appSettings.updateOnboardingDone(true) }
+            requestPermissionsIfNeeded()
+        }
         // Fase 8L: opening the app after «Cerrar Observador» turns reading back on
         com.ubers.observador.ui.AppNavigation.closeRequested.value = false
         lifecycleScope.launch { com.ubers.observador.data.AppSettings(applicationContext).reopenAfterClose() }
@@ -92,8 +109,28 @@ class MainActivity : ComponentActivity() {
                     else androidx.activity.SystemBarStyle.light(transparent, transparent)
                 )
             }
+            // Latched: turning reading on mid-welcome must not close it; «Ver bienvenida» opens it again
+            var onboarding by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(showOnboarding) }
+            val done by appSettings.onboardingDone.collectAsState(initial = onboardingDone)
+            androidx.compose.runtime.LaunchedEffect(done) { if (done == false) onboarding = true }
             ObservadorTheme(resolved) {
-                ObservadorNavHost(accessibilityEnabled = accessibilityEnabled)
+                if (onboarding) {
+                    com.ubers.observador.ui.onboarding.OnboardingScreen(
+                        accessibilityOn = accessibilityEnabled,
+                        notificationsOn = notificationsGranted,
+                        onRequestNotifications = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onFinish = {
+                            onboarding = false
+                            lifecycleScope.launch { appSettings.updateOnboardingDone(true) }
+                        }
+                    )
+                } else {
+                    ObservadorNavHost(accessibilityEnabled = accessibilityEnabled)
+                }
             }
         }
     }
@@ -114,6 +151,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         accessibilityEnabled = UberAccessibilityService.isEnabled(this)
+        notificationsGranted = hasNotificationPermission()
         // The driver may have changed the location permission in system settings
         com.ubers.observador.ui.AppPermissions.refresh(this)
         // Oil and other reminders (Fase 8B): checked when the app opens, notified once per level

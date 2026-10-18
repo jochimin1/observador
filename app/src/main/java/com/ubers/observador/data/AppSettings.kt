@@ -46,6 +46,8 @@ class AppSettings(private val context: Context) {
         private val KEY_SHADOW_MODEL = stringPreferencesKey("shadow_model_version_id")
         private val KEY_OBSERVER_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("observer_enabled")
         private val KEY_CLOSED_BY_USER = androidx.datastore.preferences.core.booleanPreferencesKey("closed_by_user")
+        // 1.29.0: the first-launch welcome. Absent = never decided (see Onboarding.shouldShow)
+        private val KEY_ONBOARDING_DONE = androidx.datastore.preferences.core.booleanPreferencesKey("onboarding_done")
         private val KEY_PROFILES = stringPreferencesKey("settings_profiles")
         private val KEY_ACTIVE_PROFILE = stringPreferencesKey("active_profile_id")
         // Fase 8E: kilometres with GPS. Off until the driver turns it on and grants location
@@ -137,6 +139,11 @@ class AppSettings(private val context: Context) {
         it[KEY_CLOSED_BY_USER] = f.closedByUser
         it[KEY_DISTANCE_MANUAL] = false
     }
+
+    /** 1.29.0: null until the welcome is finished or skipped; false after «Ver bienvenida». */
+    val onboardingDone: Flow<Boolean?> = context.dataStore.data.map { it[KEY_ONBOARDING_DONE] }
+
+    suspend fun updateOnboardingDone(value: Boolean) = context.dataStore.edit { it[KEY_ONBOARDING_DONE] = value }
 
     /** Fase 8L: on opening the app; resumes reading only if it was closed with the button. */
     suspend fun reopenAfterClose() = context.dataStore.edit {

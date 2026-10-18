@@ -102,6 +102,8 @@ private fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Uni
 private fun NumberField(label: String, value: String, onValue: (String) -> Unit, error: String?, suffix: String? = null, decimal: Boolean = true, supporting: String? = null) {
     val shown = if (value.isNotBlank() && error != null) error else supporting
     OutlinedTextField(
+        colors = com.ubers.observador.ui.theme.appFieldColors(),
+        shape = com.ubers.observador.ui.theme.appFieldShape(),
         value = value,
         onValueChange = onValue,
         label = { Text(label) },
