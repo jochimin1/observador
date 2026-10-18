@@ -43,8 +43,18 @@ fun EarningsColumnsChart(bars: List<DayBar>, description: String, modifier: Modi
             }
         }
     }
-    val model = remember(bars) {
-        CartesianChartModel(ColumnCartesianLayerModel.build { series(bars.map { it.incomeMinor / 100.0 }) })
+    VioletColumns(bars.map { it.incomeMinor / 100.0 }, labels, description, modifier)
+}
+
+/**
+ * Rounded purple columns of the Violeta theme (Vico): [values] in RD$ (null or zero = an empty
+ * slot), one [labels] entry under each. TalkBack reads [description] instead of the drawing.
+ */
+@Composable
+fun VioletColumns(values: List<Double?>, labels: List<String>, description: String, modifier: Modifier = Modifier) {
+    if (values.isEmpty()) return
+    val model = remember(values) {
+        CartesianChartModel(ColumnCartesianLayerModel.build { series(values.map { it ?: 0.0 }) })
     }
     val primary = MaterialTheme.colorScheme.primary
     ProvideVicoTheme(rememberM3VicoTheme()) {
@@ -54,7 +64,7 @@ fun EarningsColumnsChart(bars: List<DayBar>, description: String, modifier: Modi
                     ColumnCartesianLayer.ColumnProvider.series(
                         rememberLineComponent(
                             fill = Fill(primary),
-                            thickness = if (dense) 8.dp else 20.dp,
+                            thickness = if (values.size > 10) 10.dp else 20.dp,
                             shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
                         )
                     )

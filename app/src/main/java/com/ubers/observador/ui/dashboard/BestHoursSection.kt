@@ -95,14 +95,23 @@ fun BestHoursSection(
                         text = "Pago mediano por hora en cada franja",
                         style = MaterialTheme.typography.labelLarge
                     )
-                    BestHoursChart(
-                        slots = stats.slots,
-                        bestStartHour = best?.startHour,
-                        selectedStartHour = selectedStartHour,
-                        minRdpPerHour = state.minRdpPerHour,
-                        use24Hour = use24Hour,
-                        onSelect = onSelectSlot
-                    )
+                    if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
+                        // 1.28.0, Violeta: Vico columns; the slots are opened from the list below
+                        com.ubers.observador.ui.earnings.VioletColumns(
+                            values = stats.slots.map { it.medianRdpPerHour },
+                            labels = stats.slots.mapIndexed { i, s -> if (i % 2 == 0) BestHours.axisLabel(s.startHour, use24Hour) else "" },
+                            description = stats.slots.joinToString(". ") { BestHours.describe(it, isBest = it.startHour == best?.startHour) }
+                        )
+                    } else {
+                        BestHoursChart(
+                            slots = stats.slots,
+                            bestStartHour = best?.startHour,
+                            selectedStartHour = selectedStartHour,
+                            minRdpPerHour = state.minRdpPerHour,
+                            use24Hour = use24Hour,
+                            onSelect = onSelectSlot
+                        )
+                    }
                     // With a single valid slot the list would only repeat the card above
                     if (stats.rankedSlots.size > 1) {
                         TopSlots(stats.rankedSlots, use24Hour, onSelectSlot)

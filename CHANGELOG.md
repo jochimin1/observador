@@ -14,6 +14,14 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.28.1] - 2026-10-17
+
+Más gráficos con Vico en el tema Violeta. Incluye todo lo de la 1.28.0. La base de datos no cambia (sigue en 14).
+
+### Cambiado (solo con el tema Violeta)
+- **Mejores horas para salir** como columnas moradas de Vico (pago mediano por hora en cada franja de 2 horas).
+  La franja se abre desde la tarjeta de la mejor franja y la lista de debajo; TalkBack lee todas las franjas.
+
 ## [1.28.0] - 2026-10-17
 
 Gráficos con Vico, fase 3 del plan de diseño. Incluye todo lo de la 1.27.0. La base de datos no cambia (sigue en 14). Los otros temas no cambian.
