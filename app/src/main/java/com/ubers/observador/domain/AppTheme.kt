@@ -10,7 +10,9 @@ enum class AppTheme(val storageKey: String, val label: String, val description: 
     LIGHT("LIGHT", "Claro", "Fondo claro siempre"),
     DARK("DARK", "Oscuro", "Fondo gris oscuro siempre"),
     NIGHT("NIGHT", "Noche", "Negro puro: menos brillo y batería de noche"),
-    SUN("SUN", "Sol", "Alto contraste y letras más firmes para el sol");
+    SUN("SUN", "Sol", "Alto contraste y letras más firmes para el sol"),
+    /** 1.26.0: the style of the design the driver chose (purple, pastel background, Lexend, round cards). */
+    VIOLET("VIOLET", "Violeta", "Morado, fondo pastel, letra Lexend y tarjetas blancas redondeadas");
 
     companion object {
         fun fromStorage(key: String?): AppTheme = entries.firstOrNull { it.storageKey == key } ?: SYSTEM
@@ -18,7 +20,12 @@ enum class AppTheme(val storageKey: String, val label: String, val description: 
 }
 
 /** The palette actually drawn. */
-enum class ResolvedTheme(val isDark: Boolean) { LIGHT(false), DARK(true), NIGHT(true), SUN(false) }
+enum class ResolvedTheme(val isDark: Boolean) {
+    LIGHT(false), DARK(true), NIGHT(true), SUN(false), VIOLET(false);
+
+    /** Drawn over a soft pastel background, with Lexend and rounder shapes. */
+    val pastel: Boolean get() = this == VIOLET
+}
 
 /** The theme setting: a choice, plus "Noche" by the hour (from [nightFromHour] to [nightToHour]). */
 data class ThemeSettings(
@@ -45,6 +52,7 @@ object ThemeResolver {
             AppTheme.DARK -> ResolvedTheme.DARK
             AppTheme.NIGHT -> ResolvedTheme.NIGHT
             AppTheme.SUN -> ResolvedTheme.SUN
+            AppTheme.VIOLET -> ResolvedTheme.VIOLET
         }
     }
 }
@@ -112,7 +120,22 @@ object ThemePalettes {
         0xFF000000, 0xFF0E1012, 0xFF15181B, 0xFF1E2125, 0xFF282B2F
     )
 
+    /**
+     * Violeta (1.26.0): primary #5F33E1 of the chosen design, lilac-white background, white cards.
+     * Text and accents keep at least 4.5:1 on every card, like the other themes.
+     */
+    val VIOLET = Palette(
+        0xFF5F33E1, 0xFFFFFFFF, 0xFFEDE7FF, 0xFF22005D,
+        0xFF5E5A73, 0xFFFFFFFF, 0xFFF1EEFF, 0xFF1B1630,
+        0xFF9C3D00, 0xFFFFFFFF, 0xFFFFE4D6, 0xFF381000,
+        0xFFBA1A1A, 0xFFFFFFFF, 0xFFFFDAD6, 0xFF410002,
+        0xFFF6F4FE, 0xFF1B1B2F, 0xFFF6F4FE, 0xFF1B1B2F,
+        0xFFE7E3F5, 0xFF4A4760, 0xFF79758F, 0xFFCAC4DC,
+        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF0ECFC, 0xFFE9E4FA
+    )
+
     fun of(theme: ResolvedTheme): Palette = when (theme) {
+        ResolvedTheme.VIOLET -> VIOLET
         ResolvedTheme.LIGHT -> LIGHT
         ResolvedTheme.DARK -> DARK
         ResolvedTheme.SUN -> SUN

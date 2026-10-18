@@ -45,7 +45,7 @@ class ThemeTest {
     }
 
     @Test fun everyThemeIsReadable() {
-        mapOf("Claro" to ThemePalettes.LIGHT, "Oscuro" to ThemePalettes.DARK, "Sol" to ThemePalettes.SUN, "Noche" to ThemePalettes.NIGHT).forEach { (name, p) ->
+        mapOf("Claro" to ThemePalettes.LIGHT, "Oscuro" to ThemePalettes.DARK, "Sol" to ThemePalettes.SUN, "Noche" to ThemePalettes.NIGHT, "Violeta" to ThemePalettes.VIOLET).forEach { (name, p) ->
             pairs(p).forEach { (role, c) ->
                 val r = Contrast.ratio(c.first, c.second)
                 assertTrue("$name $role %.2f".format(r), r >= min)
@@ -80,6 +80,9 @@ class ThemeTest {
         assertEquals(ResolvedTheme.SUN, ThemeResolver.resolve(s.copy(theme = AppTheme.SUN), systemDark = true, hour = 12))
         assertEquals(ResolvedTheme.NIGHT, ThemeResolver.resolve(s.copy(theme = AppTheme.NIGHT), systemDark = false, hour = 12))
         assertEquals(AppTheme.SYSTEM, AppTheme.fromStorage("nonsense"))
+        assertEquals(ResolvedTheme.VIOLET, ThemeResolver.resolve(s.copy(theme = AppTheme.VIOLET), systemDark = true, hour = 12))
+        assertEquals(AppTheme.VIOLET, AppTheme.fromStorage("VIOLET"))
+        assertTrue(ResolvedTheme.VIOLET.pastel && !ResolvedTheme.VIOLET.isDark && !ResolvedTheme.LIGHT.pastel)
     }
 
     @Test fun nightByTheHourCrossesMidnight() {

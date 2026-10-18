@@ -184,8 +184,11 @@ fun DashboardScreen(
     }
 
     Scaffold(
+
+        containerColor = com.ubers.observador.ui.theme.screenBackground(),
         topBar = {
             TopAppBar(
+                colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Observador") },
                 actions = {
                     Box {

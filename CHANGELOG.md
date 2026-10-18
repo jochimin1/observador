@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.26.0] - 2026-10-17
+
+Tema «Violeta», primera fase del plan de diseño. Incluye todo lo de la 1.25.0. La base de datos no cambia (sigue en 14).
+
+### Añadido
+- **Tema «Violeta»** en Ajustes › Tema, junto a Sistema, Claro, Oscuro, Noche y Sol: morado #5F33E1,
+  fondo pastel difuminado (verde, amarillo, lila y azul), letra **Lexend**, tarjetas blancas y
+  esquinas más redondeadas. Las barras de arriba quedan transparentes sobre el fondo.
+- Los colores de MALO, BUENO y EXCELENTE no cambian, y todos los textos del tema pasan la prueba de
+  contraste (mínimo 4.5 a 1). «Noche automática» sigue mandando de noche.
+
+### Técnico
+- Letra Lexend incluida en la app (licencia SIL OFL, en `docs/licencias`): funciona sin internet.
+
 ## [1.25.0] - 2026-10-17
 
 Análisis con tus viajes reales. Incluye todo lo de la 1.24.0. La base de datos no cambia (sigue en 14).

@@ -163,6 +163,7 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         if (pendingOpen == com.ubers.observador.ui.AppNavigation.OPEN_LAST_WEEK && current != Tab.EARNINGS.route) open(Tab.EARNINGS)
     }
     Scaffold(
+        containerColor = com.ubers.observador.ui.theme.screenBackground(),
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { tab ->

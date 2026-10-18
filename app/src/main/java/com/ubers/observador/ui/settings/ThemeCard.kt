@@ -44,6 +44,7 @@ fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
             Text("Tema", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
             Text(
                 "Noche es negro puro: menos brillo y menos batería de noche. Sol sube el contraste para leer a pleno sol. " +
+                    "Violeta cambia el estilo: morado, fondo pastel, letra Lexend y tarjetas más redondeadas. " +
                     "Los colores de MALO, BUENO y EXCELENTE no cambian con el tema.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -85,6 +86,7 @@ private fun ThemeTile(theme: AppTheme, selected: Boolean, modifier: Modifier, on
                     AppTheme.LIGHT -> ThemePalettes.LIGHT
                     AppTheme.DARK -> ThemePalettes.DARK
                     AppTheme.NIGHT -> ThemePalettes.NIGHT
+                    AppTheme.VIOLET -> ThemePalettes.VIOLET
                     else -> ThemePalettes.SUN
                 }
                 Preview(p, Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(10.dp)))

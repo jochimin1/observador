@@ -107,8 +107,11 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
     }
 
     Scaffold(
+
+        containerColor = com.ubers.observador.ui.theme.screenBackground(),
         topBar = {
             TopAppBar(
+                colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Análisis") },
                 navigationIcon = { onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } } }
             )

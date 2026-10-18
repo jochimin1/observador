@@ -87,8 +87,11 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = viewModel())
     }
 
     Scaffold(
+
+        containerColor = com.ubers.observador.ui.theme.screenBackground(),
         topBar = {
             TopAppBar(
+                colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Reportes y exportación") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Volver") }

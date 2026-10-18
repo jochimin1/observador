@@ -83,8 +83,11 @@ fun SettingsScreen(
     val fuelSet = engine.fuelPricePerGallon > 0 && engine.kmPerGallon > 0
 
     Scaffold(
+
+        containerColor = com.ubers.observador.ui.theme.screenBackground(),
         topBar = {
             TopAppBar(
+                colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Ajustes") },
                 navigationIcon = {
                     onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } }
