@@ -8,7 +8,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ubers.observador.data.AppSettings
 import com.ubers.observador.data.backup.BackupException
+import com.ubers.observador.data.backup.AppRestart
+import com.ubers.observador.data.backup.BackupRestorer
 import com.ubers.observador.data.backup.BackupWriter
+import com.ubers.observador.data.backup.RestoreRolledBack
+import com.ubers.observador.domain.backup.RestoreRules
 import com.ubers.observador.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,16 +27,25 @@ import com.ubers.observador.domain.backup.BackupFormat
 /** The «Respaldo y datos» card of Ajustes (1.31.0): what there is now, the last backup, and making one. */
 data class BackupUiState(
     val busy: Boolean = false,
+    val busyLabel: String = "Creando respaldo…",
     val message: String? = null,
     val lastBackupAt: Long? = null,
     val offers: Int = 0,
     val trips: Int = 0,
-    val expenses: Int = 0
+    val expenses: Int = 0,
+    /** A chosen backup that passed every check and waits for «Restaurar». */
+    val preview: RestorePreview? = null
 )
+
+/** What the confirmation dialog shows. */
+data class RestorePreview(val text: String, val warning: String?)
 
 class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val settings = AppSettings(app)
+    private val restorer = BackupRestorer(app)
+    private var prepared: BackupRestorer.Prepared? = null
+    private var nowRows: Map<String, Int> = emptyMap()
     private val _state = MutableStateFlow(BackupUiState())
     val state: StateFlow<BackupUiState> = _state.asStateFlow()
 
@@ -51,7 +64,11 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
             }
             val last = settings.lastBackupAt.first()
-            _state.update { it.copy(lastBackupAt = last, offers = counts.first, trips = counts.second, expenses = counts.third) }
+            nowRows = mapOf("detected_offers" to counts.first, "trips" to counts.second, "expense_entries" to counts.third)
+            // The result of a restore waits here: the app restarts after it
+            val notice = settings.pendingNotice.first()
+            if (notice != null) settings.setPendingNotice(null)
+            _state.update { it.copy(message = notice ?: it.message, lastBackupAt = last, offers = counts.first, trips = counts.second, expenses = counts.third) }
         }
     }
 
@@ -60,7 +77,7 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     /** [uri] is where the driver chose to save (null = they closed the picker). */
     fun create(uri: Uri?) {
         if (uri == null || _state.value.busy) return
-        _state.update { it.copy(busy = true, message = null) }
+        _state.update { it.copy(busy = true, busyLabel = "Creando respaldo…", message = null) }
         viewModelScope.launch {
             val message = try {
                 val out = app.contentResolver.openOutputStream(uri, "w") ?: throw BackupException("No se pudo abrir el lugar elegido para guardar.")
@@ -79,10 +96,67 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** [uri] is the file the driver chose (null = they closed the picker). Checks it; nothing live is touched. */
+    fun choose(uri: Uri?) {
+        if (uri == null || _state.value.busy) return
+        _state.update { it.copy(busy = true, busyLabel = "Revisando el archivo…", message = null, preview = null) }
+        viewModelScope.launch {
+            try {
+                val input = app.contentResolver.openInputStream(uri) ?: throw BackupException("No se pudo abrir el archivo elegido.")
+                val dbVersion = withContext(Dispatchers.IO) { AppDatabase.getInstance(app).openHelper.readableDatabase.version }
+                val p = restorer.prepare(input, dbVersion)
+                prepared = p
+                val date = RESTORE_DATE.format(java.time.Instant.ofEpochMilli(p.manifest.createdAtMs).atZone(java.time.ZoneId.systemDefault()))
+                _state.update {
+                    it.copy(busy = false, preview = RestorePreview(
+                        RestoreRules.comparisonText(date, p.manifest.rows, nowRows) +
+                            "\nAntes de reemplazar se guarda una copia de seguridad automática y la app se reinicia.",
+                        RestoreRules.defaultedText(p.settings.defaulted)
+                    ))
+                }
+            } catch (e: BackupException) {
+                _state.update { it.copy(busy = false, message = e.message) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not check backup", e)
+                _state.update { it.copy(busy = false, message = "No se pudo leer el archivo elegido. Tus datos no se tocaron.") }
+            }
+        }
+    }
+
+    fun cancelRestore() {
+        prepared = null
+        _state.update { it.copy(preview = null) }
+        viewModelScope.launch(Dispatchers.IO) { restorer.discard() }
+    }
+
+    fun confirmRestore() {
+        val p = prepared ?: return
+        if (_state.value.busy) return
+        _state.update { it.copy(busy = true, busyLabel = "Restaurando…", preview = null, message = null) }
+        viewModelScope.launch {
+            try {
+                restorer.restore(p)
+                AppRestart.now(app)
+            } catch (e: RestoreRolledBack) {
+                AppRestart.now(app)
+            } catch (e: BackupException) {
+                _state.update { it.copy(busy = false, message = e.message) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Restore failed", e)
+                _state.update { it.copy(busy = false, message = RestoreRules.ROLLED_BACK) }
+            }
+            prepared = null
+        }
+    }
+
     /** A failed backup leaves no empty or half-written file in the chosen place. */
     private fun discard(uri: Uri) {
         runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) }
     }
 
-    private companion object { const val TAG = "BackupViewModel" }
+    private companion object {
+        const val TAG = "BackupViewModel"
+        val RESTORE_DATE: java.time.format.DateTimeFormatter =
+            java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy h:mm a", java.util.Locale.forLanguageTag("es-DO"))
+    }
 }

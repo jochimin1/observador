@@ -14,6 +14,15 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.32.0] - 2026-10-18
+
+### Añadido
+- Ajustes › Respaldo y datos › **Restaurar respaldo**: eliges un .zip hecho con «Crear respaldo», la app lo revisa sin tocar nada (archivo completo, SHA-256, base de datos íntegra, versión no más nueva que la de la app) y te muestra una comparación: lo que trae el respaldo y lo que tienes ahora.
+- Antes de reemplazar se guarda una copia de seguridad automática (solo la última) en la carpeta privada de la app; se pausa la lectura, se esperan las escrituras pendientes, se reemplazan la base de datos y los ajustes y la app se reinicia.
+- Si algo falla después de empezar a reemplazar, vuelven la base de datos y los ajustes de antes y la app dice «No se restauró; tus datos están como antes».
+- Cada ajuste restaurado pasa los mismos límites que en Ajustes: uno inválido vuelve a su valor original y se avisa cuáles fueron.
+- Un respaldo de una versión anterior se acepta y Room lo actualiza al abrirlo; uno de una versión más nueva se rechaza con «Actualiza Observador antes de restaurar este respaldo».
+
 ## [1.31.0] - 2026-10-18
 
 ### Añadido

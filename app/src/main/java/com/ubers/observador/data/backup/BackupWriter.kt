@@ -33,7 +33,7 @@ class BackupWriter(context: Context) {
     data class Result(val manifest: BackupManifest, val bytes: Long)
 
     /** Writes the backup to [out] and closes it. Throws [BackupException] with a message for the driver. */
-    suspend fun write(out: OutputStream): Result = withContext(Dispatchers.IO) {
+    suspend fun write(out: OutputStream, markAsLast: Boolean = true): Result = withContext(Dispatchers.IO) {
         val tmp = File(app.cacheDir, "respaldo-tmp").apply { deleteRecursively(); mkdirs() }
         try {
             flushPendingWrites()
@@ -80,7 +80,7 @@ class BackupWriter(context: Context) {
             val size = zipFile.length()
             zipFile.inputStream().use { it.copyTo(out) }
             out.flush()
-            AppSettings(app).updateLastBackupAt(now)
+            if (markAsLast) AppSettings(app).updateLastBackupAt(now)
             Result(manifest, size)
         } finally {
             tmp.deleteRecursively()

@@ -11,6 +11,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,8 +37,8 @@ private val LAST_BACKUP_FORMAT = DateTimeFormatter.ofPattern("d/M/yyyy h:mm a", 
 
 /**
  * 1.31.0: «Respaldo y datos» at the end of Ajustes. Crear respaldo saves one .zip where the driver
- * chooses (Descargas, Drive…); the app never sends it anywhere by itself. Restaurar and Borrar
- * todo come in the next versions.
+ * chooses (Descargas, Drive…); the app never sends it anywhere by itself. Restaurar respaldo (1.32.0) replaces everything
+ * with the file's content after an automatic copy of what there is now; Borrar todo comes next.
  */
 @Composable
 fun BackupSection(viewModel: BackupViewModel = viewModel()) {
@@ -45,6 +46,10 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
     var confirming by rememberSaveable { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         viewModel.create(uri)
+    }
+
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        viewModel.choose(uri)
     }
 
     IconSectionHeader("Respaldo y datos", R.drawable.ic_download)
@@ -77,12 +82,32 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
             Button(onClick = { confirming = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
                 if (state.busy) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text("  Creando respaldo…")
+                    Text("  ${state.busyLabel}")
                 } else {
                     Text("Crear respaldo")
                 }
             }
+            OutlinedButton(
+                onClick = { restorePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Restaurar respaldo") }
         }
+    }
+
+    state.preview?.let { preview ->
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelRestore() },
+            title = { Text("Restaurar respaldo") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(preview.text)
+                    preview.warning?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.confirmRestore() }) { Text("Restaurar") } },
+            dismissButton = { TextButton(onClick = { viewModel.cancelRestore() }) { Text("Cancelar") } }
+        )
     }
 
     if (confirming) {

@@ -43,7 +43,7 @@ object BackupFormat {
      */
     val VOLATILE_SETTINGS: Set<String> = setOf(
         "distance_manual", "closed_by_user", "observer_enabled", "onboarding_done", "last_backup_at",
-        "export_history", "goal_notified_day", "goal_notified_week", "weekly_report_notified"
+        "export_history", "goal_notified_day", "goal_notified_week", "weekly_report_notified", "pending_notice"
     )
 
     /** Settings written once per kind of maintenance («maintenance_notified_aceite»…). */

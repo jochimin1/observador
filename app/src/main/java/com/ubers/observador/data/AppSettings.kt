@@ -151,6 +151,43 @@ class AppSettings(private val context: Context) {
 
     suspend fun updateLastBackupAt(ms: Long) = context.dataStore.edit { it[KEY_LAST_BACKUP_AT] = ms }
 
+    /** 1.32.0: a line to show on the next opening (the app restarts after a restore, so the result waits here). */
+    val pendingNotice: Flow<String?> = context.dataStore.data.map { it[androidx.datastore.preferences.core.stringPreferencesKey("pending_notice")] }
+
+    suspend fun setPendingNotice(text: String?) = context.dataStore.edit {
+        val key = androidx.datastore.preferences.core.stringPreferencesKey("pending_notice")
+        if (text == null) it.remove(key) else it[key] = text
+    }
+
+    /**
+     * 1.32.0, restoring: ONE atomic edit that removes every stored setting except the ones of the moment
+     * (BackupFormat.isVolatile: paused or not, welcome seen, last backup…) and writes [restored], already
+     * validated (RestoreRules). What the backup does not carry goes back to its default.
+     */
+    suspend fun replaceWithRestored(restored: Map<String, Any>) = context.dataStore.edit { prefs ->
+        for (k in prefs.asMap().keys.toList()) if (!com.ubers.observador.domain.backup.BackupFormat.isVolatile(k.name)) prefs.remove(k)
+        for ((name, value) in restored) putTyped(prefs, name, value)
+    }
+
+    /** 1.32.0, rolling back a failed restore: puts every setting back exactly as [snapshot] (backupSnapshot) had it. */
+    suspend fun replaceAll(snapshot: Map<String, Any?>) = context.dataStore.edit { prefs ->
+        prefs.clear()
+        for ((name, value) in snapshot) if (value != null) putTyped(prefs, name, value)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun putTyped(prefs: androidx.datastore.preferences.core.MutablePreferences, name: String, value: Any) {
+        when (value) {
+            is Boolean -> prefs[androidx.datastore.preferences.core.booleanPreferencesKey(name)] = value
+            is Int -> prefs[intPreferencesKey(name)] = value
+            is Long -> prefs[androidx.datastore.preferences.core.longPreferencesKey(name)] = value
+            is Float -> prefs[androidx.datastore.preferences.core.floatPreferencesKey(name)] = value
+            is Double -> prefs[doublePreferencesKey(name)] = value
+            is String -> prefs[stringPreferencesKey(name)] = value
+            is Set<*> -> prefs[androidx.datastore.preferences.core.stringSetPreferencesKey(name)] = value as Set<String>
+        }
+    }
+
     /** 1.29.0: null until the welcome is finished or skipped; false after «Ver bienvenida». */
     val onboardingDone: Flow<Boolean?> = context.dataStore.data.map { it[KEY_ONBOARDING_DONE] }
 
