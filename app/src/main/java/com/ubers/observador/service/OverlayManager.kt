@@ -24,6 +24,10 @@ class OverlayManager(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
 
+    /** 1.33.1: true when Android refused the last card (BadTokenException: the service connection is not valid). */
+    @Volatile var lastShowFailed = false
+        private set
+
     /** Fase 8G: the Sol theme draws the card's text 15 % bigger, for the glare. */
     private var textScale = 1f
 
@@ -55,6 +59,7 @@ class OverlayManager(private val context: Context) {
         }
         try {
             windowManager.addView(view, params)
+            lastShowFailed = false
             overlayView = view
             view.post {
                 val d = context.resources.displayMetrics.density
@@ -62,6 +67,7 @@ class OverlayManager(private val context: Context) {
                     "%.0fx%.0f dp".format(view.width / d, view.height / d))
             }
         } catch (e: Exception) {
+            lastShowFailed = true
             Log.e(TAG, "Could not add overlay window", e)
             return@runOnMain
         }

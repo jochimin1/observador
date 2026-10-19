@@ -316,7 +316,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         _overlayTestMessage.value = if (shown) {
             "Mostrando la tarjeta ${quality.label} durante $duration s."
         } else {
-            "Activa el servicio de accesibilidad para probar la tarjeta."
+            "Android no dejó dibujar la tarjeta (el servicio de accesibilidad no está bien conectado). Apaga y vuelve a encender Observador en Ajustes › Accesibilidad, y prueba otra vez."
         }
     }
 

@@ -118,7 +118,8 @@ class UberAccessibilityService : AccessibilityService() {
     /** Shows [analysis] in the overlay as if it came from a real offer. Main thread only. */
     fun showTestOverlay(analysis: OfferAnalysis, quality: OfferQuality, durationSeconds: Int): Boolean {
         overlayManager.show(analysis, quality, durationSeconds)
-        return true
+        // show() runs at once on the main thread (where this is called from), so the result is already known
+        return !overlayManager.lastShowFailed
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {

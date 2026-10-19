@@ -14,6 +14,11 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.33.1] - 2026-10-18
+
+### Corregido
+- «Probar tarjeta» decía «Mostrando la tarjeta…» aunque Android hubiera rechazado la ventana (`BadTokenException`, servicio de accesibilidad mal conectado tras reinstalar o reiniciar la app). Ahora lo dice con verdad y explica que hay que apagar y volver a encender Observador en Accesibilidad.
+
 ## [1.33.0] - 2026-10-18
 
 ### Añadido
