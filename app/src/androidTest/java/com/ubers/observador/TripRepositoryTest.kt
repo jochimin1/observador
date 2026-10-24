@@ -168,7 +168,7 @@ class TripRepositoryTest {
     }
 
     @Test
-    fun aTripSurvivesARestartAndIsRestoredAsTheSameTrip() = runBlocking {
+    fun aTripSurvivesARestartAndIsRestoredAsTheSameTrip() = runBlocking<Unit> {
         val name = "trip-restart-test.db"
         context.deleteDatabase(name)
         val first = Room.databaseBuilder(context, AppDatabase::class.java, name).build()

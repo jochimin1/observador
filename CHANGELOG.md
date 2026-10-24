@@ -14,6 +14,17 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.33.2] - 2026-10-24
+
+### Añadido
+- Herramientas de prueba › **Grabar pantallas de Uber**: mientras trabajas, guarda cada pantalla distinta de Uber en un archivo por día con lo que Observador entendió (pantalla, confianza, estado del viaje y señales). Nombres y direcciones van ocultos; los montos, km y minutos se conservan para comprobar las cifras. «Exportar capturas» las junta en un .zip y «Borrar capturas» las elimina. Es el primer paso del plan de mejoras (mejora 1: validar las pantallas de viaje) y no hace falta tocar el teléfono al manejar.
+
+### Cambiado
+- «Borrar todos los datos» también borra las capturas guardadas.
+
+### Técnico
+- `TripRepositoryTest`: `runBlocking<Unit>` para que compile la prueba instrumentada (corrección tuya).
+
 ## [1.33.1] - 2026-10-18
 
 ### Corregido

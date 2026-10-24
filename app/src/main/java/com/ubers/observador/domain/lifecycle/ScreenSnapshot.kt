@@ -100,12 +100,16 @@ object SnapshotSanitizer {
     private val UNITS = setOf("min", "km", "dop", "rd", "h", "s", "seg", "m", "x", "a", "en", "viaje")
     private val WORD = Regex("[a-z]+")
 
-    fun describe(snapshot: ScreenSnapshot, signatures: ScreenSignatures): String =
+    /**
+     * [keepMeasureDigits] (1.33.2, capture recorder only): amounts, km and minutes keep their digits,
+     * so a real trip's figures can be checked; names and addresses stay hidden either way.
+     */
+    fun describe(snapshot: ScreenSnapshot, signatures: ScreenSignatures, keepMeasureDigits: Boolean = false): String =
         buildString {
             append("paquete: ").append(snapshot.packageName).append(" · nodos: ").append(snapshot.nodes.size)
             snapshot.nodes.forEachIndexed { i, node ->
-                val text = safe(node.text, node.clickable, signatures)
-                val desc = safe(node.contentDescription, node.clickable, signatures)
+                val text = safe(node.text, node.clickable, signatures, keepMeasureDigits)
+                val desc = safe(node.contentDescription, node.clickable, signatures, keepMeasureDigits)
                 if (node.viewId == null && text == null && desc == null && !node.clickable) return@forEachIndexed
                 append('\n').append('#').append(i)
                 node.className?.let { append(' ').append(it.substringAfterLast('.')) }
@@ -118,13 +122,14 @@ object SnapshotSanitizer {
         }
 
     /** The label as it may be shared, or null when the node has none. */
-    fun safe(raw: String?, clickable: Boolean, signatures: ScreenSignatures): String? {
+    fun safe(raw: String?, clickable: Boolean, signatures: ScreenSignatures, keepMeasureDigits: Boolean = false): String? {
         val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val normalized = TextNormalizer.normalize(trimmed)
         signatures.knownPhraseIn(normalized)?.let { phrase ->
             val rest = normalized.length - phrase.length
             return "\"" + phrase + "\"" + if (rest > 0) " +$rest car." else ""
         }
+        if (keepMeasureDigits && isBareMeasure(normalized)) return "\"" + normalized + "\""
         val keep = isBareMeasure(normalized) || (clickable && normalized.split(' ').size <= MAX_BUTTON_WORDS)
         return if (keep) "\"" + TextNormalizer.maskDigits(normalized) + "\"" else "‹oculto, ${trimmed.length} car.›"
     }

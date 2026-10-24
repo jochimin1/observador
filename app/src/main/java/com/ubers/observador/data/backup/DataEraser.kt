@@ -57,6 +57,7 @@ class DataEraser(context: Context) {
             File(app.filesDir, BackupRestorer.SAFETY_NAME + ".nuevo").delete()
             File(app.cacheDir, "respaldo-tmp").deleteRecursively()
             File(app.cacheDir, "restaurar-tmp").deleteRecursively()
+            File(app.filesDir, "capturas").deleteRecursively()
         } catch (e: Exception) {
             runCatching {
                 if (aside && old.exists()) {

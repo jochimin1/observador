@@ -140,6 +140,7 @@ object RideLifecycleMonitor {
     fun start(context: Context) {
         if (coordinator != null) return
         val app = context.applicationContext
+        if (BuildConfig.DEBUG) CaptureRecorder.init(app)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val database = AppDatabase.getInstance(app)
         // Trips and money share one queue: a trip's money is always written after the trip
@@ -185,7 +186,10 @@ object RideLifecycleMonitor {
     fun onSnapshot(snapshot: ScreenSnapshot, offerHash: String?): PipelineResult {
         if (!restored) return PipelineResult(classification = null)
         val result = pipeline.onSnapshot(snapshot, offerHash)
-        if (BuildConfig.DEBUG) lastSnapshot = snapshot
+        if (BuildConfig.DEBUG) {
+            lastSnapshot = snapshot
+            CaptureRecorder.record(snapshot, offerHash, result.classification, pipeline.context.state.name, classifier.signatures)
+        }
         log(result)
         coordinator?.submit(result.events)
         observeRider(snapshot)

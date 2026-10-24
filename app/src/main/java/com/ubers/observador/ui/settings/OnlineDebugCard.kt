@@ -37,6 +37,14 @@ import com.ubers.observador.domain.online.OnlineFormat
 import com.ubers.observador.domain.online.OnlineSession
 import com.ubers.observador.service.RideLifecycleMonitor
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.rememberCoroutineScope
+import com.ubers.observador.service.CaptureRecorder
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -124,6 +132,7 @@ fun OnlineDebugCard(viewModel: OnlineDebugViewModel = viewModel()) {
                     "Lectura copiada (nombres y direcciones ocultos). Pégala en el chat para confirmar las señales."
                 }
             }) { Text("Copiar lectura") }
+            CaptureRecorderControls()
             (copyMessage ?: state.message)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             TextButton(onClick = { showHistory = !showHistory }) {
                 Text(if (showHistory) "Ocultar cambios" else "Ver últimos cambios (${live.history.size})")
@@ -166,4 +175,62 @@ private fun Line(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
         Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
+}
+
+/**
+ * 1.33.2: the capture recorder. On, every different Uber screen is written to a daily file with what
+ * Observador understood (names and addresses hidden, amounts kept); drive normally and export the
+ * files afterwards. Nothing needs to be touched while driving.
+ */
+@Composable
+private fun CaptureRecorderControls() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var on by remember { mutableStateOf(CaptureRecorder.also { it.init(context) }.enabled) }
+    var summary by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    fun refresh() = scope.launch { summary = withContext(Dispatchers.IO) { CaptureRecorder.summary(context) } }
+    LaunchedEffect(Unit) { refresh() }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) scope.launch {
+            message = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "w")?.use { CaptureRecorder.export(context, it) }
+                    "Capturas exportadas."
+                }.getOrElse { "No se pudieron exportar las capturas." }
+            }
+        }
+    }
+    HorizontalDivider()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Grabar pantallas de Uber", style = MaterialTheme.typography.labelLarge)
+            Text(
+                "Guarda cada pantalla distinta de Uber mientras trabajas, con nombres y direcciones ocultos. " +
+                    "No hace falta tocar el teléfono al manejar.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = on, onCheckedChange = {
+            CaptureRecorder.setEnabled(context, it)
+            on = it
+            refresh()
+        })
+    }
+    Text(summary, style = MaterialTheme.typography.bodySmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = {
+            val day = java.time.LocalDate.now().toString()
+            exporter.launch("observador-capturas-$day.zip")
+        }) { Text("Exportar capturas") }
+        OutlinedButton(onClick = {
+            scope.launch {
+                withContext(Dispatchers.IO) { CaptureRecorder.clear(context) }
+                message = "Capturas borradas."
+                refresh()
+            }
+        }) { Text("Borrar capturas") }
+    }
+    message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
