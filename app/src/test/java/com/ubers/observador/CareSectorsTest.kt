@@ -3,6 +3,7 @@ package com.ubers.observador
 import com.ubers.observador.domain.lifecycle.OfferCards
 import com.ubers.observador.domain.lifecycle.OfferPlacesReader
 import com.ubers.observador.domain.sectors.CareSector
+import com.ubers.observador.domain.sectors.CloseOutcome
 import com.ubers.observador.domain.sectors.OfferPlaceKind
 import com.ubers.observador.domain.sectors.SectorLevel
 import com.ubers.observador.domain.sectors.SectorMatcher
@@ -309,5 +310,108 @@ class SectorStatsTest {
         assertEquals("Destino: Santo Domingo Norte / Santa Cruz", v)
         assertFalse(v.contains(","))
         assertEquals("", com.ubers.observador.domain.sectors.SectorStats.csvValue(offers[4], sectors))
+    }
+}
+
+/** 1.37.0: Uber's X found by the card's price, the closing rules and the log. */
+class SectorCloseTest {
+
+    private fun n(text: String? = null, desc: String? = null, clickable: Boolean = false, id: String? = null) =
+        com.ubers.observador.domain.lifecycle.ScreenNode(text = text, contentDescription = desc, clickable = clickable, viewId = id)
+
+    private fun card(price: String, x: com.ubers.observador.domain.lifecycle.ScreenNode?, action: String = "Me interesa") = listOfNotNull(
+        n("Moto"), x, n(price), n("DOP20.19/km est."), n("4.91 (1873)"), n("A 6 min (0.9 km) de distancia"),
+        n("Av. Buenaventura Freites, Los Jardínes"), n("Viaje: 22 min (10.2 km)"), n("C. Bernabe Boza 2, Santa Cruz"),
+        n(desc = action, clickable = true), n(action)
+    )
+
+    private fun snap(nodes: List<com.ubers.observador.domain.lifecycle.ScreenNode>) =
+        com.ubers.observador.domain.lifecycle.ScreenSnapshot(0L, "com.ubercab.driver", nodes)
+
+    private val x = n(desc = "Cerrar", clickable = true)
+    private val target = com.ubers.observador.domain.sectors.CloseTarget
+
+    @Test fun findsTheXOfTheOnlyCard() {
+        val nodes = card("DOP224.10", x)
+        val r = target.find(snap(nodes), 224.10)
+        assertTrue(r is com.ubers.observador.domain.sectors.CloseTarget.Result.Found)
+        assertEquals(1, (r as com.ubers.observador.domain.sectors.CloseTarget.Result.Found).index)
+    }
+
+    @Test fun inTheRadarItPicksTheXOfTheCardWithThatPrice() {
+        val first = card("DOP42.63", n(desc = "Cerrar", clickable = true))
+        val second = card("DOP150.45", n(desc = "Cerrar", clickable = true))
+        val nodes = listOf(n("Radar de solicitud de viaje")) + first + second
+        val r = target.find(snap(nodes), 150.45) as com.ubers.observador.domain.sectors.CloseTarget.Result.Found
+        assertEquals(1 + first.size + 1, r.index)
+        val r1 = target.find(snap(nodes), 42.63) as com.ubers.observador.domain.sectors.CloseTarget.Result.Found
+        assertEquals(2, r1.index)
+    }
+
+    @Test fun theRepeatedButtonTextCountsOnce() {
+        val nodes = card("DOP224.10", x)
+        assertEquals(1, target.actionIndices(nodes).size)
+    }
+
+    @Test fun refusesWhatIsUnclear() {
+        fun refused(nodes: List<com.ubers.observador.domain.lifecycle.ScreenNode>, price: Double) =
+            target.find(snap(nodes), price) as? com.ubers.observador.domain.sectors.CloseTarget.Result.Refused
+        assertEquals("No se reconoce la X de la tarjeta", refused(card("DOP224.10", null), 224.10)!!.reason)
+        assertEquals("No se reconoce la X de la tarjeta", refused(card("DOP224.10", n(desc = "Cerrar", clickable = false)), 224.10)!!.reason)
+        val twoX = card("DOP224.10", x).toMutableList().also { it.add(2, n(desc = "Descartar", clickable = true)) }
+        assertTrue(refused(twoX, 224.10)!!.reason.startsWith("Hay 2"))
+        assertEquals("La oferta ya no está en pantalla", refused(card("DOP224.10", x), 100.0)!!.reason)
+        val samePrice = card("DOP150.45", x) + card("DOP150.45", n(desc = "Cerrar", clickable = true))
+        assertEquals("Hay dos tarjetas con el mismo precio", refused(samePrice, 150.45)!!.reason)
+        assertEquals("No se ve el botón de la tarjeta", refused(listOf(n("DOP150.45"), x), 150.45)!!.reason)
+    }
+
+    @Test fun neverTouchesAcceptEvenIfItMentionsClosing() {
+        val tricky = n(text = "Aceptar", desc = "Cerrar y aceptar", clickable = true)
+        val nodes = card("DOP224.10", tricky, action = "Aceptar")
+        assertTrue(target.find(snap(nodes), 224.10) is com.ubers.observador.domain.sectors.CloseTarget.Result.Refused)
+        val ok = card("DOP224.10", n(id = "com.ubercab.driver:id/dismiss_button", clickable = true), action = "Aceptar")
+        assertTrue(target.find(snap(ok), 224.10) is com.ubers.observador.domain.sectors.CloseTarget.Result.Found)
+    }
+
+    @Test fun closingOnlyInAutomaticWithACloseSectorAndUnderTheCap() {
+        val r = com.ubers.observador.domain.sectors.CloseRules
+        assertEquals(CloseOutcome.NONE, r.decide(false, SectorLevel.CLOSE, true, 0))
+        assertEquals(CloseOutcome.NONE, r.decide(true, SectorLevel.AVOID, true, 0))
+        assertEquals(CloseOutcome.NONE, r.decide(true, null, true, 0))
+        assertEquals(CloseOutcome.NONE, r.decide(true, SectorLevel.CLOSE, true, 30))
+        assertEquals(CloseOutcome.SIMULATE, r.decide(true, SectorLevel.CLOSE, false, 0))
+        assertEquals(CloseOutcome.CLOSE, r.decide(true, SectorLevel.CLOSE, true, 29))
+        // Uber's X is not confirmed with a real capture yet: nothing is touched
+        assertFalse(com.ubers.observador.domain.sectors.CloseTarget.VALIDATED)
+    }
+
+    @Test fun bandWhileTheSecondsRun() {
+        val m = SectorMatcher.match(null, "Paraiso 16, Los Alcarrizos", listOf(CareSector("Los Alcarrizos", level = SectorLevel.CLOSE)))
+        val r = com.ubers.observador.domain.sectors.CloseRules
+        assertEquals("⛔ Se cierra en 3 s · Destino: Los Alcarrizos · toca para no cerrar", r.banner(m, null, CloseOutcome.CLOSE)!!.text)
+        assertEquals("⛔ Simulación: se cerraría en 3 s · Tarjeta 2 · Destino: Los Alcarrizos", r.banner(m, 2, CloseOutcome.SIMULATE)!!.text)
+        assertEquals("⛔ Evitar · Destino: Los Alcarrizos", r.banner(m, null, CloseOutcome.NONE)!!.text)
+    }
+
+    @Test fun logLines() {
+        val zone = java.time.ZoneId.of("America/Santo_Domingo")
+        val at = java.time.ZonedDateTime.of(2026, 11, 12, 14, 3, 12, 0, zone).toInstant().toEpochMilli()
+        val l = com.ubers.observador.domain.sectors.CloseLog
+        assertEquals("cierres-2026-11-12.txt", l.fileName(at, zone))
+        val closed = l.line(at, zone, l.CLOSED, "Destino: Engombe", 294.67)
+        assertEquals("14:03:12 · CERRADA · Destino: Engombe · RD$294.67", closed)
+        val text = listOf(closed, l.line(at, zone, l.SIMULATED + " (botón «cerrar»)", "Destino: Engombe", 1.0),
+            l.line(at, zone, l.NOT_CLOSED + " (Cancelado por ti)", "Destino: Engombe", 1.0)).joinToString("\n")
+        assertEquals(1, l.closedCount(text))
+    }
+
+    @Test fun theRecorderKeepsWhereEachNodeIs() {
+        val node = com.ubers.observador.domain.lifecycle.ScreenNode(contentDescription = "Cerrar", clickable = true, left = 10, top = 20, right = 60, bottom = 70)
+        val s = com.ubers.observador.domain.lifecycle.ScreenSnapshot(0L, "com.ubercab.driver", listOf(node))
+        val recorded = com.ubers.observador.domain.lifecycle.SnapshotSanitizer.describe(s, com.ubers.observador.domain.lifecycle.ScreenSignatures.SPANISH, keepMeasureDigits = true)
+        assertTrue(recorded.contains("@10,20,60,70"))
+        val chat = com.ubers.observador.domain.lifecycle.SnapshotSanitizer.describe(s, com.ubers.observador.domain.lifecycle.ScreenSignatures.SPANISH)
+        assertFalse(chat.contains("@"))
     }
 }

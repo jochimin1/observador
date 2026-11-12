@@ -41,6 +41,7 @@ class UberAccessibilityService : AccessibilityService() {
     private lateinit var shadowScorer: ShadowScorer
     private lateinit var overlayManager: OverlayManager
     private lateinit var notifier: OfferNotifier
+    private lateinit var sectorCloser: SectorCloser
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -87,6 +88,9 @@ class UberAccessibilityService : AccessibilityService() {
         shadowScorer = ShadowScorer(settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)))
         // Use `this` so TYPE_ACCESSIBILITY_OVERLAY is backed by the service context
         overlayManager = OverlayManager(this)
+        // 1.37.0: «Automático» closes cards of «Cerrar» sectors; a tap on the floating card stops it
+        sectorCloser = SectorCloser(this, mainHandler)
+        overlayManager.onTap = { sectorCloser.cancelAll() }
         notifier = OfferNotifier(applicationContext)
         instance = this
         RideLifecycleMonitor.start(applicationContext)
@@ -284,10 +288,13 @@ class UberAccessibilityService : AccessibilityService() {
                 ) == com.ubers.observador.domain.ResolvedTheme.SUN
                 val overlaySeconds = settings.overlayDurationSeconds.first()
                 // Fase 8I: «Avisos de ofertas» decides; only a newly recorded offer notifies
-                // 1.35.0: care sectors in the pickup or the drop-off
-                val banner = sectorBanner(offer, card = null)
+                // 1.35.0: care sectors in the pickup or the drop-off; 1.37.0: closing in «Automático»
+                val match = sectorMatch(offer)
+                val mode = settings.operatingMode.first()
+                val close = closeOutcome(match, mode, saved)
+                val banner = match?.let { com.ubers.observador.domain.sectors.CloseRules.banner(it, null, close) }
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
-                    saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
+                    saved, settings.offerAlerts.first(), mode == AppSettings.MODE_ASSISTED || mode == AppSettings.MODE_AUTO, quality
                 ) || (saved && banner != null)
 
                 mainHandler.post {
@@ -300,6 +307,12 @@ class UberAccessibilityService : AccessibilityService() {
                         OfferDebug.onNotified()
                     }
                     if (saved && banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
+                    if (match != null && close != com.ubers.observador.domain.sectors.CloseOutcome.NONE) {
+                        sectorCloser.schedule(
+                            hash, offer.price, com.ubers.observador.domain.sectors.SectorBanner.places(match),
+                            simulate = close == com.ubers.observador.domain.sectors.CloseOutcome.SIMULATE
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -327,12 +340,27 @@ class UberAccessibilityService : AccessibilityService() {
      * notify on its own id; the floating card and the ride lifecycle stay with the first card.
      */
     /** 1.35.0: the care sector band of [offer], or null (switch off, empty list or no sector found). */
-    private suspend fun sectorBanner(offer: UberOffer, card: Int?): com.ubers.observador.domain.sectors.SectorBanner? {
+    private suspend fun sectorMatch(offer: UberOffer): com.ubers.observador.domain.sectors.SectorMatch? {
         if (!settings.careSectorsEnabled.first()) return null
         val sectors = settings.careSectors.first()
         if (sectors.isEmpty()) return null
-        val match = com.ubers.observador.domain.sectors.SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors)
-        return com.ubers.observador.domain.sectors.SectorBanner.of(match, card)
+        return com.ubers.observador.domain.sectors.SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors)
+            .takeIf { !it.isEmpty }
+    }
+
+    /** 1.37.0: whether this card is closed (or simulated): «Automático», a «Cerrar» sector, first sighting, under the daily cap. */
+    private fun closeOutcome(
+        match: com.ubers.observador.domain.sectors.SectorMatch?,
+        mode: String,
+        saved: Boolean
+    ): com.ubers.observador.domain.sectors.CloseOutcome {
+        if (match == null || !saved) return com.ubers.observador.domain.sectors.CloseOutcome.NONE
+        return com.ubers.observador.domain.sectors.CloseRules.decide(
+            automatic = mode == AppSettings.MODE_AUTO,
+            level = match.level,
+            validated = com.ubers.observador.domain.sectors.CloseTarget.VALIDATED,
+            closedToday = CloseLogStore.closedToday(this)
+        )
     }
 
     private fun recordExtraCard(offer: UberOffer, position: Int) {
@@ -347,13 +375,24 @@ class UberAccessibilityService : AccessibilityService() {
                 val analysis = engine.analyze(offer, settings.engineSettings.first())
                 val quality = settings.qualityThresholds.first().classify(analysis.score)
                 val saved = repository.saveOrSkip(analysis, settings.graceWindowSeconds.first() * 1000L)
-                val banner = sectorBanner(offer, card = position)
+                val match = sectorMatch(offer)
+                val mode = settings.operatingMode.first()
+                val close = closeOutcome(match, mode, saved)
+                val banner = match?.let { com.ubers.observador.domain.sectors.CloseRules.banner(it, position, close) }
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
-                    saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
+                    saved, settings.offerAlerts.first(), mode == AppSettings.MODE_ASSISTED || mode == AppSettings.MODE_AUTO, quality
                 ) || (saved && banner != null)
-                if (notify) mainHandler.post {
-                    notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash), sectorTitle = banner?.text)
-                    if (banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
+                mainHandler.post {
+                    if (notify) {
+                        notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash), sectorTitle = banner?.text)
+                        if (banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
+                    }
+                    if (match != null && close != com.ubers.observador.domain.sectors.CloseOutcome.NONE) {
+                        sectorCloser.schedule(
+                            hash, offer.price, "Tarjeta $position · " + com.ubers.observador.domain.sectors.SectorBanner.places(match),
+                            simulate = close == com.ubers.observador.domain.sectors.CloseOutcome.SIMULATE
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -370,6 +409,7 @@ class UberAccessibilityService : AccessibilityService() {
     }
 
     private fun resetState() {
+        if (::sectorCloser.isInitialized) sectorCloser.clear()
         debounceRunnable?.let { mainHandler.removeCallbacks(it) }
         debounceRunnable = null
         recheckRunnable?.let { mainHandler.removeCallbacks(it) }

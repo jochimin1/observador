@@ -52,16 +52,19 @@ data class SectorBanner(val text: String, val avoid: Boolean) {
         fun of(match: SectorMatch, card: Int? = null): SectorBanner? {
             if (match.isEmpty) return null
             val avoid = (match.level ?: SectorLevel.WARN) >= SectorLevel.AVOID
-            val places = OfferPlaceKind.entries.mapNotNull { place ->
-                val names = match.hits.filter { it.place == place }.map { it.sector.name }.distinct()
-                if (names.isEmpty()) null else "${place.label}: ${names.joinToString(", ")}"
-            }
             val text = buildString {
                 append(if (avoid) "⛔ Evitar · " else "⚠ ")
                 if (card != null && card > 1) append("Tarjeta $card · ")
-                append(places.joinToString(" · "))
+                append(places(match))
             }
             return SectorBanner(text, avoid)
         }
+
+        /** «Recogida: Hato Nuevo · Destino: Engombe». */
+        fun places(match: SectorMatch): String =
+            OfferPlaceKind.entries.mapNotNull { place ->
+                val names = match.hits.filter { it.place == place }.map { it.sector.name }.distinct()
+                if (names.isEmpty()) null else "${place.label}: ${names.joinToString(", ")}"
+            }.joinToString(" · ")
     }
 }

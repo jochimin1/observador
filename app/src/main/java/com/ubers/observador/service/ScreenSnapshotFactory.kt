@@ -25,13 +25,19 @@ object ScreenSnapshotFactory {
     @Suppress("DEPRECATION")
     private fun collect(node: AccessibilityNodeInfo, depth: Int, out: MutableList<ScreenNode>) {
         if (out.size >= MAX_NODES || depth > MAX_DEPTH) return
+        val r = android.graphics.Rect()
+        node.getBoundsInScreen(r)
         out += ScreenNode(
             text = node.text?.toString(),
             contentDescription = node.contentDescription?.toString(),
             viewId = node.viewIdResourceName,
             className = node.className?.toString(),
             clickable = node.isClickable,
-            enabled = node.isEnabled
+            enabled = node.isEnabled,
+            left = r.left,
+            top = r.top,
+            right = r.right,
+            bottom = r.bottom
         )
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
@@ -41,5 +47,29 @@ object ScreenSnapshotFactory {
                 child.recycle()
             }
         }
+    }
+
+    /**
+     * 1.37.0: the live node at [index] of the same depth-first walk as [from] (same limits, same
+     * order), as a copy the caller must recycle; null if the tree is shorter. Only used right after
+     * a snapshot of the same [root], to touch the X found in it.
+     */
+    @Suppress("DEPRECATION")
+    fun nodeAt(root: AccessibilityNodeInfo, index: Int): AccessibilityNodeInfo? {
+        var count = 0
+        fun walk(node: AccessibilityNodeInfo, depth: Int): AccessibilityNodeInfo? {
+            if (count >= MAX_NODES || depth > MAX_DEPTH) return null
+            if (count++ == index) return AccessibilityNodeInfo.obtain(node)
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                try {
+                    walk(child, depth + 1)?.let { return it }
+                } finally {
+                    child.recycle()
+                }
+            }
+            return null
+        }
+        return walk(root, 0)
     }
 }

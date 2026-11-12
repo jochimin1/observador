@@ -22,7 +22,9 @@ data class SectorsUiState(
     val enabled: Boolean = true,
     val sectors: List<CareSector> = emptyList(),
     /** Sectors seen in the offers of the last 90 days and not in the list yet, most frequent first. */
-    val suggestions: List<String> = emptyList()
+    val suggestions: List<String> = emptyList(),
+    /** 1.37.0: today's closing log («14:03:12 · SIMULADA · Destino: Engombe · RD$294.67»). */
+    val closeLog: List<String> = emptyList()
 )
 
 /** 1.35.0: Ajustes › Sectores de cuidado. */
@@ -30,14 +32,23 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settings = AppSettings(app)
     private val seen = MutableStateFlow<List<String>>(emptyList())
+    private val closeLog = MutableStateFlow<List<String>>(emptyList())
 
     val state: StateFlow<SectorsUiState> =
-        combine(settings.careSectorsEnabled, settings.careSectors, seen) { enabled, sectors, past ->
+        combine(settings.careSectorsEnabled, settings.careSectors, seen, closeLog) { enabled, sectors, past, log ->
             val taken = sectors.map { SectorMatcher.words(it.name) }.toSet()
-            SectorsUiState(enabled, sectors, past.filter { SectorMatcher.words(it) !in taken }.take(12))
+            SectorsUiState(enabled, sectors, past.filter { SectorMatcher.words(it) !in taken }.take(12), log)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SectorsUiState())
 
+    /** 1.37.0: reads today's closing log again. */
+    fun refreshCloseLog() {
+        viewModelScope.launch(Dispatchers.IO) {
+            closeLog.value = com.ubers.observador.service.CloseLogStore.todayLines(getApplication()).takeLast(30).reversed()
+        }
+    }
+
     init {
+        refreshCloseLog()
         viewModelScope.launch(Dispatchers.IO) {
             seen.value = try {
                 val since = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000

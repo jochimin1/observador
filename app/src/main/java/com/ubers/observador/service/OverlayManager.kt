@@ -25,6 +25,9 @@ class OverlayManager(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
 
+    /** 1.37.0: called when the driver taps the floating card (it stops a pending close). */
+    var onTap: (() -> Unit)? = null
+
     /** 1.33.1: true when Android refused the last card (BadTokenException: the service connection is not valid). */
     @Volatile var lastShowFailed = false
         private set
@@ -50,7 +53,11 @@ class OverlayManager(private val context: Context) {
         val view = buildCardView(analysis, quality, banner).apply {
             contentDescription = (banner?.let { it.text + ". " } ?: "") +
                 "Oferta ${quality.label}, ${analysis.score} de 100. Toca para cerrar"
-            setOnClickListener { removeNow() }
+            setOnClickListener {
+                // 1.37.0: a tap on the card also stops any pending close
+                onTap?.invoke()
+                removeNow()
+            }
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,

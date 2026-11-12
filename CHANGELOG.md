@@ -14,6 +14,18 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.37.0] - 2026-11-12
+
+### Añadido
+- **Modo de operación «Automático»** (antes «próximamente»): como Asistido, y además cierra con la X de Uber las ofertas de tus sectores en nivel «Cerrar». Nunca acepta viajes. Al elegirlo pide confirmación.
+- Nivel **«Cerrar»** en Ajustes › Sectores de cuidado. En Observador y Asistido se comporta como «Evitar».
+- Cuenta atrás de 3 segundos con la franja «⛔ Se cierra en 3 s · Destino: … · toca para no cerrar»; tocar la tarjeta flotante lo impide. Antes de tocar se vuelve a leer la pantalla y la X se busca por el precio de esa tarjeta (no por su posición); si hay dudas (sin X, dos posibles X, dos tarjetas con el mismo precio, pantalla cambiada) no se toca nada. Nunca toca «Aceptar» ni «Me interesa».
+- Límite de 30 cierres al día; «Pasar a Asistido» en la notificación de Observador; registro «Cierres de hoy» en Ajustes › Sectores de cuidado (se borra con «Borrar todos los datos»).
+- El grabador de pantallas guarda también la posición de cada elemento, para identificar la X de cada tarjeta.
+
+### Importante
+- **El toque real está desactivado** hasta confirmar con una captura real cómo se llama la X de Uber. Mientras tanto «Automático» funciona en **simulación**: muestra la cuenta atrás y anota «SIMULADA (botón «…»)» en el registro, sin tocar Uber.
+
 ## [1.36.0] - 2026-11-11
 
 ### Añadido

@@ -66,6 +66,7 @@ class ObservadorForegroundService : Service() {
         private const val ACTION_RESUME = "com.ubers.observador.action.RESUME"
         private const val ACTION_REFRESH = "com.ubers.observador.action.REFRESH"
         private const val ACTION_CLOSE = "com.ubers.observador.action.CLOSE"
+        private const val ACTION_TO_ASSISTED = "com.ubers.observador.action.TO_ASSISTED"
 
         /** Re-checks staleness of the online session and the permission this often. */
         private const val TICK_MS = 30_000L
@@ -166,10 +167,11 @@ class ObservadorForegroundService : Service() {
                 val clock = WorkdayClock(hour, ZoneId.systemDefault())
                 ticker.map { clock.workdayOf(it) }.distinctUntilChanged().flatMapLatest { distances.observeDay(it) }
             }
-            combine(settings.observerEnabled, DistanceMonitor.state, today) { active, live, day ->
-                Triple(active, live.measuring != null, day)
-            }.distinctUntilChanged().collect { (active, measuring, day) ->
-                val built = buildNotification(active, if (measuring) measuringText(day) else null)
+            // 1.37.0: in «Automático» the notification offers «Pasar a Asistido», which stops closing
+            combine(settings.observerEnabled, DistanceMonitor.state, today, settings.operatingMode) { active, live, day, mode ->
+                NotificationInputs(active, live.measuring != null, day, mode == AppSettings.MODE_AUTO)
+            }.distinctUntilChanged().collect { (active, measuring, day, automatic) ->
+                val built = buildNotification(active, if (measuring) measuringText(day) else null, automatic)
                 notification = built
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, built)
             }
@@ -179,6 +181,7 @@ class ObservadorForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PAUSE -> scope.launch { settings.updateObserverEnabled(false) }
+            ACTION_TO_ASSISTED -> scope.launch { settings.updateMode(AppSettings.MODE_ASSISTED) }
             ACTION_RESUME -> scope.launch { settings.updateObserverEnabled(true) }
             ACTION_REFRESH -> notification?.let { startForegroundTyped(it) }
             // Fase 8L: «Apagar» in the notification
@@ -252,7 +255,9 @@ class ObservadorForegroundService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun buildNotification(active: Boolean, measuringText: String?): Notification {
+    private data class NotificationInputs(val active: Boolean, val measuring: Boolean, val day: DayDistance, val automatic: Boolean)
+
+    private fun buildNotification(active: Boolean, measuringText: String?, automatic: Boolean = false): Notification {
         val openIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
@@ -283,12 +288,25 @@ class ObservadorForegroundService : Service() {
             else -> "Monitoreando ofertas Uber Moto"
         }
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(if (active) "Observador activo" else "Observador en pausa")
+            .setContentTitle(if (!active) "Observador en pausa" else if (automatic) "Observador activo · Automático" else "Observador activo")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(openIntent)
             .addAction(action)
             .addAction(close)
+            .apply {
+                if (automatic && active) addAction(
+                    Notification.Action.Builder(
+                        Icon.createWithResource(this@ObservadorForegroundService, android.R.drawable.ic_menu_revert),
+                        "Pasar a Asistido",
+                        PendingIntent.getService(
+                            this@ObservadorForegroundService, 4,
+                            Intent(this@ObservadorForegroundService, ObservadorForegroundService::class.java).setAction(ACTION_TO_ASSISTED),
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                        )
+                    ).build()
+                )
+            }
             .setOngoing(true)
             .build()
     }

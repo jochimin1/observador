@@ -11,7 +11,12 @@ data class ScreenNode(
     val viewId: String? = null,
     val className: String? = null,
     val clickable: Boolean = false,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** 1.37.0: where the node is on screen (0 when unknown), to tie Uber's X to its card. */
+    val left: Int = 0,
+    val top: Int = 0,
+    val right: Int = 0,
+    val bottom: Int = 0
 )
 
 /**
@@ -118,6 +123,10 @@ object SnapshotSanitizer {
                 node.viewId?.let { append(" id=").append(it.substringAfter(":id/")) }
                 text?.let { append(" texto=").append(it) }
                 desc?.let { append(" desc=").append(it) }
+                // 1.37.0: the recorder keeps where each node is, so Uber's X can be tied to its card
+                if (keepMeasureDigits && node.right > node.left) {
+                    append(" @").append(node.left).append(',').append(node.top).append(',').append(node.right).append(',').append(node.bottom)
+                }
             }
         }
 

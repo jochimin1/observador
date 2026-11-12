@@ -48,7 +48,7 @@ private val AVOID_COLOR = Color(0xFFC62828)
 /**
  * 1.35.0: Ajustes › Sectores de cuidado. The driver lists the sectors to watch; each offer's pickup
  * and drop-off are compared with them and the floating card shows an orange («Aviso») or red
- * («Evitar») band. Nothing is closed or touched in Uber here.
+ * («Evitar») band. «Cerrar» (1.37.0) closes the card only in the «Automático» mode.
  */
 @Composable
 fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
@@ -78,6 +78,17 @@ fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
             state.sectors.forEachIndexed { i, s ->
                 if (i > 0) HorizontalDivider()
                 SectorRow(s, onEdit = { dialogFor = s }, onDelete = { viewModel.remove(s) })
+            }
+            // 1.37.0: what «Automático» closed (or would close) today
+            if (state.closeLog.isNotEmpty()) {
+                HorizontalDivider()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Cierres de hoy", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.refreshCloseLog() }) { Text("Actualizar") }
+                }
+                state.closeLog.forEach { line ->
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             OutlinedButton(
                 onClick = { adding = true },
@@ -127,8 +138,7 @@ private fun SectorRow(sector: CareSector, onEdit: () -> Unit, onDelete: () -> Un
     }
 }
 
-/** «Cerrar» only exists from v1.37.0 on; until then a stored «Cerrar» is shown and treated as «Evitar». */
-private fun levelLabel(level: SectorLevel): String = if (level == SectorLevel.CLOSE) "Evitar" else level.label
+private fun levelLabel(level: SectorLevel): String = level.label
 
 @Composable
 private fun SectorDialog(
@@ -139,7 +149,7 @@ private fun SectorDialog(
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var where by remember { mutableStateOf(initial?.where ?: SectorWhere.BOTH) }
-    var level by remember { mutableStateOf(if (initial?.level == SectorLevel.CLOSE) SectorLevel.AVOID else initial?.level ?: SectorLevel.WARN) }
+    var level by remember { mutableStateOf(initial?.level ?: SectorLevel.WARN) }
     val valid = name.isNotBlank()
 
     AlertDialog(
@@ -176,13 +186,17 @@ private fun SectorDialog(
                 }
                 Text("Nivel", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(SectorLevel.WARN, SectorLevel.AVOID).forEach { l ->
+                    SectorLevel.entries.forEach { l ->
                         AppFilterChip(selected = level == l, onClick = { level = l }, label = { Text(l.label) })
                     }
                 }
                 Text(
-                    if (level == SectorLevel.WARN) "Franja naranja en la tarjeta y aviso en la notificación."
-                    else "Franja roja, aviso en la notificación y 3 vibraciones cortas.",
+                    when (level) {
+                        SectorLevel.WARN -> "Franja naranja en la tarjeta y aviso en la notificación."
+                        SectorLevel.AVOID -> "Franja roja, aviso en la notificación y 3 vibraciones cortas."
+                        SectorLevel.CLOSE -> "En modo Automático, Observador cierra la tarjeta con la X a los 3 segundos " +
+                            "(toca la tarjeta flotante para impedirlo). En Observador y Asistido es igual que «Evitar»."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

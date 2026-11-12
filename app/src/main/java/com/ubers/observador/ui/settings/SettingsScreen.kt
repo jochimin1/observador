@@ -35,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -936,11 +937,33 @@ private fun ModeSelector(current: String, goodFrom: Int, onSelect: (String) -> U
             "Además te avisa siempre de los viajes BUENOS o EXCELENTES (score de $goodFrom o más), " +
                 "aunque «Avisos de ofertas» esté en «Ninguna». Tú sigues aceptando a mano.", true
         ),
+        // 1.37.0: «Automático» closes, never accepts
         ModeOption(
-            AppSettings.MODE_AUTO, "Automático · próximamente",
-            "Aceptaría viajes por ti según tus reglas. Aún no está disponible.", false
+            AppSettings.MODE_AUTO, "Automático",
+            "Como Asistido, y además cierra con la X las ofertas de tus sectores en nivel «Cerrar», " +
+                "con 3 segundos para impedirlo tocando la tarjeta. Nunca acepta viajes." +
+                if (com.ubers.observador.domain.sectors.CloseTarget.VALIDATED) "" else
+                    " Por ahora en simulación: muestra y anota lo que cerraría, sin tocar Uber.",
+            true
         )
     )
+    var confirmAuto by remember { mutableStateOf(false) }
+    if (confirmAuto) {
+        AlertDialog(
+            onDismissRequest = { confirmAuto = false },
+            title = { Text("Modo Automático") },
+            text = {
+                Text(
+                    "Observador tocará la X de Uber en las ofertas de tus sectores en nivel «Cerrar». " +
+                        "Es la única acción que hace sobre Uber; nunca acepta viajes. Tienes 3 segundos para impedirlo " +
+                        "tocando la tarjeta flotante, y «Pasar a Asistido» en la notificación lo apaga. " +
+                        "Usar una app que actúa sobre la de Uber puede ir contra sus condiciones; la decisión es tuya."
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirmAuto = false; onSelect(AppSettings.MODE_AUTO) }) { Text("Activar") } },
+            dismissButton = { TextButton(onClick = { confirmAuto = false }) { Text("Cancelar") } }
+        )
+    }
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             modes.forEach { option ->
@@ -951,7 +974,10 @@ private fun ModeSelector(current: String, goodFrom: Int, onSelect: (String) -> U
                             selected = current == option.mode,
                             enabled = option.enabled,
                             role = Role.RadioButton,
-                            onClick = { onSelect(option.mode) }
+                            onClick = {
+                                if (option.mode == AppSettings.MODE_AUTO && current != AppSettings.MODE_AUTO) confirmAuto = true
+                                else onSelect(option.mode)
+                            }
                         )
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.Top,
