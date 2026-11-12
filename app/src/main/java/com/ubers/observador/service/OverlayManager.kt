@@ -16,6 +16,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import com.ubers.observador.domain.OfferQuality
 import com.ubers.observador.domain.models.OfferAnalysis
+import com.ubers.observador.domain.sectors.SectorBanner
 
 class OverlayManager(private val context: Context) {
 
@@ -37,11 +38,18 @@ class OverlayManager(private val context: Context) {
     }
 
     /** Safe to call from any thread; runs immediately when already on the main thread. */
-    fun show(analysis: OfferAnalysis, quality: OfferQuality, durationSeconds: Int, large: Boolean = false) = runOnMain {
+    fun show(
+        analysis: OfferAnalysis,
+        quality: OfferQuality,
+        durationSeconds: Int,
+        large: Boolean = false,
+        banner: SectorBanner? = null
+    ) = runOnMain {
         textScale = if (large) LARGE_SCALE else 1f
         removeNow()
-        val view = buildCardView(analysis, quality).apply {
-            contentDescription = "Oferta ${quality.label}, ${analysis.score} de 100. Toca para cerrar"
+        val view = buildCardView(analysis, quality, banner).apply {
+            contentDescription = (banner?.let { it.text + ". " } ?: "") +
+                "Oferta ${quality.label}, ${analysis.score} de 100. Toca para cerrar"
             setOnClickListener { removeNow() }
         }
         val params = WindowManager.LayoutParams(
@@ -104,7 +112,7 @@ class OverlayManager(private val context: Context) {
     }
 
     @SuppressLint("SetTextI18n")
-    private fun buildCardView(analysis: OfferAnalysis, quality: OfferQuality): View {
+    private fun buildCardView(analysis: OfferAnalysis, quality: OfferQuality, banner: SectorBanner?): View {
         val dp = context.resources.displayMetrics.density
         val padding = (12 * dp).toInt()
         val marginSm = (4 * dp).toInt()
@@ -116,6 +124,28 @@ class OverlayManager(private val context: Context) {
                 setColor(Color.parseColor("#F0000000"))
                 cornerRadius = 16 * dp
             }
+        }
+
+        // 1.35.0: care sector band on top, orange to warn, red to avoid. The score stays as it is:
+        // the sector is one more fact about the card, not a different price
+        banner?.let { b ->
+            card.addView(TextView(context).apply {
+                text = b.text
+                textSize = 14f * textScale
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxWidth = (300 * dp).toInt()
+                setPadding((10 * dp).toInt(), marginSm, (10 * dp).toInt(), marginSm)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor(if (b.avoid) "#C62828" else "#E65100"))
+                    cornerRadius = 8 * dp
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.bottomMargin = (6 * dp).toInt() }
+            })
         }
 
         // Price + verdict row

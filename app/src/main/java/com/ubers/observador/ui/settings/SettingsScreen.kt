@@ -496,6 +496,9 @@ fun SettingsScreen(
             val alerts by viewModel.offerAlerts.collectAsState()
             OfferAlertsCard(alerts, onSelect = { viewModel.updateOfferAlerts(it) })
 
+            // 1.35.0: sectors the driver wants to be warned about
+            SectorsSection()
+
             if (BuildConfig.DEBUG) {
                 val testMessage by viewModel.testDataMessage.collectAsState()
                 SectionHeader("Herramientas de prueba", R.drawable.ic_science)

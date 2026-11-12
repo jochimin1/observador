@@ -66,6 +66,7 @@ object RestoreRules {
     private class DoubleR(val min: Double, val max: Double) : Rule
     private class Str(val allowed: Set<String>?, val maxLen: Int = 200) : Rule
     private object Profiles : Rule
+    private object Sectors : Rule
 
     private val RULES: Map<String, Rule> = mapOf(
         "cost_per_km" to DoubleR(0.01, 100.0),
@@ -102,6 +103,8 @@ object RestoreRules {
         "daily_goal_minor" to LongR(0, 100_000_000L),
         "weekly_goal_minor" to LongR(0, 100_000_000L),
         "settings_profiles" to Profiles,
+        "care_sectors" to Sectors,
+        "care_sectors_enabled" to Bool,
         "active_profile_id" to Str(null, 100),
         "shadow_model_version_id" to Str(null, 100)
     )
@@ -118,6 +121,7 @@ object RestoreRules {
         is LongR -> (v as? Long ?: (v as? Int)?.toLong())?.takeIf { it in rule.min..rule.max }
         is DoubleR -> (v as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= rule.min && it <= rule.max }
         is Str -> (v as? String)?.takeIf { it.length <= rule.maxLen && (rule.allowed == null || it in rule.allowed) }
+        is Sectors -> (v as? String)?.takeIf { it.length <= 20_000 && com.ubers.observador.domain.sectors.CareSectorCodec.decode(it) != null }
         is Profiles -> (v as? String)?.takeIf { text ->
             text.length <= 200_000 && SettingsProfileCodec.decode(text).size == text.lines().count { it.isNotBlank() }
         }
@@ -146,7 +150,7 @@ object RestoreRules {
         "min_rdp_per_km" to "mínimo por km", "min_rdp_per_hour" to "mínimo por hora", "max_pickup_km" to "recogida máxima (km)",
         "max_pickup_min" to "recogida máxima (min)", "min_score_threshold" to "puntaje bueno", "excellent_score_threshold" to "puntaje excelente",
         "overlay_duration_seconds" to "duración del aviso", "daily_goal_minor" to "meta diaria", "weekly_goal_minor" to "meta semanal",
-        "app_theme" to "tema", "operating_mode" to "modo", "settings_profiles" to "perfiles", "work_share_pct" to "porcentaje de trabajo"
+        "app_theme" to "tema", "operating_mode" to "modo", "care_sectors" to "sectores de cuidado", "settings_profiles" to "perfiles", "work_share_pct" to "porcentaje de trabajo"
     )
 
     fun label(key: String): String = LABELS[key] ?: key.replace('_', ' ')

@@ -189,3 +189,74 @@ class OfferRateLineTest {
         assertEquals(140.81, com.ubers.observador.domain.lifecycle.OfferPatterns.fareValue(cards.single().texts.joinToString(" "))!!, 0.001)
     }
 }
+
+/** 1.35.0: the stored list, the band text and the restore check. */
+class CareSectorSettingsTest {
+
+    private val list = listOf(
+        CareSector("Engombe", SectorWhere.BOTH, SectorLevel.AVOID),
+        CareSector("Hato Nuevo", SectorWhere.DROPOFF, SectorLevel.WARN)
+    )
+
+    @Test fun codecRoundTrip() {
+        val text = com.ubers.observador.domain.sectors.CareSectorCodec.encode(list)
+        assertEquals(list, com.ubers.observador.domain.sectors.CareSectorCodec.decode(text))
+        assertEquals(emptyList<CareSector>(), com.ubers.observador.domain.sectors.CareSectorCodec.decode(null))
+        assertEquals(emptyList<CareSector>(), com.ubers.observador.domain.sectors.CareSectorCodec.decode(""))
+    }
+
+    @Test fun damagedListsAreRejectedWhole() {
+        val codec = com.ubers.observador.domain.sectors.CareSectorCodec
+        assertNull(codec.decode("no es json"))
+        assertNull(codec.decode("""[{"n":"Engombe","w":"LEJOS","l":"AVOID"}]"""))
+        assertNull(codec.decode("""[{"n":"","w":"BOTH","l":"WARN"}]"""))
+        assertNull(codec.decode("""[{"n":"${"x".repeat(41)}","w":"BOTH","l":"WARN"}]"""))
+        assertNull(codec.decode("[" + (1..51).joinToString(",") { """{"n":"S$it","w":"BOTH","l":"WARN"}""" } + "]"))
+    }
+
+    @Test fun upsertReplacesTheSameSectorIgnoringAccentsAndCase() {
+        val codec = com.ubers.observador.domain.sectors.CareSectorCodec
+        val after = codec.upsert(list, CareSector("HATO  nuevo", SectorWhere.BOTH, SectorLevel.AVOID))
+        assertEquals(2, after.size)
+        assertEquals(SectorLevel.AVOID, after[1].level)
+        assertEquals(3, codec.upsert(list, CareSector("Cristo Rey")).size)
+        assertEquals("Buenos Aires Independencia", codec.cleanName(" Buenos Aires, (Independencia) "))
+    }
+
+    @Test fun bandTexts() {
+        val warn = com.ubers.observador.domain.sectors.SectorBanner.of(
+            SectorMatcher.match("Los Ríos", "Calle Antena, Hato Nuevo", list)
+        )!!
+        assertEquals("⚠ Destino: Hato Nuevo", warn.text)
+        assertFalse(warn.avoid)
+        val avoid = com.ubers.observador.domain.sectors.SectorBanner.of(
+            SectorMatcher.match("C. Engombe 39, Engombe", "Calle Antena, Hato Nuevo", list), card = 2
+        )!!
+        assertEquals("⛔ Evitar · Tarjeta 2 · Recogida: Engombe · Destino: Hato Nuevo", avoid.text)
+        assertTrue(avoid.avoid)
+        assertNull(com.ubers.observador.domain.sectors.SectorBanner.of(SectorMatcher.match("Los Ríos", "Gazcue", list)))
+    }
+
+    @Test fun closeLevelIsTreatedAsAvoidInTheBand() {
+        val close = listOf(CareSector("Engombe", level = SectorLevel.CLOSE))
+        val b = com.ubers.observador.domain.sectors.SectorBanner.of(SectorMatcher.match(null, "Engombe, Santo Domingo Oeste", close))!!
+        assertTrue(b.avoid)
+        assertTrue(b.text.startsWith("⛔ Evitar"))
+    }
+
+    @Test fun restoreKeepsAValidListAndDropsADamagedOne() {
+        val good = com.ubers.observador.domain.backup.RestoreRules.validateSettings(
+            com.ubers.observador.domain.backup.DecodedSettings(
+                mapOf("care_sectors" to com.ubers.observador.domain.sectors.CareSectorCodec.encode(list), "care_sectors_enabled" to true),
+                emptyList()
+            )
+        )
+        assertTrue(good.values.containsKey("care_sectors"))
+        assertEquals(true, good.values["care_sectors_enabled"])
+        val bad = com.ubers.observador.domain.backup.RestoreRules.validateSettings(
+            com.ubers.observador.domain.backup.DecodedSettings(mapOf("care_sectors" to "[{]"), emptyList())
+        )
+        assertEquals(listOf("care_sectors"), bad.defaulted)
+        assertTrue(com.ubers.observador.domain.backup.RestoreRules.defaultedText(bad.defaulted)!!.contains("sectores de cuidado"))
+    }
+}

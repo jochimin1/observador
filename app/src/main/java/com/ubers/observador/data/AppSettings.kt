@@ -151,6 +151,22 @@ class AppSettings(private val context: Context) {
 
     suspend fun updateLastBackupAt(ms: Long) = context.dataStore.edit { it[KEY_LAST_BACKUP_AT] = ms }
 
+    /** 1.35.0: the care sectors (Ajustes › Sectores de cuidado), JSON of CareSectorCodec; empty if unreadable. */
+    val careSectors: Flow<List<com.ubers.observador.domain.sectors.CareSector>> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.sectors.CareSectorCodec.decode(prefs[stringPreferencesKey("care_sectors")]).orEmpty()
+    }
+
+    suspend fun updateCareSectors(list: List<com.ubers.observador.domain.sectors.CareSector>) = context.dataStore.edit {
+        it[stringPreferencesKey("care_sectors")] = com.ubers.observador.domain.sectors.CareSectorCodec.encode(list)
+    }
+
+    /** 1.35.0: the general switch «Avisar por sectores» (on by default; nothing happens with an empty list). */
+    val careSectorsEnabled: Flow<Boolean> = context.dataStore.data.map { it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] ?: true }
+
+    suspend fun updateCareSectorsEnabled(on: Boolean) = context.dataStore.edit {
+        it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] = on
+    }
+
     /** 1.32.0: a line to show on the next opening (the app restarts after a restore, so the result waits here). */
     val pendingNotice: Flow<String?> = context.dataStore.data.map { it[androidx.datastore.preferences.core.stringPreferencesKey("pending_notice")] }
 

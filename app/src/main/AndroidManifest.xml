@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 1.35.0: three short pulses for a card in a sector set to «Evitar» -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Fase 8K: the street map of a trip's route (OpenStreetMap tiles) and the names of its places -->
     <uses-permission android:name="android.permission.INTERNET" />

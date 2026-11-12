@@ -35,7 +35,8 @@ class OfferNotifier(private val context: Context) {
     }
 
     /** [id]: the main card uses the fixed id; other cards of the Radar use [idFor] so each keeps its own. */
-    fun notifyGoodOffer(analysis: OfferAnalysis, quality: OfferQuality, id: Int = NOTIFICATION_ID) {
+    /** [sectorTitle] (1.35.0): the care sector line, which then becomes the title. */
+    fun notifyGoodOffer(analysis: OfferAnalysis, quality: OfferQuality, id: Int = NOTIFICATION_ID, sectorTitle: String? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
@@ -53,7 +54,7 @@ class OfferNotifier(private val context: Context) {
         )
         val notification = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("Viaje ${quality.label} — ${analysis.score}/100")
+            .setContentTitle(sectorTitle ?: "Viaje ${quality.label} — ${analysis.score}/100")
             .setContentText(
                 "RD$%.2f · %.1f km · %d min · RD$%.2f/km".format(
                     analysis.offer.price, analysis.totalKm, analysis.totalMin, analysis.rdpPerKm
@@ -62,6 +63,7 @@ class OfferNotifier(private val context: Context) {
             .setStyle(
                 Notification.BigTextStyle().bigText(
                     listOfNotNull(
+                        sectorTitle?.let { "Viaje ${quality.label} — ${analysis.score}/100" },
                         "RD$%.2f · %.1f km · %d min · RD$%.2f/km".format(
                             analysis.offer.price, analysis.totalKm, analysis.totalMin, analysis.rdpPerKm
                         ),

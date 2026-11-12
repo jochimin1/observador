@@ -14,6 +14,16 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.35.0] - 2026-11-11
+
+### Añadido
+- Ajustes › **Sectores de cuidado**: lista de sectores (por ejemplo «Engombe», «Los Alcarrizos», «Santo Domingo Este») con dónde mirar (recogida, destino o ambos) y nivel («Aviso» o «Evitar»). Sugiere los sectores que ya aparecieron en tus ofertas de los últimos 90 días. Interruptor general «Avisar por sectores».
+- Cuando una oferta cae en uno de tus sectores, la tarjeta flotante muestra una franja arriba: naranja «⚠ Destino: Cristo Rey» para «Aviso», roja «⛔ Evitar · Destino: Engombe» para «Evitar». El puntaje no cambia.
+- La notificación lleva el sector como título aunque «Avisos de ofertas» esté en «Ninguna». Las tarjetas de abajo del Radar avisan con «Tarjeta 2».
+- «Evitar» vibra con 3 pulsos cortos (permiso de vibración añadido).
+- La lista entra en el respaldo; al restaurar, una lista dañada vuelve a vacía y se avisa.
+- Nada se cierra ni se toca en Uber: el cierre con la X queda para la 1.37.0, solo en el modo Automático.
+
 ## [1.34.0] - 2026-11-11
 
 ### Corregido

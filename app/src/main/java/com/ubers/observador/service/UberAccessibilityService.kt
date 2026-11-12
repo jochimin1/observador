@@ -163,7 +163,7 @@ class UberAccessibilityService : AccessibilityService() {
         }
         observeLifecycle(snapshot, offer?.offerHash())
         scheduleKeepAlive()
-        found?.first?.drop(1)?.forEach { recordExtraCard(it) }
+        found?.first?.drop(1)?.forEachIndexed { i, card -> recordExtraCard(card, i + 2) }
 
         if (offer == null) {
             scheduleAbsenceCheck()
@@ -284,19 +284,22 @@ class UberAccessibilityService : AccessibilityService() {
                 ) == com.ubers.observador.domain.ResolvedTheme.SUN
                 val overlaySeconds = settings.overlayDurationSeconds.first()
                 // Fase 8I: «Avisos de ofertas» decides; only a newly recorded offer notifies
+                // 1.35.0: care sectors in the pickup or the drop-off
+                val banner = sectorBanner(offer, card = null)
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
                     saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
-                )
+                ) || (saved && banner != null)
 
                 mainHandler.post {
                     // The card may already be gone or replaced while we were analysing
                     if (tracker.activeHash != hash) return@post
-                    if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds, large)
+                    if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds, large, banner)
                     OfferDebug.onOverlay(showOverlay)
                     if (notify) {
-                        notifier.notifyGoodOffer(analysis, quality)
+                        notifier.notifyGoodOffer(analysis, quality, sectorTitle = banner?.text)
                         OfferDebug.onNotified()
                     }
+                    if (saved && banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -323,7 +326,16 @@ class UberAccessibilityService : AccessibilityService() {
      * Fase 8I: a card of the Radar below the first one. It is stored (once, as any offer) and may
      * notify on its own id; the floating card and the ride lifecycle stay with the first card.
      */
-    private fun recordExtraCard(offer: UberOffer) {
+    /** 1.35.0: the care sector band of [offer], or null (switch off, empty list or no sector found). */
+    private suspend fun sectorBanner(offer: UberOffer, card: Int?): com.ubers.observador.domain.sectors.SectorBanner? {
+        if (!settings.careSectorsEnabled.first()) return null
+        val sectors = settings.careSectors.first()
+        if (sectors.isEmpty()) return null
+        val match = com.ubers.observador.domain.sectors.SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors)
+        return com.ubers.observador.domain.sectors.SectorBanner.of(match, card)
+    }
+
+    private fun recordExtraCard(offer: UberOffer, position: Int) {
         val hash = offer.offerHash()
         if (hash == tracker.activeHash) return
         val now = SystemClock.elapsedRealtime()
@@ -335,10 +347,14 @@ class UberAccessibilityService : AccessibilityService() {
                 val analysis = engine.analyze(offer, settings.engineSettings.first())
                 val quality = settings.qualityThresholds.first().classify(analysis.score)
                 val saved = repository.saveOrSkip(analysis, settings.graceWindowSeconds.first() * 1000L)
+                val banner = sectorBanner(offer, card = position)
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
                     saved, settings.offerAlerts.first(), settings.operatingMode.first() == AppSettings.MODE_ASSISTED, quality
-                )
-                if (notify) mainHandler.post { notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash)) }
+                ) || (saved && banner != null)
+                if (notify) mainHandler.post {
+                    notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash), sectorTitle = banner?.text)
+                    if (banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
