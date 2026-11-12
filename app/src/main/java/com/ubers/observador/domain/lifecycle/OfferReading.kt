@@ -140,8 +140,13 @@ object OfferPlacesReader {
     private val NOT_PLACES = setOf(
         "aceptar", "accept", "rechazar", "moto", "uber moto", "ubermoto", "flash", "uberx", "uber x", "exclusivo",
         "nuevo", "viaje", "recogida", "destino", "verificado", "prima", "tarifa", "incluye", "pago en efectivo",
-        "efectivo", "tarjeta", "pago con tarjeta", "x", "cerrar"
+        "efectivo", "tarjeta", "pago con tarjeta", "x", "cerrar",
+        // 1.34.0: what is left of «A 6 min (0.9 km) de distancia» once the time is cut off
+        "de distancia"
     )
+
+    /** «de distancia» right after the pickup time (real cards, 11/11): it is part of the time, not the address. */
+    private val DISTANCE_WORDS = Regex("""^de\s+distancia\b[\s·•,:\-]*""", RegexOption.IGNORE_CASE)
 
     fun read(texts: List<String>): OfferPlaces {
         val pickupAt = texts.indexOfFirst { OfferPatterns.PICKUP.containsMatchIn(it) }
@@ -166,6 +171,7 @@ object OfferPlacesReader {
     private fun tail(text: String, pattern: Regex): String? {
         val m = pattern.find(text) ?: return null
         val rest = text.substring(m.range.last + 1).trim().trimStart(')', '·', '•', '-', ',', ':', ' ').trim()
+            .replace(DISTANCE_WORDS, "").trim()
         return rest.takeIf { isPlace(it) }?.let(::clean)
     }
 

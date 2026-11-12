@@ -47,6 +47,9 @@ object OfferPatterns {
         while (i >= 0 && text[i].isWhitespace()) i--
         if (i >= 0 && text[i] == '+') return true
         val after = text.substring(m.range.last + 1).trimStart().lowercase()
+        // 1.34.0: «DOP20.19/km est.» (cards of 11/11) is Uber's rate per km, not the fare. Read as a
+        // price it cut the card and the floating card showed RD$20.19 for an offer of DOP224.10
+        if (after.startsWith("/") || after.startsWith("por km") || after.startsWith("x km")) return true
         return EXTRA_AFTER.any { after.startsWith(it) }
     }
 

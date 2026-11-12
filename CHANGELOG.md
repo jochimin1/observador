@@ -14,6 +14,15 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.34.0] - 2026-11-11
+
+### Corregido
+- **El precio de la oferta salía mal en las tarjetas nuevas de Uber.** Uber añadió bajo el precio la línea «DOP20.19/km est.»; Observador la tomaba como el precio, así que la tarjeta flotante mostraba RD$20.19 en una oferta de DOP224.10 y casi todas salían MALO. Ahora esa línea se ignora como precio. Las ofertas guardadas mientras duró el fallo tienen el precio por km en lugar del precio real (no se guardó el real, así que no se pueden corregir solas).
+- La recogida salía como «▲ de distancia»: Uber escribe «A 6 min (0.9 km) de distancia» en un solo texto y lo que quedaba tras quitar el tiempo se tomaba como dirección. Ahora la recogida es la dirección real.
+
+### Añadido
+- Base de los **sectores de cuidado** (`domain/sectors`): compara tus sectores con la recogida y el destino de cada tarjeta por palabras completas, sin tildes ni mayúsculas, sin confundir «Santo Domingo Este» con «Oeste» y saltando el nombre de la calle. Probado con 20 ofertas reales; la pantalla para configurarlos llega en la 1.35.0.
+
 ## [1.33.2] - 2026-10-24
 
 ### Añadido
