@@ -168,7 +168,10 @@ fun DashboardScreen(
         OfferDetailSheet(
             detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
             onDismiss = { selectedOfferId = null },
-            trip = state.trips[selectedOffer.id]
+            trip = state.trips[selectedOffer.id],
+            sectorLine = com.ubers.observador.domain.sectors.SectorBanner.of(
+                com.ubers.observador.domain.sectors.SectorStats.matchOf(selectedOffer, state.careSectors)
+            )?.text
         )
     }
 
@@ -327,7 +330,8 @@ fun DashboardScreen(
                         ListControls(
                             state = state,
                             onFilter = viewModel::selectFilter,
-                            onSort = viewModel::selectSort
+                            onSort = viewModel::selectSort,
+                            onSectorOnly = viewModel::toggleSectorOnly
                         )
                     }
                 }
@@ -335,6 +339,7 @@ fun DashboardScreen(
                     item {
                         Text(
                             text = when {
+                                state.sectorOnly -> "Ninguna oferta de este periodo cae en tus sectores de cuidado."
                                 state.summary.count > 0 && state.filter != CategoryFilter.ALL ->
                                     "No hay viajes ${state.filter.quality?.label} en este periodo."
                                 state.origin == TakenFilter.TAKEN -> "No hay viajes tomados en este periodo.\nAparecen cuando aceptas una oferta y Observador ve la pantalla de recogida."
@@ -764,7 +769,8 @@ private fun tripStatusLabel(status: TripStatus): String = when (status) {
 private fun ListControls(
     state: DashboardUiState,
     onFilter: (CategoryFilter) -> Unit,
-    onSort: (OfferSort) -> Unit
+    onSort: (OfferSort) -> Unit,
+    onSectorOnly: () -> Unit = {}
 ) {
     var sortMenu by remember { mutableStateOf(false) }
     Column(modifier = Modifier.padding(top = 8.dp)) {
@@ -777,6 +783,14 @@ private fun ListControls(
                     selected = filter == state.filter,
                     onClick = { onFilter(filter) },
                     label = { Text("${filter.label} ${OfferListOptions.countFor(filter, state.summary)}") }
+                )
+            }
+            // 1.36.0: only the offers in the driver's care sectors (shown once there is a list)
+            if (state.careSectors.isNotEmpty()) {
+                com.ubers.observador.ui.components.AppFilterChip(
+                    selected = state.sectorOnly,
+                    onClick = onSectorOnly,
+                    label = { Text("⚠ Sectores ${state.sectorCount}") }
                 )
             }
         }

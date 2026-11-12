@@ -35,7 +35,7 @@ object OfferExporter {
 
     private const val CSV_HEADER =
         "fecha,hora,precio,km_recogida,min_recogida,km_viaje,min_viaje,km_total,min_total," +
-        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score,boton"
+        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score,boton,sector_cuidado"
 
     private val DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE
     private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -43,12 +43,21 @@ object OfferExporter {
     fun fileName(format: ExportFormat, range: ExportRange): String =
         "observador_${range.fileTag}_${LocalDate.now()}.${format.extension}"
 
-    fun export(offers: List<OfferEntity>, format: ExportFormat): String = when (format) {
-        ExportFormat.CSV -> toCsv(offers)
-        ExportFormat.JSON -> toJson(offers)
+    /** [sectors] (1.36.0): the driver's care sectors, for the «sector_cuidado» column. */
+    fun export(
+        offers: List<OfferEntity>,
+        format: ExportFormat,
+        sectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList()
+    ): String = when (format) {
+        ExportFormat.CSV -> toCsv(offers, sectors = sectors)
+        ExportFormat.JSON -> toJson(offers, sectors = sectors)
     }
 
-    fun toCsv(offers: List<OfferEntity>, zone: ZoneId = ZoneId.systemDefault()): String {
+    fun toCsv(
+        offers: List<OfferEntity>,
+        zone: ZoneId = ZoneId.systemDefault(),
+        sectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList()
+    ): String {
         // BOM so Excel detects UTF-8; Locale.US keeps '.' as decimal separator
         val sb = StringBuilder("﻿").append(CSV_HEADER).append("\r\n")
         for (o in offers) {
@@ -56,7 +65,7 @@ object OfferExporter {
             sb.append(
                 String.format(
                     Locale.US,
-                    "%s,%s,%.2f,%.1f,%d,%.1f,%d,%.1f,%d,%.2f,%.2f,%.2f,%.2f,%d,%s",
+                    "%s,%s,%.2f,%.1f,%d,%.1f,%d,%.1f,%d,%.2f,%.2f,%.2f,%.2f,%d,%s,%s",
                     detected.format(DATE_FORMAT),
                     detected.format(TIME_FORMAT),
                     o.price,
@@ -71,14 +80,19 @@ object OfferExporter {
                     o.fuelCost,
                     o.netProfit,
                     o.score,
-                    o.action?.label ?: ""
+                    o.action?.label ?: "",
+                    com.ubers.observador.domain.sectors.SectorStats.csvValue(o, sectors)
                 )
             ).append("\r\n")
         }
         return sb.toString()
     }
 
-    fun toJson(offers: List<OfferEntity>, zone: ZoneId = ZoneId.systemDefault()): String {
+    fun toJson(
+        offers: List<OfferEntity>,
+        zone: ZoneId = ZoneId.systemDefault(),
+        sectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList()
+    ): String {
         val array = JSONArray()
         for (o in offers) {
             val detected = Instant.ofEpochMilli(o.detectedAt).atZone(zone)
@@ -99,6 +113,7 @@ object OfferExporter {
                     .put("netProfit", o.netProfit)
                     .put("score", o.score)
                     .put("cardAction", o.action?.storageKey ?: JSONObject.NULL)
+                    .put("careSector", com.ubers.observador.domain.sectors.SectorStats.csvValue(o, sectors).ifEmpty { null } ?: JSONObject.NULL)
             )
         }
         return JSONObject()

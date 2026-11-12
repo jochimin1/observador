@@ -97,7 +97,11 @@ data class DashboardUiState(
     /** Fase 8K: offer row id -> its trip, for the trip's card in the detail panel. */
     val trips: Map<Long, com.ubers.observador.domain.trips.Trip> = emptyMap(),
     /** Fase 8K: offer row id -> «Stefany · 6:42 → 7:01 · Los Ríos → Los Prados». */
-    val tripLines: Map<Long, String> = emptyMap()
+    val tripLines: Map<Long, String> = emptyMap(),
+    /** 1.36.0: the driver's care sectors, the «solo sectores» chip and how many offers of the period fall in them. */
+    val careSectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList(),
+    val sectorOnly: Boolean = false,
+    val sectorCount: Int = 0
 )
 
 /** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
@@ -227,7 +231,8 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                 _exportEvents.emit(ExportEvent.Empty)
                 null
             } else {
-                val content = withContext(Dispatchers.Default) { OfferExporter.export(offers, format) }
+                val sectors = settings.careSectors.first()
+                val content = withContext(Dispatchers.Default) { OfferExporter.export(offers, format, sectors) }
                 PendingExport(content, offers.size)
             }
         } catch (e: Exception) {
@@ -323,7 +328,23 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         sort.value = newSort
     }
 
-    private val listOptions = combine(filter, sort) { f, s -> f to s }
+    // 1.36.0: only the offers in the driver's care sectors
+    private val sectorOnly = MutableStateFlow(false)
+
+    fun toggleSectorOnly() {
+        sectorOnly.value = !sectorOnly.value
+    }
+
+    private data class ListOptions(
+        val filter: CategoryFilter,
+        val sort: OfferSort,
+        val sectorOnly: Boolean,
+        val sectors: List<com.ubers.observador.domain.sectors.CareSector>
+    )
+
+    private val listOptions = combine(filter, sort, sectorOnly, settings.careSectors) { f, s, only, sectors ->
+        ListOptions(f, s, only, sectors)
+    }
 
     // The minute tick, the last offer and the list options are cheap: the period is not recomputed
     val uiState: StateFlow<DashboardUiState> = combine(
@@ -331,13 +352,18 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         clockNow,
         repository.observeLatestRealOfferAt(TestOfferSeeder.HASH_PREFIX),
         listOptions
-    ) { state, (_, now), lastRealOfferAt, (f, s) ->
+    ) { state, (_, now), lastRealOfferAt, opts ->
+        val listed = OfferListOptions.apply(state.days, opts.filter, opts.sort, state.thresholds)
+        val onlySectors = opts.sectorOnly && opts.sectors.isNotEmpty()
         state.copy(
             nowMillis = now,
             lastRealOfferAt = lastRealOfferAt,
-            filter = f,
-            sort = s,
-            days = OfferListOptions.apply(state.days, f, s, state.thresholds)
+            filter = opts.filter,
+            sort = opts.sort,
+            days = if (onlySectors) com.ubers.observador.domain.sectors.SectorStats.keepFlagged(listed, opts.sectors) else listed,
+            careSectors = opts.sectors,
+            sectorOnly = onlySectors,
+            sectorCount = com.ubers.observador.domain.sectors.SectorStats.flaggedCount(listed, opts.sectors)
         )
     }.stateIn(
         viewModelScope,

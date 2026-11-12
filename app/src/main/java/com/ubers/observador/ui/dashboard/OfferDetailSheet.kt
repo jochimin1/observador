@@ -42,16 +42,23 @@ fun OfferDetailSheet(
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
     /** Fase 8K: the trip the offer became, if it was taken: its card and its route are shown. */
-    trip: com.ubers.observador.domain.trips.Trip? = null
+    trip: com.ubers.observador.domain.trips.Trip? = null,
+    /** 1.36.0: the care sector line («⚠ Destino: Cristo Rey»), or null. */
+    sectorLine: String? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = onDismiss, sheetState = sheetState) {
-        OfferDetailContent(detail, onDelete, trip)
+        OfferDetailContent(detail, onDelete, trip, sectorLine)
     }
 }
 
 @Composable
-private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?, trip: com.ubers.observador.domain.trips.Trip?) {
+private fun OfferDetailContent(
+    detail: OfferDetail,
+    onDelete: (() -> Unit)?,
+    trip: com.ubers.observador.domain.trips.Trip?,
+    sectorLine: String? = null
+) {
     val o = detail.offer
     val quality = detail.quality
     val parts = detail.breakdown
@@ -103,6 +110,8 @@ private fun OfferDetailContent(detail: OfferDetail, onDelete: (() -> Unit)?, tri
         if (trip != null) {
             com.ubers.observador.ui.route.TripRouteSection(trip.id)
         }
+        // 1.36.0: the care sector the offer falls in, with the driver's current list
+        sectorLine?.let { com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_warning, it) }
         // Fase 8F: where from and where to, as Uber wrote them on the card
         if (trip == null && (o.pickupAddress != null || o.dropoffAddress != null)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

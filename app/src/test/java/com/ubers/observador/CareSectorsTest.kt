@@ -260,3 +260,54 @@ class CareSectorSettingsTest {
         assertTrue(com.ubers.observador.domain.backup.RestoreRules.defaultedText(bad.defaulted)!!.contains("sectores de cuidado"))
     }
 }
+
+/** 1.36.0: sectors applied to stored offers (list chip, Análisis card, CSV column). */
+class SectorStatsTest {
+
+    private val sectors = listOf(CareSector("Hato Nuevo"), CareSector("Santo Domingo Norte"), CareSector("Engombe"))
+
+    private fun offer(id: Long, from: String?, to: String?, at: Long = 1_000L * id) = com.ubers.observador.data.db.OfferEntity(
+        id = id, offerHash = "TEST-$id", detectedAt = at, price = 150.0, pickupKm = 1.0, pickupMin = 5, tripKm = 6.0, tripMin = 12,
+        totalKm = 7.0, totalMin = 17, rdpPerKm = 21.4, rdpPerHour = 529.0, fuelCost = 20.0, netProfit = 130.0, score = 60,
+        pickupAddress = from, dropoffAddress = to
+    )
+
+    private val offers = listOf(
+        offer(1, "Zona Industrial de Herrera, Santo Domingo Oeste", "Calle Antena, Hato Nuevo"),
+        offer(2, "C. Primera, Alameda, Santo Domingo Oeste", "Cta. del Sol 14, Hato Nuevo"),
+        offer(3, "Los Ríos", "C. Circunvalación, Guaricano, Santo Domingo Norte"),
+        offer(4, "C. Engombe 39, Engombe", "Gazcue"),
+        offer(5, "C. Central, Los Jardínes", "Avenida John F. Kennedy, Estación Pedro Francisco Bonó, L2"),
+        offer(6, null, null)
+    )
+
+    @Test fun countsPerSectorAndPlace() {
+        val c = com.ubers.observador.domain.sectors.SectorStats.counts(offers, sectors)
+        assertEquals(listOf("Hato Nuevo", "Engombe", "Santo Domingo Norte"), c.map { it.name })
+        assertEquals(2, c[0].dropoff)
+        assertEquals(1, c[1].pickup)
+        assertEquals(0, c[1].dropoff)
+        assertTrue(com.ubers.observador.domain.sectors.SectorStats.counts(offers, emptyList()).isEmpty())
+    }
+
+    @Test fun keepFlaggedDropsEmptyDays() {
+        val day1 = com.ubers.observador.domain.DayGroup(java.time.LocalDate.of(2026, 11, 10), 2, 20.0, 60.0, listOf(offers[0], offers[4]))
+        val day2 = com.ubers.observador.domain.DayGroup(java.time.LocalDate.of(2026, 11, 11), 1, 20.0, 60.0, listOf(offers[4]))
+        val kept = com.ubers.observador.domain.sectors.SectorStats.keepFlagged(listOf(day1, day2), sectors)
+        assertEquals(1, kept.size)
+        assertEquals(listOf(1L), kept.single().offers.map { it.id })
+        assertEquals(2, kept.single().count) // the header still describes the whole day
+        assertEquals(1, com.ubers.observador.domain.sectors.SectorStats.flaggedCount(listOf(day1, day2), sectors))
+        assertEquals(0, com.ubers.observador.domain.sectors.SectorStats.flaggedCount(listOf(day1, day2), emptyList()))
+    }
+
+    @Test fun csvValueHasNoCommas() {
+        val v = com.ubers.observador.domain.sectors.SectorStats.csvValue(
+            offer(9, "Los Ríos", "C. Bernabe Boza 2, Santa Cruz, Santo Domingo Norte"),
+            sectors + CareSector("Santa Cruz")
+        )
+        assertEquals("Destino: Santo Domingo Norte / Santa Cruz", v)
+        assertFalse(v.contains(","))
+        assertEquals("", com.ubers.observador.domain.sectors.SectorStats.csvValue(offers[4], sectors))
+    }
+}

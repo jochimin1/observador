@@ -14,6 +14,15 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.36.0] - 2026-11-11
+
+### Añadido
+- Inicio › lista de ofertas: chip «⚠ Sectores N» para ver solo las ofertas del periodo que caen en tus sectores de cuidado (aparece cuando tienes al menos uno).
+- La ficha de una oferta muestra su sector de cuidado («⚠ Destino: Cristo Rey»).
+- Análisis: tarjeta «Sectores de cuidado esta semana» con cuántas ofertas de los últimos 7 días cayeron en cada sector, por recogida y destino.
+- Exportar ofertas: columna `sector_cuidado` en el CSV y `careSector` en el JSON.
+- Todo se calcula con las direcciones ya guardadas y tu lista actual: sin cambio de base de datos.
+
 ## [1.35.0] - 2026-11-11
 
 ### Añadido
