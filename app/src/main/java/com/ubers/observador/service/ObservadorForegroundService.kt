@@ -117,6 +117,7 @@ class ObservadorForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) { stopSelf(); return }
         settings = AppSettings(applicationContext)
         distances = DistanceRepository(AppDatabase.getInstance(applicationContext))
         locationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -179,6 +180,7 @@ class ObservadorForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) { stopSelf(); return START_NOT_STICKY }
         when (intent?.action) {
             ACTION_PAUSE -> {
                 UberAccessibilityService.instance?.cancelPendingSectorCloses()
@@ -199,6 +201,11 @@ class ObservadorForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) {
+            scope.cancel()
+            super.onDestroy()
+            return
+        }
         setGps(false)
         RouteMonitor.stop()
         scope.cancel()

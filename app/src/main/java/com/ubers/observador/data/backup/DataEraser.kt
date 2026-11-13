@@ -2,80 +2,69 @@ package com.ubers.observador.data.backup
 
 import android.content.Context
 import com.ubers.observador.data.AppSettings
-import com.ubers.observador.data.db.AppDatabase
+import com.ubers.observador.domain.backup.MaintenanceGate
 import com.ubers.observador.domain.backup.ResetRules
 import com.ubers.observador.domain.backup.ResetStep
-import com.ubers.observador.service.PersistenceQueue
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.util.UUID
 
-/** The erase failed after Room was closed: the old data is back, but the app must restart to open it again. */
 class EraseRolledBack : Exception(ResetRules.ROLLED_BACK)
 
-/**
- * «Borrar todos los datos» (1.33.0). Same care as a restore: the current database is set aside first and
- * only deleted when everything else worked; the settings are snapshotted so a failure puts everything back.
- * The accessibility permission is a system setting and is not touched.
- */
-class DataEraser(context: Context) {
-
+/** Database, settings and auxiliary files share the same verified recovery journal as restore. */
+class DataEraser internal constructor(context: Context, private val fault: (String) -> Unit = {}) {
     private val app = context.applicationContext
 
-    /** [notice] is the line shown when the app opens again. Returns normally when the app is empty (caller restarts it). */
     suspend fun erase(notice: String, onStep: (ResetStep) -> Unit = {}): Unit = withContext(Dispatchers.IO) {
-        val settings = AppSettings(app)
-        val before = settings.backupSnapshot()
-        val dbFile = app.getDatabasePath(BackupRestorer.DB_NAME)
-        val old = File(dbFile.path + ".anterior")
-        var aside = false
         try {
-            onStep(ResetStep.PAUSE_READING)
-            settings.updateObserverEnabled(false)
-            onStep(ResetStep.DRAIN_WRITES)
-            drainWrites()
-            onStep(ResetStep.CLOSE_DATABASE)
-            AppDatabase.getInstance(app).close()
-            onStep(ResetStep.DELETE_DATA)
-            old.delete()
-            if (dbFile.exists()) {
-                if (!dbFile.renameTo(old)) throw java.io.IOException("No se pudo apartar la base de datos actual")
-                aside = true
+            MaintenanceGate.shared.exclusive { session ->
+                val live = app.getDatabasePath(BackupRestorer.DB_NAME)
+                DatabaseFiles.requireSpace(app.noBackupFilesDir, live.length() + File(live.path + "-wal").length())
+                val empty = File(app.cacheDir, "empty-${UUID.randomUUID()}.db")
+                val journal = RecoveryJournal(app)
+                try {
+                    DatabaseFiles.migrateAndValidate(app, empty)
+                    journal.prepare("ERASE")
+                    withContext(NonCancellable) {
+                        val settings = AppSettings(app)
+                        onStep(ResetStep.PAUSE_READING)
+                        settings.updateObserverEnabled(false)
+                        onStep(ResetStep.DRAIN_WRITES)
+                        session.requireRestart()
+                        onStep(ResetStep.CLOSE_DATABASE)
+                        BackupRestorer.closeDatabase(app)
+                        onStep(ResetStep.DELETE_DATA)
+                        journal.install(empty)
+                        journal.stageEraseFiles()
+                        fault("files-staged")
+                        onStep(ResetStep.RESET_SETTINGS)
+                        settings.replaceAll(emptyMap())
+                        settings.updateOnboardingDone(false)
+                        fault("settings-replaced")
+                        val inspected = DatabaseFiles.migrateAndValidate(app, live)
+                        check(inspected.rows.values.all { it == 0 }) { "The database was not emptied" }
+                        settings.setPendingNotice(notice)
+                        fault("before-commit")
+                        journal.commit("ERASE")
+                        runCatching { journal.cleanup() }
+                    }
+                } catch (e: Exception) {
+                    if (!journal.exists) throw e
+                    session.requireRestart()
+                    withContext(NonCancellable) {
+                        try {
+                            BackupRestorer.closeDatabase(app)
+                            journal.rollback(ResetRules.ROLLED_BACK)
+                        } catch (recovery: Exception) { throw RecoveryRequired(recovery) }
+                    }
+                    throw EraseRolledBack()
+                } finally { runCatching { empty.delete() } }
             }
-            for (suffix in listOf("-wal", "-shm", "-journal")) File(dbFile.path + suffix).delete()
-            onStep(ResetStep.RESET_SETTINGS)
-            // Factory state: no settings at all, and the welcome shows again. What the system keeps (the
-            // accessibility permission) is not ours to touch.
-            settings.replaceAll(emptyMap())
-            settings.updateOnboardingDone(false)
-            settings.setPendingNotice(notice)
-            // Only now the old data goes, with the safety backup and the temporary files
-            old.delete()
-            File(app.filesDir, BackupRestorer.SAFETY_NAME).delete()
-            File(app.filesDir, BackupRestorer.SAFETY_NAME + ".nuevo").delete()
-            File(app.cacheDir, "respaldo-tmp").deleteRecursively()
-            File(app.cacheDir, "restaurar-tmp").deleteRecursively()
-            File(app.filesDir, "capturas").deleteRecursively()
-            File(app.filesDir, "cierres").deleteRecursively()
-        } catch (e: Exception) {
-            runCatching {
-                if (aside && old.exists()) {
-                    dbFile.delete()
-                    for (suffix in listOf("-wal", "-shm", "-journal")) File(dbFile.path + suffix).delete()
-                    old.renameTo(dbFile)
-                }
-            }
-            runCatching { settings.replaceAll(before) }
-            runCatching { settings.setPendingNotice(ResetRules.ROLLED_BACK) }
-            throw EraseRolledBack()
+        } catch (e: TimeoutCancellationException) {
+            throw BackupException("Hay datos pendientes que no terminaron de guardarse. No se inició el borrado.")
         }
-    }
-
-    private suspend fun drainWrites() {
-        val done = CompletableDeferred<Unit>()
-        PersistenceQueue.shared().enqueue { done.complete(Unit) }
-        withTimeoutOrNull(5_000) { done.await() }
     }
 }

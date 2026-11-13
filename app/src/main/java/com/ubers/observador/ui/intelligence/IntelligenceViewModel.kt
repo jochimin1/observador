@@ -119,7 +119,9 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         val candidate = shadowId?.let { repo.version(it) }
         val evaluations = candidate?.let { repo.shadowEvaluations(it.id) } ?: emptyList()
         val usesTest = dataset.samples.any { it.tripId.startsWith(TripTestSeeder.PREFIX) }
-        val periodTrips = db.tripDao().getTripsTouching(from, now + 1).map { it.toDomain() }
+        val periodTrips = com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
+            db.tripDao().getTripsTouching(from, now + 1).map { it.toDomain() }
+        }
         val sessions = com.ubers.observador.data.OnlineRepository(db).getBetween(from, now + 1)
         // Since 1.25.0 a trip closed by «Buscando» ends a wait too, at the last point of its route
         val routeEnds = repo.routeEnds(periodTrips.map { it.id })

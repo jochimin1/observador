@@ -1,5 +1,6 @@
 package com.ubers.observador.data
 
+import com.ubers.observador.domain.backup.MaintenanceGate
 import androidx.room.withTransaction
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.toDomain
@@ -33,50 +34,58 @@ class TripRepository(private val db: AppDatabase) {
     private val trips = db.tripDao()
     private val offers = db.offerDao()
 
-    suspend fun persist(input: TripEventInput, decision: TripDecisionSnapshot?): TripWrite = db.withTransaction {
-        val forSession = trips.getByLifecycleSessionId(input.lifecycleSessionId)?.toDomain()
-        val others = trips.getByStatuses(OPEN_STATUSES).map { it.toDomain() }
-            .filter { it.lifecycleSessionId != input.lifecycleSessionId }
-        val offer = if (forSession == null) {
-            input.relatedOfferHash?.let { offers.getLatestByHashAtOrBefore(it, input.timestampMs)?.toTripOfferSnapshot() }
-        } else {
-            null
+    suspend fun persist(input: TripEventInput, decision: TripDecisionSnapshot?): TripWrite = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val forSession = trips.getByLifecycleSessionId(input.lifecycleSessionId)?.toDomain()
+            val others = trips.getByStatuses(OPEN_STATUSES).map { it.toDomain() }
+                .filter { it.lifecycleSessionId != input.lifecycleSessionId }
+            val offer = if (forSession == null) {
+                input.relatedOfferHash?.let { offers.getLatestByHashAtOrBefore(it, input.timestampMs)?.toTripOfferSnapshot() }
+            } else {
+                null
+            }
+            val write = TripAggregator.decide(
+                input = input,
+                snapshot = TripSnapshot(
+                    tripForSession = forSession,
+                    otherOpenTrips = others,
+                    eventAlreadyStored = trips.eventExists(input.eventId),
+                    nextSequence = (listOfNotNull(forSession) + others).associate { it.id to trips.nextSequence(it.id) },
+                    offer = offer,
+                    decision = decision
+                ),
+                newTripId = ::newId,
+                newEventId = ::newId
+            )
+            apply(write)
+            write
         }
-        val write = TripAggregator.decide(
-            input = input,
-            snapshot = TripSnapshot(
-                tripForSession = forSession,
-                otherOpenTrips = others,
-                eventAlreadyStored = trips.eventExists(input.eventId),
-                nextSequence = (listOfNotNull(forSession) + others).associate { it.id to trips.nextSequence(it.id) },
-                offer = offer,
-                decision = decision
-            ),
-            newTripId = ::newId,
-            newEventId = ::newId
-        )
-        apply(write)
-        write
     }
 
     /** Start-up: keeps at most one open trip (see TripRestorePolicy) and returns it. */
-    suspend fun restoreOpenTrip(atMs: Long): TripRestorePolicy.Plan = db.withTransaction {
-        val open = trips.getByStatuses(OPEN_STATUSES).map { it.toDomain() }
-        val plan = TripRestorePolicy.plan(open, open.associate { it.id to trips.nextSequence(it.id) }, atMs, ::newId)
-        apply(plan.write)
-        plan
+    suspend fun restoreOpenTrip(atMs: Long): TripRestorePolicy.Plan = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val open = trips.getByStatuses(OPEN_STATUSES).map { it.toDomain() }
+            val plan = TripRestorePolicy.plan(open, open.associate { it.id to trips.nextSequence(it.id) }, atMs, ::newId)
+            apply(plan.write)
+            plan
+        }
     }
 
     /** Debug only: swaps the TEST trips for [testTrips] and their events, in one transaction. */
-    suspend fun replaceTestTrips(prefix: String, testTrips: List<Trip>, events: List<TripEvent>) = db.withTransaction {
-        require(testTrips.all { it.id.startsWith(prefix) }) { "test trips must start with $prefix" }
-        trips.deleteTripsByIdPrefix(prefix)
-        testTrips.forEach { trips.insertTrip(it.toEntity()) }
-        events.forEach { trips.insertEvent(it.toEntity()) }
+    suspend fun replaceTestTrips(prefix: String, testTrips: List<Trip>, events: List<TripEvent>) = MaintenanceGate.shared.access {
+        db.withTransaction {
+            require(testTrips.all { it.id.startsWith(prefix) }) { "test trips must start with $prefix" }
+            trips.deleteTripsByIdPrefix(prefix)
+            testTrips.forEach { trips.insertTrip(it.toEntity()) }
+            events.forEach { trips.insertEvent(it.toEntity()) }
+        }
     }
 
     /** Debug only: deletes the TEST trips and, through the foreign key, their events. */
-    suspend fun deleteTestTrips(prefix: String): Int = trips.deleteTripsByIdPrefix(prefix)
+    suspend fun deleteTestTrips(prefix: String): Int = MaintenanceGate.shared.access {
+        trips.deleteTripsByIdPrefix(prefix)
+    }
 
     fun observeActiveTrip(): Flow<Trip?> = trips.observeActiveTrip(OPEN_STATUSES).map { it?.toDomain() }
 
@@ -105,14 +114,19 @@ class TripRepository(private val db: AppDatabase) {
         combine(trips.observeTripCount(), trips.observeEventCount()) { t, e -> t to e }
 
     /** Fase 8F: stores the rider's name on the trip of [sessionId]; false when there is none or it was already stored. */
-    suspend fun setRiderName(sessionId: String, name: String): Boolean = trips.setRiderName(sessionId, name) > 0
+    suspend fun setRiderName(sessionId: String, name: String): Boolean = MaintenanceGate.shared.access {
+        trips.setRiderName(sessionId, name) > 0
+    }
 
-    suspend fun getTripByLifecycleSessionId(sessionId: String): Trip? =
+    suspend fun getTripByLifecycleSessionId(sessionId: String): Trip? = MaintenanceGate.shared.access {
         trips.getByLifecycleSessionId(sessionId)?.toDomain()
+    }
 
     /** Everything, for the debug integrity check. */
-    suspend fun loadAll(): Pair<List<Trip>, List<TripEvent>> = db.withTransaction {
-        trips.getAllTrips().map { it.toDomain() } to trips.getAllEvents().mapNotNull { it.toDomain() }
+    suspend fun loadAll(): Pair<List<Trip>, List<TripEvent>> = MaintenanceGate.shared.access {
+        db.withTransaction {
+            trips.getAllTrips().map { it.toDomain() } to trips.getAllEvents().mapNotNull { it.toDomain() }
+        }
     }
 
     private suspend fun apply(write: TripWrite) {

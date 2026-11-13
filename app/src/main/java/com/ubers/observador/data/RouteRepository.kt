@@ -1,5 +1,6 @@
 package com.ubers.observador.data
 
+import com.ubers.observador.domain.backup.MaintenanceGate
 import androidx.room.withTransaction
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.toDomain
@@ -26,8 +27,8 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
     private val dao = db.routeDao()
     private val trips = db.tripDao()
 
-    suspend fun save(update: RouteUpdate) {
-        if (update.isEmpty) return
+    suspend fun save(update: RouteUpdate): Unit = MaintenanceGate.shared.access {
+        if (update.isEmpty) return@access
         db.withTransaction { update.writes.forEach { apply(it) } }
     }
 
@@ -77,9 +78,9 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
     }
 
     /** At start-up: routes a previous process left open are closed with what they have (partial). */
-    suspend fun closeLeftOpen(nowMs: Long): List<String> {
+    suspend fun closeLeftOpen(nowMs: Long): List<String> = MaintenanceGate.shared.access {
         val open = dao.getOpenRoutes().map { it.toDomain() }
-        if (open.isEmpty()) return emptyList()
+        if (open.isEmpty()) return@access emptyList()
         db.withTransaction {
             open.forEach { r ->
                 val trip = trips.getById(r.tripId)
@@ -88,14 +89,18 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
                 dao.upsertRoute(closed.copy(updatedAt = maxOf(closed.updatedAt, nowMs)).toEntity())
             }
         }
-        return open.map { it.tripId }
+        return@access open.map { it.tripId }
     }
 
-    suspend fun getRoute(tripId: String): TripRouteSummary? = dao.getRoute(tripId)?.toDomain()
+    suspend fun getRoute(tripId: String): TripRouteSummary? = MaintenanceGate.shared.access {
+        dao.getRoute(tripId)?.toDomain()
+    }
 
     fun observeRoute(tripId: String): Flow<TripRouteSummary?> = dao.observeRoute(tripId).map { it?.toDomain() }
 
-    suspend fun getPoints(tripId: String): List<RoutePoint> = dao.getPoints(tripId).map { it.toDomain() }
+    suspend fun getPoints(tripId: String): List<RoutePoint> = MaintenanceGate.shared.access {
+        dao.getPoints(tripId).map { it.toDomain() }
+    }
 
     fun observePoints(tripId: String): Flow<List<RoutePoint>> = dao.observePoints(tripId).map { l -> l.map { it.toDomain() } }
 
@@ -104,20 +109,24 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
         dao.observeRoutesOfTripsSince(fromMs).map { l -> l.associate { it.tripId to it.toDomain() } }
 
     /** Summaries and points of several trips, in chunks (SQLite allows 999 values per query). */
-    suspend fun routesOf(tripIds: List<String>): Map<String, TripRouteSummary> =
+    suspend fun routesOf(tripIds: List<String>): Map<String, TripRouteSummary> = MaintenanceGate.shared.access {
         tripIds.distinct().chunked(500).flatMap { dao.getRoutes(it) }.associate { it.tripId to it.toDomain() }
+    }
 
-    suspend fun pointsOf(tripIds: List<String>): Map<String, List<RoutePoint>> =
+    suspend fun pointsOf(tripIds: List<String>): Map<String, List<RoutePoint>> = MaintenanceGate.shared.access {
         tripIds.distinct().chunked(500).flatMap { dao.getPointsOf(it) }.groupBy({ it.tripId }, { it.toDomain() })
+    }
 
-    suspend fun unnamed(limit: Int): List<TripRouteSummary> = dao.getUnnamed(limit).map { it.toDomain() }
+    suspend fun unnamed(limit: Int): List<TripRouteSummary> = MaintenanceGate.shared.access {
+        dao.getUnnamed(limit).map { it.toDomain() }
+    }
 
-    suspend fun setPlaces(tripId: String, startPlace: String?, endPlace: String?) {
+    suspend fun setPlaces(tripId: String, startPlace: String?, endPlace: String?): Unit = MaintenanceGate.shared.access {
         dao.setPlaces(tripId, startPlace, endPlace)
     }
 
     /** «Borrar recorrido»: points and coordinates go; times, place names, km and money stay. */
-    suspend fun deleteRoute(tripId: String, nowMs: Long) {
+    suspend fun deleteRoute(tripId: String, nowMs: Long): Unit = MaintenanceGate.shared.access {
         db.withTransaction {
             dao.deletePoints(tripId)
             dao.markDeleted(tripId, nowMs)
@@ -125,7 +134,7 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
     }
 
     /** «Borrar todos los recorridos» in Ajustes. */
-    suspend fun deleteAll(nowMs: Long) {
+    suspend fun deleteAll(nowMs: Long): Unit = MaintenanceGate.shared.access {
         db.withTransaction {
             dao.deleteAllPoints()
             dao.markAllDeleted(nowMs)
@@ -133,7 +142,7 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
     }
 
     /** Debug only: replaces the route of TEST- trips; real ones are never touched. */
-    suspend fun putTestRoutes(routes: List<Pair<TripRouteSummary, List<RoutePoint>>>) {
+    suspend fun putTestRoutes(routes: List<Pair<TripRouteSummary, List<RoutePoint>>>): Unit = MaintenanceGate.shared.access {
         require(routes.all { it.first.tripId.startsWith("TEST-") }) { "test routes must belong to TEST- trips" }
         db.withTransaction {
             routes.forEach { (summary, points) ->

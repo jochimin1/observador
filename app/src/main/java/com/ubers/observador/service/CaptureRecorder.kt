@@ -12,7 +12,7 @@ import com.ubers.observador.domain.lifecycle.SnapshotSanitizer
 import java.io.File
 import java.io.OutputStream
 import java.time.ZoneId
-import java.util.concurrent.Executors
+import com.ubers.observador.domain.backup.MaintenanceGate
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -32,7 +32,6 @@ object CaptureRecorder {
         private set
 
     private var dir: File? = null
-    private val writer = Executors.newSingleThreadExecutor()
     private val deduper = CaptureDeduper()
 
     fun init(context: Context) {
@@ -41,7 +40,7 @@ object CaptureRecorder {
         enabled = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ON, false)
     }
 
-    fun setEnabled(context: Context, on: Boolean) {
+    fun setEnabled(context: Context, on: Boolean) = MaintenanceGate.shared.tryAccess {
         init(context)
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ON, on).apply()
         enabled = on
@@ -65,11 +64,11 @@ object CaptureRecorder {
         val body = SnapshotSanitizer.describe(snapshot, signatures, keepMeasureDigits = true)
         val text = CaptureLog.entry(snapshot.timestampMs, zone, classification, state, body)
         val name = CaptureLog.fileName(snapshot.timestampMs, zone)
-        writer.execute {
+        PersistenceQueue.shared().enqueue {
             try {
                 target.mkdirs()
                 val file = File(target, name)
-                if (file.length() + text.length > CaptureLog.MAX_BYTES_PER_DAY) return@execute
+                if (file.length() + text.length > CaptureLog.MAX_BYTES_PER_DAY) return@enqueue
                 file.appendText(text, Charsets.UTF_8)
             } catch (e: Exception) {
                 Log.w(TAG, "Could not write a capture", e)
@@ -100,7 +99,7 @@ object CaptureRecorder {
         }
     }
 
-    fun clear(context: Context) {
+    fun clear(context: Context) = MaintenanceGate.shared.tryAccess {
         files(context).forEach { it.delete() }
         synchronized(deduper) { deduper.reset() }
     }

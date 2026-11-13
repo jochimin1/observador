@@ -1,0 +1,26 @@
+<style>
+#mc-capabilities { color:var(--foreground); font-family:var(--font-sans); }
+#mc-capabilities .matrix { display:grid; grid-template-columns:minmax(110px,1.6fr) repeat(3,minmax(54px,1fr)); align-items:center; gap:12px 8px; margin-top:16px; }
+#mc-capabilities .head { text-align:center; overflow-wrap:anywhere; }
+#mc-capabilities .mark { display:flex; align-items:center; justify-content:center; min-height:36px; }
+#mc-capabilities .yes { color:var(--success); }
+#mc-capabilities .no { color:var(--muted-foreground); }
+#mc-capabilities .planned { color:var(--info); }
+#mc-capabilities .legend { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:16px; }
+#mc-capabilities svg { width:18px; height:18px; flex-shrink:0; }
+#mc-capabilities .note { margin-top:12px; color:var(--muted-foreground); }
+</style>
+<section id="mc-capabilities" aria-label="Comparación de capacidades documentadas y propuestas">
+  <div class="matrix" role="img" aria-label="MotorCare incluye telemetría, asociación y umbrales. Observador ya incluye gastos y respaldo. La propuesta añade recepción reciente e historial TPMS y reúne las funciones existentes.">
+    <span>Capacidad</span><span class="head">MotorCare<br>1.4.1</span><span class="head">Observador<br>1.37.1</span><span class="head">Objetivo<br>1.55.0</span>
+    <span>Presión y temperatura BLE</span><span class="mark yes" aria-label="Existe en APK">●</span><span class="mark no" aria-label="No encontrada">○</span><span class="mark planned" aria-label="Propuesta con hardware validado">◇</span>
+    <span>Asociación de sensores</span><span class="mark yes" aria-label="Existe">●</span><span class="mark no" aria-label="No encontrada">○</span><span class="mark planned" aria-label="Propuesta">◇</span>
+    <span>Umbrales por rueda</span><span class="mark yes" aria-label="Existe">●</span><span class="mark no" aria-label="No encontrada">○</span><span class="mark planned" aria-label="Propuesta">◇</span>
+    <span>Edad visible de lectura</span><span class="mark no" aria-label="No encontrada">○</span><span class="mark no" aria-label="No encontrada">○</span><span class="mark planned" aria-label="Propuesta">◇</span>
+    <span>Historial TPMS consultable</span><span class="mark no" aria-label="No encontrado">○</span><span class="mark no" aria-label="No encontrado">○</span><span class="mark planned" aria-label="Propuesto">◇</span>
+    <span>Gastos y mantenimiento</span><span class="mark no" aria-label="No encontrado">○</span><span class="mark yes" aria-label="Existe">●</span><span class="mark planned" aria-label="Reutilizar y ampliar">◇</span>
+    <span>Respaldo manual</span><span class="mark no" aria-label="No encontrado">○</span><span class="mark yes" aria-label="Existe">●</span><span class="mark planned" aria-label="Ampliar al módulo">◇</span>
+  </div>
+  <div class="legend"><span><span class="yes">●</span> Documentado</span><span><span class="no">○</span> No encontrado</span><span><span class="planned">◇</span> Propuesto</span></div>
+  <p class="note">BLE real pendiente de prueba con el kit LEEPEE. La versión 1.55.0 es una propuesta.</p>
+</section>

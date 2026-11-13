@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:versionCode="26"
+    android:versionName="1.4.1"
+    android:compileSdkVersion="33"
+    android:compileSdkVersionCodename="13"
+    package="com.chaoyue.motorcare"
+    platformBuildVersionCode="33"
+    platformBuildVersionName="13">
+
+    <uses-sdk
+        android:minSdkVersion="19"
+        android:targetSdkVersion="33" />
+
+    <uses-permission
+        android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
+
+    <uses-permission
+        android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:required="false" />
+
+    <uses-permission
+        android:name="com.huawei.permission.external_app_settings.USE_COMPONENT" />
+
+    <uses-permission
+        android:name="oppo.permission.OPPO_COMPONENT_SAFE" />
+
+    <uses-permission
+        android:name="android.permission.INSTANT_APP_FOREGROUND_SERVICE"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.VIBRATE"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.CAMERA"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.FLASHLIGHT"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.GET_TASKS"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <uses-feature
+        android:name="android.bluetooth.le"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:required="false" />
+
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        android:required="false" />
+
+    <application
+        android:theme="@ref/0x7f0e0007"
+        android:label="@ref/0x7f0d002c"
+        android:icon="@ref/0x7f0b0042"
+        android:name="com.chaoyue.motorcare.app.MyApplication"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        android:roundIcon="@ref/0x7f0b0042">
+
+        <activity
+            android:label="@ref/0x7f0d002c"
+            android:name="com.chaoyue.motorcare.activity.MainChangeActivity"
+            android:exported="true"
+            android:screenOrientation="1">
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.MAIN" />
+
+                <category
+                    android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.chaoyue.motorcare.activity.AutoBindActivity"
+            android:screenOrientation="1" />
+
+        <activity
+            android:name="com.chaoyue.motorcare.activity.BindStyleActivity"
+            android:screenOrientation="1" />
+
+        <activity
+            android:name="com.chaoyue.motorcare.activity.HelpActicty"
+            android:screenOrientation="1" />
+
+        <activity
+            android:name="com.chaoyue.motorcare.activity.BindActivity"
+            android:screenOrientation="1" />
+
+        <activity
+            android:name="com.chaoyue.motorcare.activity.HudActivity"
+            android:screenOrientation="1" />
+
+        <activity
+            android:theme="@ref/0x7f0e0122"
+            android:name="com.chaoyue.motorcare.zxing.activity.CaptureActivity" />
+
+        <receiver
+            android:name="com.chaoyue.motorcare.utils.BootCompletedReceiver"
+            android:enabled="true"
+            android:exported="true">
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.BOOT_COMPLETED" />
+
+                <category
+                    android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.chaoyue.motorcare.service.MainService" />
+
+        <meta-data
+            android:name="android.support.VERSION"
+            android:value="26.1.0" />
+
+        <meta-data
+            android:name="android.arch.lifecycle.VERSION"
+            android:value="27.0.0-SNAPSHOT" />
+    </application>
+</manifest>

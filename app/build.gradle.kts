@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 47
-        versionName = "1.37.1"
+        versionCode = 48
+        versionName = "1.37.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,6 +54,11 @@ ksp {
 }
 
 dependencies {
+    constraints {
+        implementation("androidx.fragment:fragment:1.7.1") {
+            because("The legacy Fragment pulled by Play Services is incompatible with ActivityResult APIs")
+        }
+    }
     // Compose BOM managed
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

@@ -210,10 +210,12 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         val event: ExportEvent = try {
             val uri = withContext(Dispatchers.IO) {
+                com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
                 val dir = File(app.cacheDir, "exports").apply { mkdirs() }
                 val file = File(dir, OfferExporter.fileName(format, range))
                 file.writeText(export.content, Charsets.UTF_8)
                 FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", file)
+                }
             }
             ExportEvent.ReadyToShare(uri, format.mimeType)
         } catch (e: Exception) {

@@ -112,6 +112,7 @@ object WeeklyReportNotifier {
 class WeeklyReportReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {

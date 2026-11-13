@@ -101,7 +101,9 @@ class ReportData(private val db: AppDatabase) {
         cuts: com.ubers.observador.domain.QualityThresholds,
         includeTest: Boolean
     ): OfferSource {
-        val offers = db.offerDao().getBetween(window.startMs, window.endMs).filter { keep(it.offerHash, includeTest) }
+        val offers = com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
+            db.offerDao().getBetween(window.startMs, window.endMs).filter { keep(it.offerHash, includeTest) }
+        }
         val periodTrips = trips.observeTripsBetween(window.startMs, window.endMs).first().filter { keep(it.id, includeTest) }
         val summaries = money.summariesFor(periodTrips.map { it.id })
         val rows = com.ubers.observador.domain.reports.OfferReport.rows(offers, periodTrips, summaries, engine, cuts, clock)

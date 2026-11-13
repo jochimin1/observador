@@ -14,6 +14,22 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.37.2] - 2026-11-12
+
+### Corregido
+- Respaldo, restauración y borrado usan una barrera común: esperan los trabajos ya admitidos de viajes, dinero, gastos, rutas, ajustes y capturas. Las nuevas escrituras esperan; si no termina lo pendiente en cinco segundos, no se inicia el reemplazo.
+- La copia elegida debe coincidir con su ficha, superar integridad y relaciones, y abrir con el esquema y las migraciones de Room antes de tocar la base activa. También se vuelve a comprobar su huella antes de instalarla.
+- Restaurar y borrar conservan un diario durable con la base anterior y los ajustes completos. El rollback comprueba base, preferencias y archivos apartados; si no puede confirmarlo, conserva las copias y exige recuperación en lugar de afirmar que todo quedó intacto.
+- Al arrancar, una operación interrumpida se recupera antes de abrir el historial o iniciar los servicios. Una recuperación que no puede comprobarse muestra una pantalla para guardar la copia disponible y reintentar.
+- El borrado aparta también capturas, presupuestos de cierre, copias locales y caché de exportaciones; los escritores pendientes no recrean archivos después del borrado.
+- Límites de lectura y extracción: ZIP de hasta 256 MiB, base de hasta 512 MiB y textos de hasta 8 MiB, con comprobación de espacio libre. Se rechazan archivos repetidos, faltantes o inesperados en el ZIP.
+- Se resuelve la dependencia antigua de Fragment incompatible con ActivityResult y se representa el BOM de los CSV mediante escape, conservando el mismo contenido exportado.
+
+### Datos y recuperación
+- El traslado del historial se realiza mediante el respaldo ZIP manual. Se excluyen explícitamente los datos de la copia automática de Android y de su transferencia entre dispositivos; Ajustes explica cómo cambiar de equipo.
+- Room permanece en **14**, sin modificación de entidades. Se incorpora el esquema 13 generado desde el código histórico `f49c128` y se completan las cadenas de pruebas hasta el esquema actual.
+- Los cierres reales siguen desactivados; Automático continúa en simulación. El apartado «Mi moto» sigue en la propuesta de versiones futuras.
+
 ## [1.37.1] - 2026-11-12
 
 ### Corregido

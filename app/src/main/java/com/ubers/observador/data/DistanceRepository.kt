@@ -1,5 +1,6 @@
 package com.ubers.observador.data
 
+import com.ubers.observador.domain.backup.MaintenanceGate
 import androidx.room.withTransaction
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.toDomain
@@ -25,8 +26,8 @@ class DistanceRepository(private val db: AppDatabase) {
      * Saves stretches and trip kilometres in one transaction. A trip's kilometres are keyed by
      * its trip, found from the lifecycle session; a session with no stored trip is skipped.
      */
-    suspend fun save(update: DistanceUpdate) {
-        if (update.isEmpty) return
+    suspend fun save(update: DistanceUpdate): Unit = MaintenanceGate.shared.access {
+        if (update.isEmpty) return@access
         db.withTransaction {
             update.segments.forEach { dao.upsertSegment(it.toEntity()) }
             update.trips.forEach { t ->
@@ -36,12 +37,16 @@ class DistanceRepository(private val db: AppDatabase) {
         }
     }
 
-    suspend fun getOpenSegments(): List<DistanceSegment> = dao.getOpenSegments().map { it.toDomain() }
+    suspend fun getOpenSegments(): List<DistanceSegment> = MaintenanceGate.shared.access {
+        dao.getOpenSegments().map { it.toDomain() }
+    }
 
     fun observeDay(workday: LocalDate): Flow<DayDistance> =
         dao.observeWorkday(workday.toString()).map { rows -> DayDistance.of(workday, rows.map { it.toDomain() }) }
 
-    suspend fun getAll(): List<DistanceSegment> = dao.getAllSegments().map { it.toDomain() }
+    suspend fun getAll(): List<DistanceSegment> = MaintenanceGate.shared.access {
+        dao.getAllSegments().map { it.toDomain() }
+    }
 
     fun observeAll(): Flow<List<DistanceSegment>> = dao.observeAllSegments().map { l -> l.map { it.toDomain() } }
 
@@ -51,10 +56,12 @@ class DistanceRepository(private val db: AppDatabase) {
         dao.observeTripDistance(tripId).map { it?.toDomain(sessionId = "") }
 
     /** Debug only: replaces the TEST stretches; real ones are never touched. */
-    suspend fun replaceTestSegments(prefix: String, segments: List<DistanceSegment>) {
+    suspend fun replaceTestSegments(prefix: String, segments: List<DistanceSegment>): Unit = MaintenanceGate.shared.access {
         require(segments.all { it.id.startsWith(prefix) }) { "test stretches must start with $prefix" }
         dao.replaceSegmentsByIdPrefix(prefix, segments.map { it.toEntity() })
     }
 
-    suspend fun deleteTestSegments(prefix: String): Int = dao.deleteSegmentsByIdPrefix(prefix)
+    suspend fun deleteTestSegments(prefix: String): Int = MaintenanceGate.shared.access {
+        dao.deleteSegmentsByIdPrefix(prefix)
+    }
 }

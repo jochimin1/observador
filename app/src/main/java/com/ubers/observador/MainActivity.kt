@@ -59,6 +59,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) {
+            setContent { com.ubers.observador.ui.settings.DataRecoveryScreen() }
+            return
+        }
         val appSettings = com.ubers.observador.data.AppSettings(applicationContext)
         accessibilityEnabled = UberAccessibilityService.isEnabled(this)
         notificationsGranted = hasNotificationPermission()
@@ -151,6 +155,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) return
         accessibilityEnabled = UberAccessibilityService.isEnabled(this)
         notificationsGranted = hasNotificationPermission()
         // The driver may have changed the location permission in system settings

@@ -40,6 +40,7 @@ class SectorWeekViewModel(app: Application) : AndroidViewModel(app) {
         val since = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
         val pairs = ArrayList<Pair<String?, String?>>()
         try {
+            com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
             AppDatabase.getInstance(getApplication()).openHelper.readableDatabase.query(
                 "SELECT pickup_address, dropoff_address FROM detected_offers WHERE detectedAt >= ?",
                 arrayOf<Any?>(since)
@@ -47,6 +48,7 @@ class SectorWeekViewModel(app: Application) : AndroidViewModel(app) {
                 while (c.moveToNext()) {
                     pairs += (if (c.isNull(0)) null else c.getString(0)) to (if (c.isNull(1)) null else c.getString(1))
                 }
+            }
             }
         } catch (e: Exception) {
             Log.w("SectorWeekViewModel", "Could not read the week's offers", e)

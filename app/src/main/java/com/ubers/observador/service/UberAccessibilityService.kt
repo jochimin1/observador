@@ -88,6 +88,7 @@ class UberAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        if (com.ubers.observador.data.backup.DataRecovery.failure != null) { observing = false; return }
         settings = AppSettings(applicationContext)
         repository = OfferRepository(AppDatabase.getInstance(applicationContext))
         shadowScorer = ShadowScorer(settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)))

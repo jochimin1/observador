@@ -1,0 +1,96 @@
+<style>
+  #observador-roadmap { color: var(--foreground); font-family: var(--font-sans); display: grid; gap: 16px; }
+  #observador-roadmap .stages { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+  #observador-roadmap .stage { display: grid; align-content: start; gap: 8px; min-width: 0; }
+  #observador-roadmap .track { display: flex; align-items: center; gap: 8px; height: 24px; }
+  #observador-roadmap .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--muted); display: grid; place-items: center; flex: 0 0 auto; }
+  #observador-roadmap .line { height: 2px; background: var(--border); flex: 1; }
+  #observador-roadmap .stage.active .dot { background: var(--primary); color: var(--primary-foreground); }
+  #observador-roadmap .stage.active .line { background: var(--primary); }
+  #observador-roadmap .label { font-weight: 500; overflow-wrap: anywhere; }
+  #observador-roadmap .range { color: var(--muted-foreground); }
+  #observador-roadmap label { display: grid; gap: 8px; }
+  #observador-roadmap #release-detail { margin: 0; display: grid; gap: 8px; }
+  #observador-roadmap #release-purpose { margin: 0; }
+  @media(max-width: 470px) { #observador-roadmap .stages { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 16px; } }
+</style>
+<div id="observador-roadmap">
+  <ol class="stages" aria-label="Secuencia propuesta de desarrollo; las etapas no representan duración">
+    <li class="stage active" data-stage="0"><div class="track" aria-hidden="true"><span class="dot">1</span><span class="line"></span></div><span class="label">Corregir integridad</span><span class="range">1.37.1–1.37.2</span></li>
+    <li class="stage" data-stage="1"><div class="track" aria-hidden="true"><span class="dot">2</span><span class="line"></span></div><span class="label">Confiar en los datos</span><span class="range">1.38.0–1.41.0</span></li>
+    <li class="stage" data-stage="2"><div class="track" aria-hidden="true"><span class="dot">3</span><span class="line"></span></div><span class="label">Medir rentabilidad</span><span class="range">1.42.0–1.44.0</span></li>
+    <li class="stage" data-stage="3"><div class="track" aria-hidden="true"><span class="dot">4</span><span class="line"></span></div><span class="label">Ampliar y consolidar</span><span class="range">1.45.0–1.52.0</span></li>
+  </ol>
+  <label class="form-label" for="observador-release">Versión propuesta
+    <select class="form-select" id="observador-release">
+      <option value="0">1.37.1 · Identidad y acciones pendientes</option>
+      <option value="1">1.37.2 · Respaldo y migraciones</option>
+      <option value="2">1.38.0 · Lectura de Uber validada</option>
+      <option value="3">1.39.0 · Salud y calidad de datos</option>
+      <option value="4">1.40.0 · Centro de Viajes</option>
+      <option value="5">1.41.0 · Dinero y correcciones</option>
+      <option value="6">1.42.0 · Rentabilidad operativa</option>
+      <option value="7">1.43.0 · Vehículo y mantenimiento</option>
+      <option value="8">1.44.0 · Puntaje económico V2</option>
+      <option value="9">1.45.0 · GPS, mapas y privacidad</option>
+      <option value="10">1.46.0 · Sectores y zonas de trabajo</option>
+      <option value="11">1.47.0 · Horarios y eficiencia</option>
+      <option value="12">1.48.0 · Calibración del modelo</option>
+      <option value="13">1.49.0 · Cierre y reportes coherentes</option>
+      <option value="14">1.50.0 · Interfaz y accesibilidad</option>
+      <option value="15">1.51.0 · Rendimiento y arquitectura</option>
+      <option value="16">1.52.0 · Entrega estable</option>
+    </select>
+  </label>
+  <div id="release-detail" aria-live="polite">
+    <span id="release-name" class="label">1.37.1 · Identidad y acciones pendientes</span>
+    <p id="release-purpose">Vincular cada viaje con la aparición correcta de su oferta y respetar la última decisión del conductor antes de una acción.</p>
+  </div>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('observador-roadmap');
+  const select = root.querySelector('#observador-release');
+  const name = root.querySelector('#release-name');
+  const purpose = root.querySelector('#release-purpose');
+  const stages = root.querySelectorAll('.stage');
+  const data = [
+    [0,'Vincular cada viaje con la aparición correcta de su oferta y respetar la última decisión del conductor antes de una acción.'],
+    [0,'Recuperar el historial con barreras de escritura, rollback comprobado y esquemas de migración completos.'],
+    [1,'Detectar cambios de Uber con capturas reales saneadas, pruebas de secuencias y confianza explícita.'],
+    [1,'Distinguir ausencia de trabajo de un fallo de lectura, ubicación o almacenamiento.'],
+    [1,'Reunir estados, tiempos, dinero, kilómetros y mapa de cada viaje en una sola ficha.'],
+    [1,'Cerrar cuentas con dinero confirmado, pendientes y correcciones que conservan su historial.'],
+    [2,'Calcular lo que deja cada viaje, hora y kilómetro con costos de consumo y cobertura visible.'],
+    [2,'Anticipar mantenimiento y ajustar el costo por kilómetro con combustible y odómetro confiables.'],
+    [2,'Evaluar ofertas con costos y beneficio estimado, conservando el historial y la explicación de V1.'],
+    [3,'Medir batería y señal, mejorar mapas y dar control sobre rutas, nombres y exportaciones.'],
+    [3,'Adaptar avisos por contexto y analizar zonas con muestras de viajes propios.'],
+    [3,'Comparar condiciones ofrecidas y resultados reales usando tiempo observado como denominador.'],
+    [3,'Promover un modelo solo cuando mejora con datos posteriores y muestra suficiente.'],
+    [3,'Conciliar detalle y totales por jornada, explicando pendientes y ajustes tardíos.'],
+    [3,'Hacer visibles las tareas frecuentes y comprobar legibilidad, TalkBack y estados de error.'],
+    [3,'Mantener lectura rápida y consumo razonable al crecer el historial.'],
+    [3,'Preparar actualizaciones firmadas y verificadas desde un checkout limpio.']
+  ];
+  function paint(index) {
+    const n = Number(index);
+    if (!Number.isInteger(n) || !data[n]) return;
+    select.value = String(n);
+    name.textContent = select.options[n].textContent;
+    purpose.textContent = data[n][1];
+    stages.forEach((stage,i) => stage.classList.toggle('active',i === data[n][0]));
+  }
+  const saved = window.openai?.widgetState?.modelContent?.versionIndex;
+  paint(saved ?? 0);
+  select.addEventListener('change', () => {
+    const n = Number(select.value);
+    paint(n);
+    window.openai?.setWidgetState?.({modelContent:{versionIndex:n},privateContent:null})?.catch(() => {});
+  });
+  window.addEventListener('openai:set_globals', event => {
+    const n = event.detail?.globals?.widgetState?.modelContent?.versionIndex;
+    if (n !== undefined) paint(n);
+  });
+})();
+</script>

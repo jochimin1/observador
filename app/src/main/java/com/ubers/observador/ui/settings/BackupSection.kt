@@ -85,6 +85,11 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
                     TextButton(onClick = { viewModel.clearMessage() }) { Text("OK") }
                 }
             }
+            Text(
+                "El historial se conserva en este teléfono. Para cambiar de equipo, crea y restaura tu archivo de respaldo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Button(onClick = { confirming = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
                 if (state.busy) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)

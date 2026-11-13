@@ -95,10 +95,12 @@ class ReportExporter(private val app: Application, private val scope: CoroutineS
         val out = built(build) ?: return@launch
         val event = try {
             val uri = withContext(Dispatchers.IO) {
+                com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
                 val dir = File(app.cacheDir, "exports").apply { mkdirs() }
                 val file = File(dir, out.fileName)
                 file.writeBytes(out.bytes)
                 FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", file)
+                }
             }
             ReportExportEvent.ReadyToShare(uri, out.mimeType)
         } catch (e: Exception) {

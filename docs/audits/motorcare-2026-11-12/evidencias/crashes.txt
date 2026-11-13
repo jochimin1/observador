@@ -1,0 +1,31 @@
+--------- beginning of crash
+E/AndroidRuntime( 2214): FATAL EXCEPTION: main
+E/AndroidRuntime( 2214): Process: com.chaoyue.motorcare, PID: 2214
+E/AndroidRuntime( 2214): java.lang.RuntimeException: Unable to destroy activity {com.chaoyue.motorcare/com.chaoyue.motorcare.activity.MainChangeActivity}
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.performDestroyActivity(ActivityThread.java:6632)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.handleDestroyActivity(ActivityThread.java:6664)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.handleRelaunchActivityInner(ActivityThread.java:6949)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.handleRelaunchActivity(ActivityThread.java:6864)
+E/AndroidRuntime( 2214): 	at android.app.servertransaction.ActivityRelaunchItem.execute(ActivityRelaunchItem.java:109)
+E/AndroidRuntime( 2214): 	at android.app.servertransaction.ActivityTransactionItem.execute(ActivityTransactionItem.java:63)
+E/AndroidRuntime( 2214): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+E/AndroidRuntime( 2214): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+E/AndroidRuntime( 2214): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:3032)
+E/AndroidRuntime( 2214): 	at android.os.Handler.dispatchMessageImpl(Handler.java:142)
+E/AndroidRuntime( 2214): 	at android.os.Handler.dispatchMessage(Handler.java:125)
+E/AndroidRuntime( 2214): 	at android.os.Looper.loopOnce(Looper.java:296)
+E/AndroidRuntime( 2214): 	at android.os.Looper.loop(Looper.java:397)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.main(ActivityThread.java:9523)
+E/AndroidRuntime( 2214): 	at java.lang.reflect.Method.invoke(Native Method)
+E/AndroidRuntime( 2214): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+E/AndroidRuntime( 2214): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:939)
+E/AndroidRuntime( 2214): Caused by: java.lang.IllegalArgumentException: Receiver not registered: com.chaoyue.motorcare.activity.MainChangeActivity$9@ec17207
+E/AndroidRuntime( 2214): 	at android.app.LoadedApk.forgetReceiverDispatcher(LoadedApk.java:1902)
+E/AndroidRuntime( 2214): 	at android.app.ContextImpl.unregisterReceiver(ContextImpl.java:2034)
+E/AndroidRuntime( 2214): 	at android.content.ContextWrapper.unregisterReceiver(ContextWrapper.java:858)
+E/AndroidRuntime( 2214): 	at com.chaoyue.motorcare.activity.MainChangeActivity.onDestroy(MainChangeActivity.java:955)
+E/AndroidRuntime( 2214): 	at android.app.Activity.performDestroy(Activity.java:9662)
+E/AndroidRuntime( 2214): 	at android.app.Instrumentation.callActivityOnDestroy(Instrumentation.java:1578)
+E/AndroidRuntime( 2214): 	at android.app.ActivityThread.performDestroyActivity(ActivityThread.java:6619)
+E/AndroidRuntime( 2214): 	... 17 more

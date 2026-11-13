@@ -51,6 +51,7 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
         refreshCloseLog()
         viewModelScope.launch(Dispatchers.IO) {
             seen.value = try {
+                com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
                 val since = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
                 val addresses = ArrayList<String?>()
                 AppDatabase.getInstance(getApplication()).openHelper.readableDatabase.query(
@@ -63,6 +64,7 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 SectorMatcher.suggestions(addresses, emptyList(), limit = 30)
+                }
             } catch (e: Exception) {
                 Log.w("SectorsViewModel", "Could not read past addresses", e)
                 emptyList()

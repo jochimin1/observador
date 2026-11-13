@@ -59,7 +59,7 @@ object OfferExporter {
         sectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList()
     ): String {
         // BOM so Excel detects UTF-8; Locale.US keeps '.' as decimal separator
-        val sb = StringBuilder("﻿").append(CSV_HEADER).append("\r\n")
+        val sb = StringBuilder("\uFEFF").append(CSV_HEADER).append("\r\n")
         for (o in offers) {
             val detected = Instant.ofEpochMilli(o.detectedAt).atZone(zone)
             sb.append(

@@ -142,9 +142,11 @@ class SectorCloser(
                     return "${CloseLog.NOT_CLOSED} (La tarjeta cambió antes del toque)"
                 }
                 // Main-thread serialized, durably reserved BEFORE touching; a failed log cannot bypass the cap.
-                if (!CloseLogStore.reserve(service)) return "${CloseLog.NOT_CLOSED} (Límite diario o registro no disponible)"
-                return if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) CloseLog.REQUESTED
-                else "${CloseLog.NOT_CLOSED} (Android no aceptó el toque)"
+                return com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess {
+                    if (!CloseLogStore.reserve(service)) "${CloseLog.NOT_CLOSED} (Límite diario o registro no disponible)"
+                    else if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) CloseLog.REQUESTED
+                    else "${CloseLog.NOT_CLOSED} (Android no aceptó el toque)"
+                } ?: "${CloseLog.NOT_CLOSED} (Datos en mantenimiento)"
             } finally {
                 node.recycle()
             }
@@ -215,12 +217,12 @@ object CloseLogStore {
     private fun budget(context: Context) = File(dir(context), "cupos-" + today(context).name)
 
     fun append(context: Context, result: String, places: String, price: Double) {
-        try {
+        com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess { try {
             dir(context).mkdirs()
             today(context).appendText(CloseLog.line(System.currentTimeMillis(), ZoneId.systemDefault(), result, places, price) + "\n")
         } catch (e: Exception) {
             Log.w("CloseLogStore", "Could not write the close log", e)
-        }
+        } }
     }
 
     fun todayLines(context: Context): List<String> =
@@ -237,11 +239,11 @@ object CloseLogStore {
     } catch (e: Exception) { CloseRules.DAILY_CAP }
 
     @Synchronized
-    fun reserve(context: Context): Boolean = try {
+    fun reserve(context: Context): Boolean = com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess { try {
         val legacy = today(context).takeIf { it.exists() }?.readText()?.let(CloseLog::closedCount) ?: 0
         DailyCloseBudget.reserve(budget(context), legacy)
     } catch (e: Exception) {
         Log.w("CloseLogStore", "Could not reserve the daily budget", e)
         false
-    }
+    } } ?: false
 }

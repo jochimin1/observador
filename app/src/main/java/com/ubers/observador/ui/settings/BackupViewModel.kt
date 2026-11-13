@@ -18,6 +18,7 @@ import com.ubers.observador.domain.backup.ResetRules
 import com.ubers.observador.domain.backup.ResetStep
 import com.ubers.observador.data.backup.DataEraser
 import com.ubers.observador.data.backup.EraseRolledBack
+import com.ubers.observador.data.backup.RecoveryRequired
 import com.ubers.observador.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,9 +66,11 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val counts = withContext(Dispatchers.IO) {
                 try {
+                    com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
                     val db = AppDatabase.getInstance(app).openHelper.readableDatabase
                     fun n(table: String): Int = db.query("SELECT COUNT(*) FROM $table").use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
                     Triple(n("detected_offers"), n("trips"), n("expense_entries") + n("fuel_entries"))
+                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "Could not count rows", e)
                     Triple(0, 0, 0)
@@ -110,7 +113,9 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val input = app.contentResolver.openInputStream(uri) ?: throw BackupException("No se pudo abrir el archivo elegido.")
-                val dbVersion = withContext(Dispatchers.IO) { AppDatabase.getInstance(app).openHelper.readableDatabase.version }
+                val dbVersion = withContext(Dispatchers.IO) {
+                    com.ubers.observador.domain.backup.MaintenanceGate.shared.access { AppDatabase.getInstance(app).openHelper.readableDatabase.version }
+                }
                 val p = restorer.prepare(input, dbVersion)
                 prepared = p
                 val date = RESTORE_DATE.format(java.time.Instant.ofEpochMilli(p.manifest.createdAtMs).atZone(java.time.ZoneId.systemDefault()))
@@ -153,9 +158,13 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
                 AppRestart.now(app)
             } catch (e: EraseRolledBack) {
                 AppRestart.now(app)
+            } catch (e: RecoveryRequired) {
+                AppRestart.now(app)
+            } catch (e: BackupException) {
+                _state.update { it.copy(busy = false, progress = null, message = e.message) }
             } catch (e: Exception) {
                 Log.w(TAG, "Erase failed", e)
-                _state.update { it.copy(busy = false, progress = null, message = ResetRules.ROLLED_BACK) }
+                _state.update { it.copy(busy = false, progress = null, message = "No se pudo iniciar el borrado. No se reemplazaron los datos.") }
             }
         }
     }
@@ -178,11 +187,13 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
                 AppRestart.now(app)
             } catch (e: RestoreRolledBack) {
                 AppRestart.now(app)
+            } catch (e: RecoveryRequired) {
+                AppRestart.now(app)
             } catch (e: BackupException) {
                 _state.update { it.copy(busy = false, progress = null, message = e.message) }
             } catch (e: Exception) {
                 Log.w(TAG, "Restore failed", e)
-                _state.update { it.copy(busy = false, progress = null, message = RestoreRules.ROLLED_BACK) }
+                _state.update { it.copy(busy = false, progress = null, message = "No se pudo iniciar la restauración. No se reemplazaron los datos.") }
             }
             prepared = null
         }

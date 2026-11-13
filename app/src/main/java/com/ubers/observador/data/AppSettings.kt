@@ -23,6 +23,12 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class AppSettings(private val context: Context) {
 
+    private suspend fun editSettings(
+        transform: suspend (androidx.datastore.preferences.core.MutablePreferences) -> Unit
+    ) = com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
+        context.dataStore.edit(transform)
+    }
+
     companion object {
         private val KEY_COST_PER_KM = doublePreferencesKey("cost_per_km")
         private val KEY_FUEL_PRICE_PER_GALLON = doublePreferencesKey("fuel_price_per_gallon")
@@ -136,7 +142,7 @@ class AppSettings(private val context: Context) {
     val observerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_OBSERVER_ENABLED] ?: true }
 
     /** Fase 8L: «Cerrar Observador». Paused like the switch, and marked so the next opening resumes. */
-    suspend fun closeByUser() = context.dataStore.edit {
+    suspend fun closeByUser() = editSettings {
         val f = com.ubers.observador.domain.AppClose.onClose()
         it[KEY_OBSERVER_ENABLED] = f.observerEnabled
         it[KEY_CLOSED_BY_USER] = f.closedByUser
@@ -149,14 +155,14 @@ class AppSettings(private val context: Context) {
 
     val lastBackupAt: Flow<Long?> = context.dataStore.data.map { it[KEY_LAST_BACKUP_AT] }
 
-    suspend fun updateLastBackupAt(ms: Long) = context.dataStore.edit { it[KEY_LAST_BACKUP_AT] = ms }
+    suspend fun updateLastBackupAt(ms: Long) = editSettings { it[KEY_LAST_BACKUP_AT] = ms }
 
     /** 1.35.0: the care sectors (Ajustes › Sectores de cuidado), JSON of CareSectorCodec; empty if unreadable. */
     val careSectors: Flow<List<com.ubers.observador.domain.sectors.CareSector>> = context.dataStore.data.map { prefs ->
         com.ubers.observador.domain.sectors.CareSectorCodec.decode(prefs[stringPreferencesKey("care_sectors")]).orEmpty()
     }
 
-    suspend fun updateCareSectors(list: List<com.ubers.observador.domain.sectors.CareSector>) = context.dataStore.edit {
+    suspend fun updateCareSectors(list: List<com.ubers.observador.domain.sectors.CareSector>) = editSettings {
         it[stringPreferencesKey("care_sectors")] = com.ubers.observador.domain.sectors.CareSectorCodec.encode(list)
     }
 
@@ -174,14 +180,14 @@ class AppSettings(private val context: Context) {
         )
     }
 
-    suspend fun updateCareSectorsEnabled(on: Boolean) = context.dataStore.edit {
+    suspend fun updateCareSectorsEnabled(on: Boolean) = editSettings {
         it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] = on
     }
 
     /** 1.32.0: a line to show on the next opening (the app restarts after a restore, so the result waits here). */
     val pendingNotice: Flow<String?> = context.dataStore.data.map { it[androidx.datastore.preferences.core.stringPreferencesKey("pending_notice")] }
 
-    suspend fun setPendingNotice(text: String?) = context.dataStore.edit {
+    suspend fun setPendingNotice(text: String?) = editSettings {
         val key = androidx.datastore.preferences.core.stringPreferencesKey("pending_notice")
         if (text == null) it.remove(key) else it[key] = text
     }
@@ -191,13 +197,13 @@ class AppSettings(private val context: Context) {
      * (BackupFormat.isVolatile: paused or not, welcome seen, last backup…) and writes [restored], already
      * validated (RestoreRules). What the backup does not carry goes back to its default.
      */
-    suspend fun replaceWithRestored(restored: Map<String, Any>) = context.dataStore.edit { prefs ->
+    suspend fun replaceWithRestored(restored: Map<String, Any>) = editSettings { prefs ->
         for (k in prefs.asMap().keys.toList()) if (!com.ubers.observador.domain.backup.BackupFormat.isVolatile(k.name)) prefs.remove(k)
         for ((name, value) in restored) putTyped(prefs, name, value)
     }
 
     /** 1.32.0, rolling back a failed restore: puts every setting back exactly as [snapshot] (backupSnapshot) had it. */
-    suspend fun replaceAll(snapshot: Map<String, Any?>) = context.dataStore.edit { prefs ->
+    suspend fun replaceAll(snapshot: Map<String, Any?>) = editSettings { prefs ->
         prefs.clear()
         for ((name, value) in snapshot) if (value != null) putTyped(prefs, name, value)
     }
@@ -218,10 +224,10 @@ class AppSettings(private val context: Context) {
     /** 1.29.0: null until the welcome is finished or skipped; false after «Ver bienvenida». */
     val onboardingDone: Flow<Boolean?> = context.dataStore.data.map { it[KEY_ONBOARDING_DONE] }
 
-    suspend fun updateOnboardingDone(value: Boolean) = context.dataStore.edit { it[KEY_ONBOARDING_DONE] = value }
+    suspend fun updateOnboardingDone(value: Boolean) = editSettings { it[KEY_ONBOARDING_DONE] = value }
 
     /** Fase 8L: on opening the app; resumes reading only if it was closed with the button. */
-    suspend fun reopenAfterClose() = context.dataStore.edit {
+    suspend fun reopenAfterClose() = editSettings {
         val now = com.ubers.observador.domain.AppClose.Flags(it[KEY_OBSERVER_ENABLED] ?: true, it[KEY_CLOSED_BY_USER] ?: false)
         val next = com.ubers.observador.domain.AppClose.onOpen(now)
         if (next != now) {
@@ -230,7 +236,7 @@ class AppSettings(private val context: Context) {
         }
     }
 
-    suspend fun updateObserverEnabled(value: Boolean) = context.dataStore.edit {
+    suspend fun updateObserverEnabled(value: Boolean) = editSettings {
         it[KEY_OBSERVER_ENABLED] = value
         // Pausing also ends a measurement started with the button (decision 12: pause stops the GPS)
         if (!value) it[KEY_DISTANCE_MANUAL] = false
@@ -246,20 +252,20 @@ class AppSettings(private val context: Context) {
         )
     }
 
-    suspend fun updateDailyGoal(minor: Long) = context.dataStore.edit { it[KEY_DAILY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
+    suspend fun updateDailyGoal(minor: Long) = editSettings { it[KEY_DAILY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
 
-    suspend fun updateWeeklyGoal(minor: Long) = context.dataStore.edit { it[KEY_WEEKLY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
+    suspend fun updateWeeklyGoal(minor: Long) = editSettings { it[KEY_WEEKLY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
 
-    suspend fun updateGoalNotification(value: Boolean) = context.dataStore.edit { it[KEY_GOAL_NOTIFICATION] = value }
+    suspend fun updateGoalNotification(value: Boolean) = editSettings { it[KEY_GOAL_NOTIFICATION] = value }
 
-    suspend fun updateWeekStart(day: java.time.DayOfWeek) = context.dataStore.edit {
+    suspend fun updateWeekStart(day: java.time.DayOfWeek) = editSettings {
         it[KEY_WEEK_START] = if (day == java.time.DayOfWeek.SUNDAY) day.name else java.time.DayOfWeek.MONDAY.name
     }
 
     /** The day and week ("2026-10-13") whose "meta alcanzada" was already notified, so it is sent once. */
     val goalNotified: Flow<Pair<String?, String?>> = context.dataStore.data.map { it[KEY_GOAL_NOTIFIED_DAY] to it[KEY_GOAL_NOTIFIED_WEEK] }
 
-    suspend fun markGoalNotified(day: String?, week: String?) = context.dataStore.edit { prefs ->
+    suspend fun markGoalNotified(day: String?, week: String?) = editSettings { prefs ->
         day?.let { prefs[KEY_GOAL_NOTIFIED_DAY] = it }
         week?.let { prefs[KEY_GOAL_NOTIFIED_WEEK] = it }
     }
@@ -267,12 +273,12 @@ class AppSettings(private val context: Context) {
     /** The Monday notification with the summary of the week that ended (Fase 8D). Off by default. */
     val weeklyReportNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFICATION] ?: false }
 
-    suspend fun updateWeeklyReportNotification(value: Boolean) = context.dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFICATION] = value }
+    suspend fun updateWeeklyReportNotification(value: Boolean) = editSettings { it[KEY_WEEKLY_REPORT_NOTIFICATION] = value }
 
     /** First day ("2026-10-05") of the last week whose summary was notified, so it is sent once. */
     val weeklyReportNotified: Flow<String?> = context.dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFIED] }
 
-    suspend fun markWeeklyReportNotified(weekKey: String) = context.dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFIED] = weekKey }
+    suspend fun markWeeklyReportNotified(weekKey: String) = editSettings { it[KEY_WEEKLY_REPORT_NOTIFIED] = weekKey }
 
     /** Theme, and "Noche" by the hour (Fase 8G). */
     val themeSettings: Flow<com.ubers.observador.domain.ThemeSettings> = context.dataStore.data.map { prefs ->
@@ -284,11 +290,11 @@ class AppSettings(private val context: Context) {
         )
     }
 
-    suspend fun updateTheme(theme: com.ubers.observador.domain.AppTheme) = context.dataStore.edit { it[KEY_THEME] = theme.storageKey }
+    suspend fun updateTheme(theme: com.ubers.observador.domain.AppTheme) = editSettings { it[KEY_THEME] = theme.storageKey }
 
-    suspend fun updateAutoNight(value: Boolean) = context.dataStore.edit { it[KEY_AUTO_NIGHT] = value }
+    suspend fun updateAutoNight(value: Boolean) = editSettings { it[KEY_AUTO_NIGHT] = value }
 
-    suspend fun updateNightHours(from: Int, to: Int) = context.dataStore.edit {
+    suspend fun updateNightHours(from: Int, to: Int) = editSettings {
         it[KEY_NIGHT_FROM] = from.coerceIn(0, 23)
         it[KEY_NIGHT_TO] = to.coerceIn(0, 23)
     }
@@ -296,7 +302,7 @@ class AppSettings(private val context: Context) {
     /** Share of the motorbike used for work, 0-100 (decision 8: one % for everything, 100 by default). */
     val workSharePct: Flow<Int> = context.dataStore.data.map { it[KEY_WORK_SHARE] ?: 100 }
 
-    suspend fun updateWorkSharePct(value: Int) = context.dataStore.edit {
+    suspend fun updateWorkSharePct(value: Int) = editSettings {
         it[KEY_WORK_SHARE] = value.coerceIn(com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MIN, com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MAX)
     }
 
@@ -306,12 +312,12 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun updateMaintenanceInterval(type: com.ubers.observador.domain.expenses.ExpenseType, km: Long) =
-        context.dataStore.edit { it[intervalKey(type)] = km.coerceIn(0, com.ubers.observador.domain.expenses.ExpenseLimits.INTERVAL_MAX_KM) }
+        editSettings { it[intervalKey(type)] = km.coerceIn(0, com.ubers.observador.domain.expenses.ExpenseLimits.INTERVAL_MAX_KM) }
 
     /** Decision 10: the maintenance notification is on by default. */
     val maintenanceNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_MAINTENANCE_NOTIFICATION] ?: true }
 
-    suspend fun updateMaintenanceNotification(value: Boolean) = context.dataStore.edit { it[KEY_MAINTENANCE_NOTIFICATION] = value }
+    suspend fun updateMaintenanceNotification(value: Boolean) = editSettings { it[KEY_MAINTENANCE_NOTIFICATION] = value }
 
     /** What was last notified per kind ("change id:level"), so the same warning is not repeated. */
     val maintenanceNotified: Flow<Map<com.ubers.observador.domain.expenses.ExpenseType, String>> = context.dataStore.data.map { prefs ->
@@ -319,12 +325,12 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun markMaintenanceNotified(type: com.ubers.observador.domain.expenses.ExpenseType, key: String) =
-        context.dataStore.edit { it[notifiedKey(type)] = key }
+        editSettings { it[notifiedKey(type)] = key }
 
     /** "Medir km con GPS" (Fase 8E). Not part of profiles. */
     val distanceEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_ENABLED] ?: false }
 
-    suspend fun updateDistanceEnabled(value: Boolean) = context.dataStore.edit {
+    suspend fun updateDistanceEnabled(value: Boolean) = editSettings {
         it[KEY_DISTANCE_ENABLED] = value
         if (!value) it[KEY_DISTANCE_MANUAL] = false
     }
@@ -332,18 +338,18 @@ class AppSettings(private val context: Context) {
     /** Fase 8K: «Grabar el recorrido de los viajes». Uses the GPS positions of «Kilómetros con GPS». */
     val routeEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_ROUTE_ENABLED] ?: true }
 
-    suspend fun updateRouteEnabled(value: Boolean) = context.dataStore.edit { it[KEY_ROUTE_ENABLED] = value }
+    suspend fun updateRouteEnabled(value: Boolean) = editSettings { it[KEY_ROUTE_ENABLED] = value }
 
     val distanceMode: Flow<com.ubers.observador.domain.distance.DistanceMode> =
         context.dataStore.data.map { com.ubers.observador.domain.distance.DistanceMode.fromStorage(it[KEY_DISTANCE_MODE]) }
 
     suspend fun updateDistanceMode(value: com.ubers.observador.domain.distance.DistanceMode) =
-        context.dataStore.edit { it[KEY_DISTANCE_MODE] = value.storageKey }
+        editSettings { it[KEY_DISTANCE_MODE] = value.storageKey }
 
     /** The "Iniciar recorrido" button; kept across restarts so a measurement survives the app being closed. */
     val distanceManual: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_MANUAL] ?: false }
 
-    suspend fun updateDistanceManual(value: Boolean) = context.dataStore.edit { it[KEY_DISTANCE_MANUAL] = value }
+    suspend fun updateDistanceManual(value: Boolean) = editSettings { it[KEY_DISTANCE_MANUAL] = value }
 
     /** Saved settings profiles (see SettingsProfileCodec). A broken entry is skipped, never fatal. */
     val profiles: Flow<List<SettingsProfile>> = context.dataStore.data.map { SettingsProfileCodec.decode(it[KEY_PROFILES]) }
@@ -351,7 +357,7 @@ class AppSettings(private val context: Context) {
     /** The profile last applied or saved, to show "Perfil: Noche" (and whether it was edited since). */
     val activeProfileId: Flow<String?> = context.dataStore.data.map { it[KEY_ACTIVE_PROFILE] }
 
-    suspend fun saveProfiles(profiles: List<SettingsProfile>, activeId: String?) = context.dataStore.edit {
+    suspend fun saveProfiles(profiles: List<SettingsProfile>, activeId: String?) = editSettings {
         it[KEY_PROFILES] = SettingsProfileCodec.encode(profiles)
         if (activeId == null) it.remove(KEY_ACTIVE_PROFILE) else it[KEY_ACTIVE_PROFILE] = activeId
     }
@@ -378,7 +384,7 @@ class AppSettings(private val context: Context) {
     }
 
     /** Applies a whole profile in one edit, so no offer is ever judged with half of two profiles. */
-    suspend fun applyProfile(profile: SettingsProfile) = context.dataStore.edit {
+    suspend fun applyProfile(profile: SettingsProfile) = editSettings {
         val v = profile.values
         it[KEY_FUEL_PRICE_PER_GALLON] = v.fuelPricePerGallon
         it[KEY_KM_PER_GALLON] = v.kmPerGallon
@@ -428,7 +434,7 @@ class AppSettings(private val context: Context) {
     val exportHistory: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_EXPORT_HISTORY] }
 
     suspend fun addExportRecord(record: com.ubers.observador.domain.reports.ExportRecord) =
-        context.dataStore.edit { it[KEY_EXPORT_HISTORY] = com.ubers.observador.domain.reports.ExportHistory.add(it[KEY_EXPORT_HISTORY], record) }
+        editSettings { it[KEY_EXPORT_HISTORY] = com.ubers.observador.domain.reports.ExportHistory.add(it[KEY_EXPORT_HISTORY], record) }
 
     /** Fase 8I: which offers notify ("Avisos de ofertas"). */
     val offerAlerts: Flow<com.ubers.observador.domain.OfferAlerts> = context.dataStore.data.map { prefs ->
@@ -436,7 +442,7 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun updateOfferAlerts(value: com.ubers.observador.domain.OfferAlerts) =
-        context.dataStore.edit { it[KEY_OFFER_ALERTS] = value.storageKey }
+        editSettings { it[KEY_OFFER_ALERTS] = value.storageKey }
 
     val showOverlay: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_SHOW_OVERLAY] ?: true
@@ -452,49 +458,49 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun updateWorkdayStartHour(value: Int) =
-        context.dataStore.edit { it[KEY_WORKDAY_START] = value }
+        editSettings { it[KEY_WORKDAY_START] = value }
 
     suspend fun updateCostPerKm(value: Double) =
-        context.dataStore.edit { it[KEY_COST_PER_KM] = value }
+        editSettings { it[KEY_COST_PER_KM] = value }
 
     suspend fun updateFuelPricePerGallon(value: Double) =
-        context.dataStore.edit { it[KEY_FUEL_PRICE_PER_GALLON] = value }
+        editSettings { it[KEY_FUEL_PRICE_PER_GALLON] = value }
 
     suspend fun updateKmPerGallon(value: Double) =
-        context.dataStore.edit { it[KEY_KM_PER_GALLON] = value }
+        editSettings { it[KEY_KM_PER_GALLON] = value }
 
     suspend fun updateMinRdpPerKm(value: Double) =
-        context.dataStore.edit { it[KEY_MIN_RDP_PER_KM] = value }
+        editSettings { it[KEY_MIN_RDP_PER_KM] = value }
 
     suspend fun updateMinRdpPerHour(value: Double) =
-        context.dataStore.edit { it[KEY_MIN_RDP_PER_HOUR] = value }
+        editSettings { it[KEY_MIN_RDP_PER_HOUR] = value }
 
     suspend fun updateMaxPickupKm(value: Double) =
-        context.dataStore.edit { it[KEY_MAX_PICKUP_KM] = value }
+        editSettings { it[KEY_MAX_PICKUP_KM] = value }
 
     suspend fun updateMaxPickupMin(value: Int) =
-        context.dataStore.edit { it[KEY_MAX_PICKUP_MIN] = value }
+        editSettings { it[KEY_MAX_PICKUP_MIN] = value }
 
     suspend fun updateMinScore(value: Int) =
-        context.dataStore.edit { it[KEY_MIN_SCORE] = value }
+        editSettings { it[KEY_MIN_SCORE] = value }
 
     suspend fun updateExcellentScore(value: Int) =
-        context.dataStore.edit { it[KEY_EXCELLENT_SCORE] = value }
+        editSettings { it[KEY_EXCELLENT_SCORE] = value }
 
     suspend fun updateOverlayDuration(value: Int) =
-        context.dataStore.edit { it[KEY_OVERLAY_DURATION] = value }
+        editSettings { it[KEY_OVERLAY_DURATION] = value }
 
     suspend fun updateMode(value: String) =
-        context.dataStore.edit { it[KEY_MODE] = value }
+        editSettings { it[KEY_MODE] = value }
 
     suspend fun updateShowOverlay(value: Boolean) =
-        context.dataStore.edit { it[KEY_SHOW_OVERLAY] = value }
+        editSettings { it[KEY_SHOW_OVERLAY] = value }
 
     /**
      * Writes a whole model in one edit (promotion or rollback, only after the user confirms), so
      * no offer is ever scored with half of one model and half of another.
      */
-    suspend fun applyProfitSettings(model: ProfitSettingsSnapshot) = context.dataStore.edit {
+    suspend fun applyProfitSettings(model: ProfitSettingsSnapshot) = editSettings {
         it[KEY_MIN_RDP_PER_KM] = model.minRdpPerKm
         it[KEY_MIN_RDP_PER_HOUR] = model.minRdpPerHour
         it[KEY_MAX_PICKUP_KM] = model.maxPickupKm
@@ -507,10 +513,10 @@ class AppSettings(private val context: Context) {
         it[KEY_EXCELLENT_SCORE] = model.excellentFrom
     }
 
-    suspend fun updateShadowModel(versionId: String?) = context.dataStore.edit {
+    suspend fun updateShadowModel(versionId: String?) = editSettings {
         if (versionId == null) it.remove(KEY_SHADOW_MODEL) else it[KEY_SHADOW_MODEL] = versionId
     }
 
     suspend fun updateGraceWindow(value: Int) =
-        context.dataStore.edit { it[KEY_GRACE_WINDOW] = value }
+        editSettings { it[KEY_GRACE_WINDOW] = value }
 }

@@ -38,7 +38,7 @@ object Decimals {
 
 /** CSV with a BOM (so Excel reads the accents) and CRLF lines, like the offers export. */
 object Csv {
-    const val BOM = "﻿"
+    const val BOM = "\uFEFF"
 
     fun escape(value: String): String =
         if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"" + value.replace("\"", "\"\"") + "\"" else value

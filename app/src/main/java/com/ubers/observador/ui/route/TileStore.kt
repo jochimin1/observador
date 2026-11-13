@@ -53,6 +53,7 @@ object TileStore {
         val bytes = if (failed != null && now - failed < RETRY_AFTER_MS) null else gate.withPermit { download(z, x, y) }
         if (bytes != null) {
             failedAt.remove(key)
+            com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess {
             try {
                 file.parentFile?.mkdirs()
                 file.writeBytes(bytes)
@@ -60,6 +61,7 @@ object TileStore {
                 Log.w(TAG, "Could not cache a tile", e)
             }
             if (trimmed.compareAndSet(false, true)) trim(dir)
+            }
             decode(bytes)?.also { memory.put(key, it) }
         } else {
             failedAt[key] = now

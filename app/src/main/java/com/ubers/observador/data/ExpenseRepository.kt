@@ -1,5 +1,6 @@
 package com.ubers.observador.data
 
+import com.ubers.observador.domain.backup.MaintenanceGate
 import androidx.room.withTransaction
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.toDomain
@@ -34,26 +35,36 @@ class ExpenseRepository(private val db: AppDatabase) {
         dao.observeFuel(), dao.observeExpenses(), dao.observeRecurring(), dao.observeOdometer()
     ) { f, e, r, o -> ExpenseData(f.map { it.toDomain() }, e.map { it.toDomain() }, r.map { it.toDomain() }, o.map { it.toDomain() }) }
 
-    suspend fun getAll(): ExpenseData = db.withTransaction {
-        ExpenseData(dao.getFuel().map { it.toDomain() }, dao.getExpenses().map { it.toDomain() }, emptyList(), dao.getOdometer().map { it.toDomain() })
+    suspend fun getAll(): ExpenseData = MaintenanceGate.shared.access {
+        db.withTransaction {
+            ExpenseData(dao.getFuel().map { it.toDomain() }, dao.getExpenses().map { it.toDomain() }, emptyList(), dao.getOdometer().map { it.toDomain() })
+        }
     }
 
     /** [resetAtKm]: the driver confirmed "cambié de odómetro o de motor" for this lower odometer. */
-    suspend fun saveFuel(entry: FuelEntry, resetAtKm: Long? = null) = db.withTransaction {
-        resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
-        dao.upsertFuel(entry.toEntity())
+    suspend fun saveFuel(entry: FuelEntry, resetAtKm: Long? = null) = MaintenanceGate.shared.access {
+        db.withTransaction {
+            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
+            dao.upsertFuel(entry.toEntity())
+        }
     }
 
-    suspend fun saveExpense(entry: ExpenseEntry, resetAtKm: Long? = null) = db.withTransaction {
-        resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
-        dao.upsertExpense(entry.toEntity())
+    suspend fun saveExpense(entry: ExpenseEntry, resetAtKm: Long? = null) = MaintenanceGate.shared.access {
+        db.withTransaction {
+            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
+            dao.upsertExpense(entry.toEntity())
+        }
     }
 
-    suspend fun saveRecurring(entry: RecurringCost) = dao.upsertRecurring(entry.toEntity())
+    suspend fun saveRecurring(entry: RecurringCost) = MaintenanceGate.shared.access {
+        dao.upsertRecurring(entry.toEntity())
+    }
 
-    suspend fun saveOdometer(entry: OdometerReading) = dao.upsertOdometer(entry.toEntity())
+    suspend fun saveOdometer(entry: OdometerReading) = MaintenanceGate.shared.access {
+        dao.upsertOdometer(entry.toEntity())
+    }
 
-    suspend fun delete(item: DeletedExpense) {
+    suspend fun delete(item: DeletedExpense): Unit = MaintenanceGate.shared.access {
         when (item) {
             is DeletedExpense.Fuel -> dao.deleteFuel(item.entry.id)
             is DeletedExpense.Expense -> dao.deleteExpense(item.entry.id)
@@ -62,7 +73,7 @@ class ExpenseRepository(private val db: AppDatabase) {
         }
     }
 
-    suspend fun restore(item: DeletedExpense) {
+    suspend fun restore(item: DeletedExpense): Unit = MaintenanceGate.shared.access {
         when (item) {
             is DeletedExpense.Fuel -> dao.upsertFuel(item.entry.toEntity())
             is DeletedExpense.Expense -> dao.upsertExpense(item.entry.toEntity())
@@ -72,15 +83,19 @@ class ExpenseRepository(private val db: AppDatabase) {
     }
 
     /** Debug only: replaces the TEST rows (ids starting with [prefix]); real ones are never touched. */
-    suspend fun replaceTestData(prefix: String, data: ExpenseData) = db.withTransaction {
-        dao.deleteTest(prefix)
-        data.fuel.forEach { dao.upsertFuel(it.toEntity()) }
-        data.expenses.forEach { dao.upsertExpense(it.toEntity()) }
-        data.recurring.forEach { dao.upsertRecurring(it.toEntity()) }
-        data.readings.forEach { dao.upsertOdometer(it.toEntity()) }
+    suspend fun replaceTestData(prefix: String, data: ExpenseData) = MaintenanceGate.shared.access {
+        db.withTransaction {
+            dao.deleteTest(prefix)
+            data.fuel.forEach { dao.upsertFuel(it.toEntity()) }
+            data.expenses.forEach { dao.upsertExpense(it.toEntity()) }
+            data.recurring.forEach { dao.upsertRecurring(it.toEntity()) }
+            data.readings.forEach { dao.upsertOdometer(it.toEntity()) }
+        }
     }
 
-    suspend fun deleteTestData(prefix: String): Int = dao.deleteTest(prefix)
+    suspend fun deleteTestData(prefix: String): Int = MaintenanceGate.shared.access {
+        dao.deleteTest(prefix)
+    }
 
     private fun reset(atMs: Long, km: Long) =
         // One millisecond before the entry, so the new count starts with it

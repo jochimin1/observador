@@ -375,15 +375,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getInstance(context: Context): AppDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+        fun getInstance(context: Context): AppDatabase {
+            check(com.ubers.observador.data.backup.DataRecovery.failure == null) { "Data recovery needs attention" }
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: openFile(context, "observador.db").also { INSTANCE = it }
+            }
+        }
+
+        /** Independent connection for validating/migrating a staged copy, never the live singleton. */
+        internal fun openFile(context: Context, name: String): AppDatabase = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "observador.db"
+                    name
                 )
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
-                .build().also { INSTANCE = it }
-            }
+                .build()
     }
 }
