@@ -4,6 +4,8 @@ Cada entrega implementada tiene una etiqueta `vX.Y.Z` y una rama `release/X.Y.Z`
 
 El catálogo [versiones.json](versiones.json) cubre las 48 versiones del changelog, desde 1.0.0 / 1 hasta 1.37.2 / 48. No se crean referencias para las versiones futuras del roadmap.
 
+El [índice de changelogs](changelogs/README.md) contiene una ficha por versión con cambios y commits. Las correcciones documentales retrospectivas se publican en el historial actual; las etiquetas existentes conservan el contenido que identificaban.
+
 ## Consultar y cambiar de versión
 
 ```powershell

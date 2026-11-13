@@ -12,6 +12,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una etiqueta de git
 (`v1.1.0`). La versión instalada se ve al final de Ajustes.
 
+El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
+
 ## [Sin publicar]
 
 ## [1.37.2] - 2026-11-12
@@ -143,6 +145,9 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 - Restaurar un respaldo y Borrar todos los datos llegan en las versiones 1.32.0 y 1.33.0.
 
 ## [1.30.0] - 2026-10-18
+
+### Técnico
+- Se declara el uso experimental de `BottomSheetDefaults` para que compile el cambio visual de esta entrega (commit `44a0dcc`).
 
 ### Añadido
 - **Análisis en Violeta:** tarjeta morada arriba con un anillo del porcentaje de viajes con resultado real (RD$/hora), cuántos tienen dinero confirmado y km del GPS, y el tamaño de la muestra. Son los mismos números de «Calidad de datos»; no se estima nada.
@@ -982,9 +987,52 @@ Primera versión registrada en GitHub (commit `74bdd64`).
 - Ofertas duplicadas: seguimiento por sesión de la tarjeta, ventana anti-duplicados y limpieza
   de duplicados antiguos al migrar la base de datos (versión 4).
 
-[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/jochimin1/observador/compare/v1.3.0...v1.4.0
-[1.3.0]: https://github.com/jochimin1/observador/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/jochimin1/observador/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/jochimin1/observador/compare/v1.0.0...v1.1.0
+[Sin publicar]: https://github.com/jochimin1/observador/compare/v1.37.2...HEAD
 [1.0.0]: https://github.com/jochimin1/observador/releases/tag/v1.0.0
+[1.1.0]: https://github.com/jochimin1/observador/compare/v1.0.0...v1.1.0
+[1.2.0]: https://github.com/jochimin1/observador/compare/v1.1.0...v1.2.0
+[1.3.0]: https://github.com/jochimin1/observador/compare/v1.2.0...v1.3.0
+[1.4.0]: https://github.com/jochimin1/observador/compare/v1.3.0...v1.4.0
+[1.5.0]: https://github.com/jochimin1/observador/compare/v1.4.0...v1.5.0
+[1.6.0]: https://github.com/jochimin1/observador/compare/v1.5.0...v1.6.0
+[1.7.0]: https://github.com/jochimin1/observador/compare/v1.6.0...v1.7.0
+[1.8.0]: https://github.com/jochimin1/observador/compare/v1.7.0...v1.8.0
+[1.9.0]: https://github.com/jochimin1/observador/compare/v1.8.0...v1.9.0
+[1.10.0]: https://github.com/jochimin1/observador/compare/v1.9.0...v1.10.0
+[1.11.0]: https://github.com/jochimin1/observador/compare/v1.10.0...v1.11.0
+[1.12.0]: https://github.com/jochimin1/observador/compare/v1.11.0...v1.12.0
+[1.13.0]: https://github.com/jochimin1/observador/compare/v1.12.0...v1.13.0
+[1.14.0]: https://github.com/jochimin1/observador/compare/v1.13.0...v1.14.0
+[1.15.0]: https://github.com/jochimin1/observador/compare/v1.14.0...v1.15.0
+[1.16.0]: https://github.com/jochimin1/observador/compare/v1.15.0...v1.16.0
+[1.17.0]: https://github.com/jochimin1/observador/compare/v1.16.0...v1.17.0
+[1.18.0]: https://github.com/jochimin1/observador/compare/v1.17.0...v1.18.0
+[1.19.0]: https://github.com/jochimin1/observador/compare/v1.18.0...v1.19.0
+[1.20.0]: https://github.com/jochimin1/observador/compare/v1.19.0...v1.20.0
+[1.21.0]: https://github.com/jochimin1/observador/compare/v1.20.0...v1.21.0
+[1.22.0]: https://github.com/jochimin1/observador/compare/v1.21.0...v1.22.0
+[1.23.0]: https://github.com/jochimin1/observador/compare/v1.22.0...v1.23.0
+[1.23.1]: https://github.com/jochimin1/observador/compare/v1.23.0...v1.23.1
+[1.24.0]: https://github.com/jochimin1/observador/compare/v1.23.1...v1.24.0
+[1.25.0]: https://github.com/jochimin1/observador/compare/v1.24.0...v1.25.0
+[1.26.0]: https://github.com/jochimin1/observador/compare/v1.25.0...v1.26.0
+[1.27.0]: https://github.com/jochimin1/observador/compare/v1.26.0...v1.27.0
+[1.28.0]: https://github.com/jochimin1/observador/compare/v1.27.0...v1.28.0
+[1.28.1]: https://github.com/jochimin1/observador/compare/v1.28.0...v1.28.1
+[1.29.0]: https://github.com/jochimin1/observador/compare/v1.28.1...v1.29.0
+[1.29.1]: https://github.com/jochimin1/observador/compare/v1.29.0...v1.29.1
+[1.29.2]: https://github.com/jochimin1/observador/compare/v1.29.1...v1.29.2
+[1.30.0]: https://github.com/jochimin1/observador/compare/v1.29.2...v1.30.0
+[1.31.0]: https://github.com/jochimin1/observador/compare/v1.30.0...v1.31.0
+[1.32.0]: https://github.com/jochimin1/observador/compare/v1.31.0...v1.32.0
+[1.32.1]: https://github.com/jochimin1/observador/compare/v1.32.0...v1.32.1
+[1.32.2]: https://github.com/jochimin1/observador/compare/v1.32.1...v1.32.2
+[1.33.0]: https://github.com/jochimin1/observador/compare/v1.32.2...v1.33.0
+[1.33.1]: https://github.com/jochimin1/observador/compare/v1.33.0...v1.33.1
+[1.33.2]: https://github.com/jochimin1/observador/compare/v1.33.1...v1.33.2
+[1.34.0]: https://github.com/jochimin1/observador/compare/v1.33.2...v1.34.0
+[1.35.0]: https://github.com/jochimin1/observador/compare/v1.34.0...v1.35.0
+[1.36.0]: https://github.com/jochimin1/observador/compare/v1.35.0...v1.36.0
+[1.37.0]: https://github.com/jochimin1/observador/compare/v1.36.0...v1.37.0
+[1.37.1]: https://github.com/jochimin1/observador/compare/v1.37.0...v1.37.1
+[1.37.2]: https://github.com/jochimin1/observador/compare/v1.37.1...v1.37.2

@@ -34,6 +34,10 @@ def main():
     failures = []
     for entry in entries:
         version = entry["version"]
+        notes = ROOT / "docs/releases/changelogs" / (version + ".md")
+        assert notes.is_file(), "Missing per-version changelog: " + version
+        content = notes.read_text(encoding="utf-8")
+        assert "v" + version in content and "release/" + version in content, "Missing release references in changelog: " + version
         tag = "refs/tags/v" + version
         branch = "refs/heads/release/" + version
         try:
