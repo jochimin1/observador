@@ -35,7 +35,8 @@ object OfferExporter {
 
     private const val CSV_HEADER =
         "fecha,hora,precio,km_recogida,min_recogida,km_viaje,min_viaje,km_total,min_total," +
-        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score,boton,sector_cuidado"
+        "rd_por_km,rd_por_hora,costo_combustible,ganancia_neta,score,boton,sector_cuidado," +
+        "lectura_excluida,version_lector,version_clasificador,version_uber,lectura_id,confianza_lectura,observaciones_lectura"
 
     private val DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE
     private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -83,7 +84,10 @@ object OfferExporter {
                     o.action?.label ?: "",
                     com.ubers.observador.domain.sectors.SectorStats.csvValue(o, sectors)
                 )
-            ).append("\r\n")
+            ).append(',').append(listOf(o.excludedFromAnalysis.toString(), o.parserVersion.orEmpty(),
+                o.classifierVersion.orEmpty(), o.uberVersion.orEmpty(), o.readingId.orEmpty(),
+                o.readingConfidence?.toString().orEmpty(), o.readingReasons)
+                .joinToString(",") { com.ubers.observador.domain.reports.Csv.escape(it) }).append("\r\n")
         }
         return sb.toString()
     }
@@ -112,6 +116,13 @@ object OfferExporter {
                     .put("fuelCost", o.fuelCost)
                     .put("netProfit", o.netProfit)
                     .put("score", o.score)
+                    .put("excludedFromAnalysis", o.excludedFromAnalysis)
+                    .put("parserVersion", o.parserVersion ?: JSONObject.NULL)
+                    .put("classifierVersion", o.classifierVersion ?: JSONObject.NULL)
+                    .put("uberVersion", o.uberVersion ?: JSONObject.NULL)
+                    .put("readingId", o.readingId ?: JSONObject.NULL)
+                    .put("readingConfidence", o.readingConfidence ?: JSONObject.NULL)
+                    .put("readingReasons", o.readingReasons)
                     .put("cardAction", o.action?.storageKey ?: JSONObject.NULL)
                     .put("careSector", com.ubers.observador.domain.sectors.SectorStats.csvValue(o, sectors).ifEmpty { null } ?: JSONObject.NULL)
             )

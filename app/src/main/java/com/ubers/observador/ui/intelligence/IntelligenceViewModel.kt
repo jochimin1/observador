@@ -85,7 +85,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         repo.observeVersions()
     ) { _, _, profit, shadowId, versions -> Triple(profit, shadowId, versions) }
 
-    val state: StateFlow<IntelligenceUiState> = combine(triggers, repo.observeShadowCount(), period, includeUnconfirmed) { t, _, p, u ->
+    val state: StateFlow<IntelligenceUiState> = combine(triggers, repo.observeShadowCount(), period, includeUnconfirmed, db.offerDao().observeExcludedIds()) { t, _, p, u, _ ->
         Triple(t, p, u)
     }
         .mapLatest { (t, p, u) -> compute(t.first, t.second, p, u) }

@@ -186,6 +186,7 @@ object RideLifecycleMonitor {
     fun onSnapshot(snapshot: ScreenSnapshot, offerHash: String?): PipelineResult {
         if (!restored) return PipelineResult(classification = null)
         val result = pipeline.onSnapshot(snapshot, offerHash)
+        ReadingAuditRecorder.lifecycle(snapshot, pipeline.context.state.name, pipeline.context.sessionId, result.events.map { it.type.name })
         if (BuildConfig.DEBUG) {
             lastSnapshot = snapshot
             CaptureRecorder.record(snapshot, offerHash, result.classification, pipeline.context.state.name, classifier.signatures)
@@ -272,6 +273,7 @@ object RideLifecycleMonitor {
         val zone = java.time.ZoneId.systemDefault()
         val detection = financialDetector.detect(snapshot, classification.type, pipeline.context, snapshot.timestampMs, zone)
         if (detection.classification.type != FinancialScreenType.UNKNOWN) {
+            ReadingAuditRecorder.financial(snapshot, detection.classification.type.name, detection.classification.confidence)
             writer.submit(detection)
             return
         }
@@ -280,6 +282,7 @@ object RideLifecycleMonitor {
         if (pill == null) {
             writer.countUnknownScreen()
         } else if (pill.snapshotId != lastTodayPillId) {
+            ReadingAuditRecorder.financial(snapshot, FinancialScreenType.UBER_TODAY_PILL.name, pill.confidence)
             lastTodayPillId = pill.snapshotId
             val type = FinancialScreenClassification(FinancialScreenType.UBER_TODAY_PILL, pill.confidence, pill.evidence)
             writer.submit(FinancialDetection(type, snapshots = listOf(pill)))

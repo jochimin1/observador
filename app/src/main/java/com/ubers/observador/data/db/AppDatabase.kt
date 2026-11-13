@@ -31,14 +31,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class,
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
-        TripRoutePointEntity::class, TripRouteEntity::class
+        TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun offerDao(): OfferDao
+
+    abstract fun readingAuditDao(): ReadingAuditDao
 
     abstract fun tripDao(): TripDao
 
@@ -56,6 +58,25 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.38.0: additive audit metadata; old offers remain usable and explicitly have no trace. */
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf("parser_version", "classifier_version", "uber_version", "reading_id").forEach {
+                    db.execSQL("ALTER TABLE detected_offers ADD COLUMN `$it` TEXT")
+                }
+                db.execSQL("ALTER TABLE detected_offers ADD COLUMN reading_confidence REAL")
+                db.execSQL("ALTER TABLE detected_offers ADD COLUMN reading_reasons TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE detected_offers ADD COLUMN excluded_from_analysis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE TABLE IF NOT EXISTS reading_audits (`id` TEXT NOT NULL, `observedAt` INTEGER NOT NULL, " +
+                    "`parserVersion` TEXT NOT NULL, `classifierVersion` TEXT NOT NULL, `uberVersion` TEXT, " +
+                    "`screenType` TEXT NOT NULL, `confidence` REAL NOT NULL, `provisional` INTEGER NOT NULL, " +
+                    "`reasonCodes` TEXT NOT NULL, `acceptedCards` INTEGER NOT NULL, `rejectedCards` INTEGER NOT NULL, " +
+                    "`lifecycleState` TEXT, `lifecycleSessionId` TEXT, `eventCodes` TEXT NOT NULL, " +
+                    "`financialType` TEXT, `financialConfidence` REAL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_reading_audits_observedAt ON reading_audits (observedAt)")
+            }
+        }
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -388,7 +409,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .build()
     }
 }

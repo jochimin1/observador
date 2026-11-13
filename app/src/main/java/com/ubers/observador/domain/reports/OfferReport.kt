@@ -98,7 +98,14 @@ data class OfferReportRow(
     val tipMinor: Long,
     val differenceMinor: Long?,
     val completeness: FinancialCompleteness?,
-    val currencyCode: String
+    val currencyCode: String,
+    val excludedFromAnalysis: Boolean = false,
+    val parserVersion: String? = null,
+    val classifierVersion: String? = null,
+    val uberVersion: String? = null,
+    val readingId: String? = null,
+    val readingConfidence: Double? = null,
+    val readingReasons: String = ""
 )
 
 object OfferReport {
@@ -158,7 +165,10 @@ object OfferReport {
                 tipMinor = s?.tip ?: 0,
                 differenceMinor = difference?.minorUnits?.takeIf { confirmed != null },
                 completeness = s?.completeness ?: trip?.let { FinancialCompleteness.UNKNOWN },
-                currencyCode = currencyCode
+                currencyCode = currencyCode,
+                excludedFromAnalysis = o.excludedFromAnalysis, parserVersion = o.parserVersion,
+                classifierVersion = o.classifierVersion, uberVersion = o.uberVersion,
+                readingId = o.readingId, readingConfidence = o.readingConfidence, readingReasons = o.readingReasons
             )
         }
     }
@@ -188,7 +198,8 @@ object OfferReport {
         "fecha", "hora", "jornada", "origen", "estado_viaje", "modalidad", "exclusivo", "boton", "categoria", "score_hoy",
         "score_al_detectar", "ofertado_referencia", "km_recogida", "min_recogida", "km_viaje", "min_viaje", "km_total", "min_total",
         "rd_por_km", "rd_por_hora", "combustible_estimado", "ganancia_estimada", "recogida", "destino", "pasajero",
-        "real_confirmado", "propina", "diferencia_con_ofertado", "cobertura_dinero", "moneda"
+        "real_confirmado", "propina", "diferencia_con_ofertado", "cobertura_dinero", "moneda",
+        "lectura_excluida", "version_lector", "version_clasificador", "version_uber", "lectura_id", "confianza_lectura", "observaciones_lectura"
     )
 
     fun statusLabel(s: TripStatus?): String = when (s) {
@@ -216,7 +227,9 @@ object OfferReport {
             d1(r.totalKm), r.totalMin.toString(), d2(r.rdpPerKm), d2(r.rdpPerHour), Decimals.of(r.fuelCostMinor, c),
             Decimals.of(r.estimatedProfitMinor, c), r.pickupAddress ?: "", r.dropoffAddress ?: "", r.riderName ?: "",
             r.realMinor?.let { Decimals.of(it, c) } ?: "", if (r.tripId != null) Decimals.of(r.tipMinor, c) else "",
-            r.differenceMinor?.let { Decimals.of(it, c) } ?: "", r.completeness?.storageKey ?: "", c
+            r.differenceMinor?.let { Decimals.of(it, c) } ?: "", r.completeness?.storageKey ?: "", c,
+            r.excludedFromAnalysis.toString(), r.parserVersion.orEmpty(), r.classifierVersion.orEmpty(),
+            r.uberVersion.orEmpty(), r.readingId.orEmpty(), r.readingConfidence?.toString().orEmpty(), r.readingReasons
         )
     })
 
@@ -258,7 +271,11 @@ object OfferReport {
                 "tip" to Json.num(if (r.tripId != null) Decimals.of(r.tipMinor, c) else ""),
                 "differenceFromOffer" to Json.num(r.differenceMinor?.let { Decimals.of(it, c) } ?: ""),
                 "moneyCoverage" to Json.str(r.completeness?.storageKey),
-                "currency" to Json.str(c)
+                "currency" to Json.str(c),
+                "excludedFromAnalysis" to r.excludedFromAnalysis.toString(),
+                "parserVersion" to Json.str(r.parserVersion), "classifierVersion" to Json.str(r.classifierVersion),
+                "uberVersion" to Json.str(r.uberVersion), "readingId" to Json.str(r.readingId),
+                "readingConfidence" to (r.readingConfidence?.toString() ?: "null"), "readingReasons" to Json.str(r.readingReasons)
             )
         })
     )
@@ -312,28 +329,30 @@ data class PeriodTotals(
     val expensesWorkMinor: Long?,
     val netMinor: Long?,
     val days: List<DayTotals>,
-    val currencyCode: String
+    val currencyCode: String,
+    val excludedReadings: Int = 0
 )
 
 object PeriodTotalsBuilder {
 
     fun of(rows: List<OfferReportRow>, expensesWorkMinor: Long? = null, currencyCode: String = Currencies.DOP): PeriodTotals {
         fun split(list: List<OfferReportRow>) = CountSplit(list.size, list.count { it.origin == OfferOrigin.OFFERED }, list.count { it.origin == OfferOrigin.TAKEN })
+        val eligible = rows.filterNot { it.excludedFromAnalysis }
         val taken = rows.filter { it.origin == OfferOrigin.TAKEN }
         val real = rows.sumOf { it.realMinor ?: 0L }
         return PeriodTotals(
             count = split(rows),
-            takenPercent = if (rows.isEmpty()) null else (taken.size * 200 + rows.size) / (rows.size * 2),
+            takenPercent = if (eligible.isEmpty()) null else (eligible.count { it.origin == OfferOrigin.TAKEN } * 200 + eligible.size) / (eligible.size * 2),
             completed = taken.count { it.tripStatus == TripStatus.COMPLETED },
             unconfirmed = taken.count { it.tripStatus == TripStatus.INTERRUPTED },
             cancelled = taken.count { it.tripStatus == TripStatus.CANCELLED },
             inProgress = taken.count { it.tripStatus != null && it.tripStatus.isOpen },
-            byQuality = listOf(OfferQuality.EXCELLENT, OfferQuality.GOOD, OfferQuality.BAD).associateWith { q -> split(rows.filter { it.quality == q }) },
+            byQuality = listOf(OfferQuality.EXCELLENT, OfferQuality.GOOD, OfferQuality.BAD).associateWith { q -> split(eligible.filter { it.quality == q }) },
             byButton = listOf(OfferCardAction.INTEREST, OfferCardAction.ACCEPT).map { a ->
-                rows.filter { it.button == a }.let { ButtonTotals(a.label, it.size, it.count { r -> r.origin == OfferOrigin.TAKEN }) }
-            } + rows.filter { it.button == null }.let { ButtonTotals(OfferReport.NO_PRODUCT, it.size, it.count { r -> r.origin == OfferOrigin.TAKEN }) },
-            byProduct = OfferReport.products(rows).map { p ->
-                val list = rows.filter { it.product == p }
+                eligible.filter { it.button == a }.let { ButtonTotals(a.label, it.size, it.count { r -> r.origin == OfferOrigin.TAKEN }) }
+            } + eligible.filter { it.button == null }.let { ButtonTotals(OfferReport.NO_PRODUCT, it.size, it.count { r -> r.origin == OfferOrigin.TAKEN }) },
+            byProduct = OfferReport.products(eligible).map { p ->
+                val list = eligible.filter { it.product == p }
                 ProductTotals(
                     product = p,
                     count = split(list),
@@ -342,22 +361,23 @@ object PeriodTotalsBuilder {
                     medianRdpPerKm = median(list.map { it.rdpPerKm })
                 )
             },
-            offeredRefMinor = rows.sumOf { it.offeredMinor },
+            offeredRefMinor = eligible.sumOf { it.offeredMinor },
             realMinor = real,
             confirmedTrips = rows.count { it.realMinor != null },
             doneTrips = taken.count { it.tripDone },
             tipsMinor = rows.sumOf { if (it.tripId != null) it.tipMinor else 0L },
-            takenKmTenths = taken.sumOf { Math.round(it.totalKm * 10) },
-            takenMinutes = taken.sumOf { it.totalMin.toLong() },
+            takenKmTenths = taken.filterNot { it.excludedFromAnalysis }.sumOf { Math.round(it.totalKm * 10) },
+            takenMinutes = taken.filterNot { it.excludedFromAnalysis }.sumOf { it.totalMin.toLong() },
             expensesWorkMinor = expensesWorkMinor,
             netMinor = expensesWorkMinor?.let { real - it },
             days = rows.groupBy { it.workday }.toSortedMap().map { (day, list) ->
                 DayTotals(
-                    day, split(list), list.sumOf { it.offeredMinor }, list.sumOf { it.realMinor ?: 0L },
+                    day, split(list), list.filterNot { it.excludedFromAnalysis }.sumOf { it.offeredMinor }, list.sumOf { it.realMinor ?: 0L },
                     list.count { it.realMinor != null }, list.count { it.origin == OfferOrigin.TAKEN && it.tripDone }
                 )
             },
-            currencyCode = currencyCode
+            currencyCode = currencyCode,
+            excludedReadings = rows.count { it.excludedFromAnalysis }
         )
     }
 
@@ -385,6 +405,10 @@ object PeriodTotalsText {
         fun m(minor: Long) = Decimals.of(minor, c)
         fun split(s: CountSplit) = "${s.all} (ofertados ${s.offered}, tomados ${s.taken})"
         val out = ArrayList<Section>()
+        if (t.excludedReadings > 0) out += Section("Calidad de lectura", listOf(
+            "Lecturas dudosas excluidas de estadísticas de ofertas" to t.excludedReadings.toString(),
+            "Dinero real" to "Se conserva completo; las exclusiones afectan cifras de ofertas y calibración"
+        ))
         out += Section("Origen", listOf(
             "Ofertas vistas" to t.count.all.toString(),
             "Ofertados (no tomados)" to t.count.offered.toString(),

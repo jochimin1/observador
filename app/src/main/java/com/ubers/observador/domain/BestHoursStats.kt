@@ -121,14 +121,14 @@ object BestHours {
         cuts: QualityThresholds,
         zone: ZoneId
     ): BestHoursStats {
-        val scored = DashboardStats.rescore(offers, settings)
+        val scored = DashboardStats.rescore(ReadingEligibility.offers(offers), settings)
         val bySlot = scored.groupBy { slotIndexOf(it.detectedAt, zone) }
         val slots = (0 until SLOT_COUNT).map { i ->
             slotStats(i * SLOT_HOURS, bySlot[i].orEmpty(), cuts, zone)
         }
         val indexed = withOpportunityIndex(slots)
         val ranked = rankSlots(indexed)
-        return BestHoursStats(indexed, ranked.firstOrNull(), ranked, offers.size)
+        return BestHoursStats(indexed, ranked.firstOrNull(), ranked, scored.size)
     }
 
     /** Slot index 0..11 for an instant: 17:59:59 -> 8 (16-18), 18:00 -> 9 (18-20). */

@@ -112,7 +112,7 @@ class DataMaintenanceTest {
         val restorer = BackupRestorer(context)
         val p = restorer.prepare(archive.inputStream(), 14)
         assertEquals(13, p.manifest.dbVersion)
-        assertEquals(14, DatabaseFiles.inspect(p.db).version)
+        assertEquals(15, DatabaseFiles.inspect(p.db).version)
         assertEquals(listOf("original"), ids())
         assertTrue(AppDatabase.getInstance(context).isOpen)
         restorer.restore(p)

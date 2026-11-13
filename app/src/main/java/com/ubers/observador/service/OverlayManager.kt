@@ -97,6 +97,35 @@ class OverlayManager(private val context: Context) {
     /** Safe to call from any thread. */
     fun dismiss() = runOnMain { removeNow() }
 
+    /** Replaces stale scores with a readable explanation; never creates a numerical offer. */
+    fun showUnreadable(reason: String, durationSeconds: Int = 5) = runOnMain {
+        removeNow()
+        val dp = context.resources.displayMetrics.density
+        val view = TextView(context).apply {
+            text = "No pude leer esta oferta\n$reason\nToca para cerrar"
+            contentDescription = text
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            maxWidth = (320 * dp).toInt()
+            setPadding((16 * dp).toInt(), (12 * dp).toInt(), (16 * dp).toInt(), (12 * dp).toInt())
+            background = GradientDrawable().apply { setColor(Color.rgb(100, 51, 0)); cornerRadius = 16 * dp }
+            setOnClickListener { onTap?.invoke(); removeNow() }
+        }
+        val params = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = getStatusBarHeight() + (4 * dp).toInt()
+        }
+        try {
+            windowManager.addView(view, params)
+            overlayView = view
+            lastShowFailed = false
+            Runnable { removeNow() }.also { dismissRunnable = it; handler.postDelayed(it, durationSeconds * 1000L) }
+        } catch (e: Exception) { lastShowFailed = true; Log.w(TAG, "Could not show reading notice", e) }
+    }
+
     // Removal must be synchronous. Posting it from show() queued it behind show() itself,
     // so it ran right after addView and deleted the card that had just been created.
     private fun removeNow() {

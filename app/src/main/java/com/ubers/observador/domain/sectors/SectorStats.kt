@@ -36,7 +36,7 @@ object SectorStats {
      * sector in both counts once in each). Sectors with no offers are left out; most frequent first.
      */
     fun counts(offers: List<OfferEntity>, sectors: List<CareSector>): List<SectorCount> =
-        countsOf(offers.map { it.pickupAddress to it.dropoffAddress }, sectors)
+        countsOf(offers.filterNot { it.excludedFromAnalysis }.map { it.pickupAddress to it.dropoffAddress }, sectors)
 
     /** [counts] from (pickup, drop-off) pairs, as read straight from the table. */
     fun countsOf(addresses: List<Pair<String?, String?>>, sectors: List<CareSector>): List<SectorCount> {

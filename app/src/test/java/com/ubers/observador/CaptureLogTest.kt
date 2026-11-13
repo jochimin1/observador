@@ -43,7 +43,9 @@ class CaptureLogTest {
 
     @Test fun unknownScreenStillRecorded() {
         val e = CaptureLog.entry(at, zone, null, "IDLE", "cuerpo")
-        assertTrue(e.contains("pantalla=— · estado=IDLE · señales=—"))
+        assertTrue(e.contains("pantalla=— · estado=IDLE · parser="))
+        // 1.38.0: the versions sit between the state and the signals
+        assertTrue(e.contains(" · uber=no disponible · señales=—"))
     }
 
     @Test fun sameScreenIsWrittenOnce() {

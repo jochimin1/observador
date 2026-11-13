@@ -62,7 +62,7 @@ object CaptureRecorder {
         // The listing is built here, on the reading thread, so no Android node outlives this call
         val zone = ZoneId.systemDefault()
         val body = SnapshotSanitizer.describe(snapshot, signatures, keepMeasureDigits = true)
-        val text = CaptureLog.entry(snapshot.timestampMs, zone, classification, state, body)
+        val text = CaptureLog.entry(snapshot.timestampMs, zone, classification, state, body, ReadingAuditRecorder.versionFor(snapshot))
         val name = CaptureLog.fileName(snapshot.timestampMs, zone)
         PersistenceQueue.shared().enqueue {
             try {

@@ -22,7 +22,13 @@ fun OfferAnalysis.toEntity(offerHash: String = offer.offerHash()) = OfferEntity(
     dropoffAddress = offer.dropoffAddress,
     cardAction = offer.cardAction?.storageKey,
     product = offer.product,
-    exclusive = offer.exclusive
+    exclusive = offer.exclusive,
+    parserVersion = offer.readingTrace?.parserVersion,
+    classifierVersion = offer.readingTrace?.classifierVersion,
+    uberVersion = offer.readingTrace?.uberVersion,
+    readingId = offer.readingTrace?.readingId,
+    readingConfidence = offer.readingTrace?.confidence,
+    readingReasons = offer.readingTrace?.reasons.orEmpty()
 )
 
 /** Fase 8J: the card's button, read from [OfferEntity.cardAction] (kept out of the entity so Room never sees it). */

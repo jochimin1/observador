@@ -26,7 +26,7 @@ object CaptureLog {
      * «=== 2026-10-24 14:03:12 · pantalla=ARRIVED_OR_WAITING 0.72 provisional · estado=TO_PICKUP ·
      * señales=ARRIVED_ACTION("llegue")» followed by the sanitized node listing and a blank line.
      */
-    fun entry(atMs: Long, zone: ZoneId, classification: ScreenClassification?, state: String, body: String): String =
+    fun entry(atMs: Long, zone: ZoneId, classification: ScreenClassification?, state: String, body: String, uberVersion: String? = null): String =
         buildString {
             append(ENTRY_MARK).append(STAMP.format(Instant.ofEpochMilli(atMs).atZone(zone)))
             append(" · pantalla=")
@@ -38,6 +38,9 @@ object CaptureLog {
                 if (classification.provisional) append(" provisional")
             }
             append(" · estado=").append(state)
+            append(" · parser=").append(ReadingVersions.PARSER)
+            append(" · clasificador=").append(ReadingVersions.CLASSIFIER)
+            append(" · uber=").append(uberVersion ?: "no disponible")
             val signals = classification?.evidence.orEmpty()
             append(" · señales=")
             append(if (signals.isEmpty()) "—" else signals.joinToString(",") { "${it.code.name}(\"${it.matchedSignature}\")" })

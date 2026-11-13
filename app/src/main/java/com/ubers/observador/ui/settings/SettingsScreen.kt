@@ -475,6 +475,7 @@ fun SettingsScreen(
                 onTestNotification = { viewModel.showTestNotification() }
             )
             OfferDebugCard()
+            ReadingAuditSection()
 
             SectionHeader("Detección", R.drawable.ic_filter_alt)
             IntSettingCard(

@@ -1,0 +1,257 @@
+# Observador · corpus de lectura v1 (1.38.0)
+#
+# Pantallas de Uber Driver saneadas, en el orden de los nodos de accesibilidad. Ningún nombre,
+# dirección ni importe pertenece a un viaje real. Las cifras de los casos «sintetico» se escribieron
+# a mano siguiendo las firmas conocidas; los casos «captura» deben venir de capturas reales pasadas
+# por SnapshotSanitizer y revisadas antes de añadirse. Este v1 aún no contiene casos «captura».
+#
+# Formato de cada caso:
+#   === <id>                       inicio del caso
+#   origen: sintetico | captura    procedencia
+#   secuencia: <nombre>            opcional; los casos de una secuencia se reproducen en orden
+#   pantalla: <UberScreenType>     opcional; tipo esperado del clasificador
+#   estado: <RideLifecycleState>   opcional; estado esperado tras reproducir este paso
+#   lectura: <OfferParseStep>      opcional; resultado esperado del lector de la tarjeta
+#   precio: <número>               opcional; precio que debe leerse
+#   dinero: <FinancialScreenType>  opcional; tipo de pantalla de dinero esperado
+#   T: <texto>                     nodo de texto
+#   B: <texto>                     botón pulsable
+
+# ---- Secuencia completa: oferta, recogida, llegada, inicio, fin y dinero ----
+
+=== completa-1-buscando
+origen: sintetico
+secuencia: completa
+pantalla: SEARCHING
+estado: IDLE
+T: Buscando viajes
+B: Desconectarte
+
+=== completa-2-oferta
+origen: sintetico
+secuencia: completa
+pantalla: OFFER
+estado: OFFER_VISIBLE
+lectura: OK
+precio: 136.06
+T: DOP136.06
+T: A 7 min (4.1 km)
+T: Viaje: 11 min (7.2 km)
+T: Calle Ficticia 123
+B: Aceptar
+
+=== completa-3-recogida
+origen: sintetico
+secuencia: completa
+pantalla: PICKUP_NAVIGATION
+estado: TO_PICKUP
+T: Recoger a Ana Ficticia
+T: 3 min
+B: Llegué
+
+=== completa-4-llegada
+origen: sintetico
+secuencia: completa
+pantalla: ARRIVED_OR_WAITING
+estado: ARRIVED_OR_WAITING
+T: Esperando a Ana Ficticia
+B: Iniciar viaje
+
+=== completa-5-en-viaje
+origen: sintetico
+secuencia: completa
+pantalla: IN_TRIP
+estado: IN_TRIP
+T: Dejar a Ana Ficticia
+T: Av. Imaginaria 45
+T: 12 min
+B: Finalizar viaje
+
+=== completa-6-fin-y-dinero
+origen: sintetico
+secuencia: completa
+pantalla: TRIP_SUMMARY
+estado: COMPLETED
+dinero: TRIP_EARNINGS
+T: Viaje completado
+T: DOP136.06
+B: Califica a Ana Ficticia
+
+# ---- Secuencia cancelada ----
+
+=== cancelada-0-buscando
+origen: sintetico
+secuencia: cancelada
+pantalla: SEARCHING
+estado: IDLE
+T: Buscando viajes
+B: Desconectarte
+
+=== cancelada-1-oferta
+origen: sintetico
+secuencia: cancelada
+pantalla: OFFER
+estado: OFFER_VISIBLE
+lectura: OK
+precio: 136.06
+T: DOP136.06
+T: A 7 min (4.1 km)
+T: Viaje: 11 min (7.2 km)
+B: Aceptar
+
+=== cancelada-2-recogida
+origen: sintetico
+secuencia: cancelada
+pantalla: PICKUP_NAVIGATION
+estado: TO_PICKUP
+T: Recoger a Ana Ficticia
+T: 4 min
+B: Llegué
+
+=== cancelada-3-cancelacion
+origen: sintetico
+secuencia: cancelada
+pantalla: CANCELLED
+estado: CANCELLED
+T: Viaje cancelado
+B: Entendido
+
+# ---- Tarjetas sueltas: formatos y lecturas que no deben producir cifras creíbles pero falsas ----
+
+=== tarjeta-recargo-incluido
+origen: sintetico
+lectura: OK
+precio: 92.60
+T: DOP92.60
+T: +DOP5.25 incluido
+T: A 4 min (1.2 km)
+T: 14 min (6.3 km)
+B: Aceptar
+
+=== tarjeta-tasa-por-km
+origen: sintetico
+lectura: OK
+precio: 224.10
+T: DOP224.10
+T: DOP20.19/km est.
+T: A 5 min (1.9 km)
+T: 22 min (11.1 km)
+B: Me interesa
+
+=== tarjeta-miles-con-coma
+origen: sintetico
+lectura: OK
+precio: 1250.00
+T: RD$1,250.00
+T: A 9 min (3.0 km)
+T: 58 min (41.5 km)
+B: Aceptar
+
+=== tarjeta-miles-con-espacio
+origen: sintetico
+lectura: OK
+precio: 1250.00
+T: RD$1 250,00
+T: A 9 min (3,0 km)
+T: 58 min (41,5 km)
+B: Aceptar
+
+=== tarjeta-precio-con-puntuacion
+origen: sintetico
+lectura: OK
+precio: 136.06
+T: Precio DOP136.06,
+T: A 7 min (4.1 km)
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-precio-y-numero-en-otro-nodo
+origen: sintetico
+lectura: OK
+precio: 90.00
+T: DOP90.00
+T: 123 Calle Ficticia
+T: A 3 min (0.8 km)
+T: 10 min (4.0 km)
+B: Aceptar
+
+=== tarjeta-recogida-y-viaje-iguales
+origen: sintetico
+lectura: OK
+precio: 75.00
+T: DOP75.00
+T: A 6 min (2.0 km)
+T: 6 min (2.0 km)
+B: Aceptar
+
+=== tarjeta-km-antes-que-min
+origen: sintetico
+lectura: OK
+precio: 110.00
+T: DOP110.00
+T: A 5 min (1.5 km)
+T: 8.2 km · 17 min
+B: Aceptar
+
+=== tarjeta-dos-precios
+origen: sintetico
+lectura: AMBIGUOUS
+T: DOP136.06
+T: DOP150.00
+T: A 7 min (4.1 km)
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-dos-recogidas
+origen: sintetico
+lectura: AMBIGUOUS
+T: DOP136.06
+T: A 7 min (4.1 km)
+T: A 9 min (5.0 km)
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-precio-mal-formado
+origen: sintetico
+lectura: INVALID_VALUES
+T: DOP1,25,0
+T: A 7 min (4.1 km)
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-sin-precio
+origen: sintetico
+lectura: NO_PRICE
+T: 136.06
+T: A 7 min (4.1 km)
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-sin-recogida
+origen: sintetico
+lectura: NO_PICKUP
+T: DOP136.06
+T: 11 min (7.2 km)
+B: Aceptar
+
+=== tarjeta-sin-viaje
+origen: sintetico
+lectura: NO_TRIP
+T: DOP136.06
+T: A 7 min (4.1 km)
+B: Aceptar
+
+=== tarjeta-incompleta-sin-boton
+origen: sintetico
+lectura: NO_ACCEPT
+T: DOP136.06
+T: A 7 min (4.1 km)
+T: 11 min (7.2 km)
+
+=== tarjeta-viaje-sin-minutos
+origen: sintetico
+lectura: INVALID_VALUES
+T: DOP136.06
+T: A 7 min (4.1 km)
+T: 0 min (7.2 km)
+B: Aceptar

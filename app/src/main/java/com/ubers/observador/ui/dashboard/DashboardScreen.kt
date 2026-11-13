@@ -168,6 +168,7 @@ fun DashboardScreen(
         OfferDetailSheet(
             detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
             onDismiss = { selectedOfferId = null },
+            onToggleExcluded = if (selectedOffer.id > 0) ({ viewModel.setOfferExcluded(selectedOffer.id, !selectedOffer.excludedFromAnalysis) }) else null,
             trip = state.trips[selectedOffer.id],
             sectorLine = com.ubers.observador.domain.sectors.SectorBanner.of(
                 com.ubers.observador.domain.sectors.SectorStats.matchOf(selectedOffer, state.careSectors)
@@ -325,7 +326,7 @@ fun DashboardScreen(
                 if (!state.loading && state.originCounts.all > 0) {
                     item { OriginChips(state, onOrigin = viewModel::selectOrigin) }
                 }
-                if (state.summary.count > 0) {
+                if (state.originCounts.all > 0) {
                     item {
                         ListControls(
                             state = state,
@@ -535,10 +536,14 @@ private fun SummaryCard(
                 )
             }
         }
+        if (state.excludedOfferCount > 0) Text(
+            "${state.excludedOfferCount} lecturas dudosas excluidas de las estadísticas. Se conservan en la lista.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error
+        )
         when {
             state.loading -> Unit
             summary.count == 0 -> Text(
-                text = "Sin ofertas ni viajes en este periodo.",
+                text = if (state.excludedOfferCount > 0) "No hay lecturas incluidas en las estadísticas de este periodo." else "Sin ofertas ni viajes en este periodo.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -863,6 +868,8 @@ private fun OfferRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (offer.excludedFromAnalysis) Text("Lectura dudosa · excluida", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error)
                 // Fase 8J: modality, "Exclusivo" and the card's button
                 val card = listOfNotNull(
                     offer.product,

@@ -44,11 +44,12 @@ fun OfferDetailSheet(
     /** Fase 8K: the trip the offer became, if it was taken: its card and its route are shown. */
     trip: com.ubers.observador.domain.trips.Trip? = null,
     /** 1.36.0: the care sector line («⚠ Destino: Cristo Rey»), or null. */
-    sectorLine: String? = null
+    sectorLine: String? = null,
+    onToggleExcluded: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = onDismiss, sheetState = sheetState) {
-        OfferDetailContent(detail, onDelete, trip, sectorLine)
+        OfferDetailContent(detail, onDelete, trip, sectorLine, onToggleExcluded)
     }
 }
 
@@ -57,7 +58,8 @@ private fun OfferDetailContent(
     detail: OfferDetail,
     onDelete: (() -> Unit)?,
     trip: com.ubers.observador.domain.trips.Trip?,
-    sectorLine: String? = null
+    sectorLine: String? = null,
+    onToggleExcluded: (() -> Unit)? = null
 ) {
     val o = detail.offer
     val quality = detail.quality
@@ -95,6 +97,7 @@ private fun OfferDetailContent(
                 )
             }
         }
+        ReadingQualityDetail(o, onToggleExcluded)
         // Fase 8J: modality and "Exclusivo", then which button the card had
         listOfNotNull(o.product, "Exclusivo".takeIf { o.exclusive == true }).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
             com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_two_wheeler, "Modalidad: $it")

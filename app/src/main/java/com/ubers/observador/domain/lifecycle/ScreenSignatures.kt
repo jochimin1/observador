@@ -28,17 +28,20 @@ enum class EvidenceCode(val description: String) {
  */
 object OfferPatterns {
     // "DOP136.06" or "DOP 136.06" or "RD$136.06"
-    val PRICE = Regex("""(?:DOP|RD\$)\s*([\d,]+\.?\d*)""")
+    // 1.38.0: the amount never ends in a separator (\u00abDOP136.06,\u00bb reads 136.06) and a space groups
+    // thousands only inside one node: texts are joined with '\n', so \u00abDOP90\u00bb + \u00ab123 Calle\u00bb is not 90123
+    val PRICE = Regex("""(?:DOP|RD\$)\s*([0-9]+(?:[.,][0-9]+)*(?:[ \u00a0][0-9]{3}(?:[.,][0-9]+)?)*)""", RegexOption.IGNORE_CASE)
 
     /**
      * The fare of the card: the first price that is not written as an extra. Uber's chip
      * "+DOP5.25 incluido" (18/10) is a surcharge already inside the fare; read as a price it cut
      * the card in two and gave RD$5.25 instead of DOP92.60.
      */
-    fun fare(text: String): MatchResult? = PRICE.findAll(text).firstOrNull { !isExtra(text, it) }
+    fun fares(text: String): List<MatchResult> = PRICE.findAll(text).filterNot { isExtra(text, it) }.toList()
+    fun fare(text: String): MatchResult? = fares(text).firstOrNull()
 
     /** The value of [fare] in pesos, or null. */
-    fun fareValue(text: String): Double? = fare(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+    fun fareValue(text: String): Double? = fare(text)?.groupValues?.get(1)?.let(ReadingNumbers::decimal)
 
     private val EXTRA_AFTER = listOf("incluid", "included", "adicional", "extra")
 
@@ -54,11 +57,11 @@ object OfferPatterns {
     }
 
     // Pickup: "A 7 min (4.1 km)" | "En 7 min (4.1 km)" | "A 7 min · 4.1 km"
-    val PICKUP = Regex("""(?:A|En)\s+(\d+)\s*min\s*[\(·•]\s*([\d.]+)\s*km""")
+    val PICKUP = Regex("""\b(?:A|En)\s+(\d+)\s*min\s*[\(·•]\s*([\d.,]+)\s*km""", RegexOption.IGNORE_CASE)
 
     // Trip: "11 min (7.2 km)" | "Viaje: 11 min (7.2 km)"
-    val TRIP_TIME_KM = Regex("""(?:Viaje:?\s+)?(\d+)\s*min\s*[\(·•]\s*([\d.]+)\s*km""")
-    val TRIP_KM_TIME = Regex("""([\d.]+)\s*km\s*[·•]\s*(\d+)\s*min""")
+    val TRIP_TIME_KM = Regex("""(?:Viaje:?\s+)?(\d+)\s*min\s*[\(·•]\s*([\d.,]+)\s*km""", RegexOption.IGNORE_CASE)
+    val TRIP_KM_TIME = Regex("""([\d.,]+)\s*km\s*[·•]\s*(\d+)\s*min""", RegexOption.IGNORE_CASE)
 
     // Partial match: "ACEPTAR", "Aceptar viaje", "Accept trip"... and "Me interesa", the button of
     // the cards in Uber's "Radar de solicitud de viaje" (screenshots of 17/10)

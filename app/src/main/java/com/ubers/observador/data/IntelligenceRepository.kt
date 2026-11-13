@@ -43,14 +43,18 @@ class IntelligenceRepository(private val db: AppDatabase) {
         db.withTransaction {
             val done = (if (includeUnconfirmed) trips.getTripsEndedBetween(from, to) else trips.getTripsCompletedBetween(from, to))
                 .map { it.toDomain() }
-            val ids = done.map { it.id }
+            val linkedOffers = done.mapNotNull { it.relatedOfferHash }.distinct().chunked(SQLITE_BATCH)
+                .flatMap { db.offerDao().getByHashes(it) }
+            val excluded = com.ubers.observador.domain.ReadingEligibility.excludedTripIds(linkedOffers, done)
+            val included = done.filterNot { it.id in excluded }
+            val ids = included.map { it.id }
             val summaries = ids.chunked(SQLITE_BATCH).flatMap { money.getSummaries(it) }
                 .associate { it.tripId to it.toDomain(currencyCode) }
             val routeEnds = routeEnds(ids)
             val realKm = ids.chunked(SQLITE_BATCH).flatMap { db.distanceDao().getTripDistances(it) }
                 .filter { it.coverage == com.ubers.observador.domain.distance.TripDistanceCoverage.FULL.storageKey }
                 .associate { it.tripId to it.pickupMm + it.tripMm }
-            IntelligenceDatasetBuilder.build(done, summaries, currencyCode, includeUnconfirmed, routeEnds, realKm)
+            IntelligenceDatasetBuilder.build(included, summaries, currencyCode, includeUnconfirmed, routeEnds, realKm)
         }
     }
 
@@ -67,7 +71,7 @@ class IntelligenceRepository(private val db: AppDatabase) {
     }
 
     suspend fun offersSince(from: Long) = MaintenanceGate.shared.access {
-        db.offerDao().getSince(from)
+        com.ubers.observador.domain.ReadingEligibility.offers(db.offerDao().getSince(from))
     }
 
     suspend fun versions(): List<ProfitModelVersion> = MaintenanceGate.shared.access {

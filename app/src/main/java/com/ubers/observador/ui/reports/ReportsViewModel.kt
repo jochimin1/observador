@@ -141,7 +141,7 @@ class ReportsViewModel(app: Application) : AndroidViewModel(app) {
         arrayOf<Any>(h, g.weekStart, e, c, w)
     }
 
-    private val loaded = combine(choice, includeTest, config, reload) { c, test, cfg, _ -> Triple(c, test, cfg) }
+    private val loaded = combine(choice, includeTest, config, reload, db.offerDao().observeExcludedIds()) { c, test, cfg, _, _ -> Triple(c, test, cfg) }
         .mapLatest { (c, test, cfg) ->
             val clock = WorkdayClock(cfg[0] as Int, ZoneId.systemDefault())
             val weekStart = cfg[1] as java.time.DayOfWeek

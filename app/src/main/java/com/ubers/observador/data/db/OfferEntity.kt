@@ -32,5 +32,12 @@ data class OfferEntity(
     @ColumnInfo(name = "card_action") val cardAction: String? = null,
     // Fase 8J (DB 13): the modality above the price ("Moto") and the "Exclusivo" label; null on older rows
     @ColumnInfo(name = "product") val product: String? = null,
-    @ColumnInfo(name = "exclusive") val exclusive: Boolean? = null
+    @ColumnInfo(name = "exclusive") val exclusive: Boolean? = null,
+    @ColumnInfo(name = "parser_version") val parserVersion: String? = null,
+    @ColumnInfo(name = "classifier_version") val classifierVersion: String? = null,
+    @ColumnInfo(name = "uber_version") val uberVersion: String? = null,
+    @ColumnInfo(name = "reading_id") val readingId: String? = null,
+    @ColumnInfo(name = "reading_confidence") val readingConfidence: Double? = null,
+    @ColumnInfo(name = "reading_reasons", defaultValue = "''") val readingReasons: String = "",
+    @ColumnInfo(name = "excluded_from_analysis", defaultValue = "0") val excludedFromAnalysis: Boolean = false
 )

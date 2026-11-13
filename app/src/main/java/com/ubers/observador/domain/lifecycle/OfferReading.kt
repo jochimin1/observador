@@ -14,6 +14,8 @@ enum class OfferParseStep(val label: String) {
     NO_PRICE("No se encontró el precio"),
     NO_PICKUP("No se encontró la recogida (min y km)"),
     NO_TRIP("No se encontró el viaje (min y km)"),
+    AMBIGUOUS("No pude leer: hay varias interpretaciones"),
+    INVALID_VALUES("No pude leer: cifras no válidas"),
     OK("Leída")
 }
 
@@ -21,18 +23,14 @@ object OfferParseCheck {
 
     /** The same checks, in the same order, as the offer parser. */
     fun check(texts: List<String>): OfferParseStep {
-        if (!hasAccept(texts)) return OfferParseStep.NO_ACCEPT
-        val full = texts.joinToString(" ")
-        if (OfferPatterns.fare(full) == null) return OfferParseStep.NO_PRICE
-        val pickup = OfferPatterns.PICKUP.find(full) ?: return OfferParseStep.NO_PICKUP
-        val pickupKey = pickup.groupValues[1] to pickup.groupValues[2]
-        val trip = OfferPatterns.TRIP_TIME_KM.findAll(full).any { (it.groupValues[1] to it.groupValues[2]) != pickupKey } ||
-            OfferPatterns.TRIP_KM_TIME.find(full) != null
-        return if (trip) OfferParseStep.OK else OfferParseStep.NO_TRIP
+        return OfferCardParser.diagnose(texts).step
     }
 
     fun hasAccept(texts: List<String>): Boolean =
-        texts.any { t -> OfferPatterns.ACCEPT_KEYWORDS.any { t.lowercase().contains(it) } }
+        texts.any(::isAction)
+
+    fun isAction(text: String): Boolean = Regex("^(aceptar(?: viaje)?|accept(?: trip)?|aceitar(?: viagem)?|me interesa)$")
+        .matches(TextNormalizer.normalize(text))
 }
 
 /**
@@ -76,21 +74,24 @@ object OfferCards {
 
     fun segments(texts: List<String>): List<List<String>> = cards(texts).map { it.texts }
 
-    fun cards(texts: List<String>): List<Card> {
-        val starts = texts.indices.filter { OfferPatterns.fare(texts[it]) != null }
-        if (starts.isEmpty()) return emptyList()
-        return starts.mapIndexed { n, from ->
-            val until = starts.getOrNull(n + 1) ?: texts.size
-            val headerFrom = if (n == 0) 0 else {
-                val prev = starts[n - 1]
-                val button = (prev until from).lastOrNull { i -> isButton(texts[i]) }
-                (button ?: prev) + 1
-            }
-            Card(texts.subList(from, until), texts.subList(headerFrom, from))
-        }.filter { OfferParseCheck.check(it.texts) == OfferParseStep.OK }
-    }
+    fun cards(texts: List<String>): List<Card> = rawCards(texts).filter { OfferCardParser.diagnose(it.texts).accepted }
 
-    private fun isButton(text: String): Boolean = text.lowercase().let { t -> OfferPatterns.ACCEPT_KEYWORDS.any { t.contains(it) } }
+    /** Buttons delimit cards; a second possible fare before the same button is ambiguity, not another card. */
+    fun rawCards(texts: List<String>): List<Card> {
+        val clean = texts.filterIndexed { i, text -> i == 0 || !OfferParseCheck.isAction(text) || text != texts[i - 1] }
+        val buttons = clean.indices.filter { OfferParseCheck.isAction(clean[it]) }
+        if (buttons.isEmpty()) return if (clean.any { OfferPatterns.fare(it) != null }) listOf(Card(clean, emptyList())) else emptyList()
+        var from = 0
+        val cards = buttons.map { until ->
+            val segment = clean.subList(from, until + 1)
+            val priceAt = segment.indexOfFirst { OfferPatterns.fare(it) != null }
+            from = until + 1
+            if (priceAt < 0) Card(segment, emptyList()) else Card(segment.drop(priceAt), segment.take(priceAt))
+        }.toMutableList()
+        val tail = clean.drop(from)
+        if (tail.any { OfferPatterns.fare(it) != null }) cards += Card(tail, emptyList())
+        return cards
+    }
 }
 
 /** Fase 8J: the modality Uber prints above the price ("Moto") and whether the card is "Exclusivo". */
@@ -153,7 +154,9 @@ object OfferPlacesReader {
         if (pickupAt < 0) return OfferPlaces(null, null)
         val pickupKey = OfferPatterns.PICKUP.find(texts[pickupAt])!!.let { it.groupValues[1] to it.groupValues[2] }
         val tripAt = (pickupAt + 1 until texts.size).firstOrNull { i ->
-            OfferPatterns.TRIP_TIME_KM.findAll(texts[i]).any { (it.groupValues[1] to it.groupValues[2]) != pickupKey } ||
+            OfferPatterns.TRIP_TIME_KM.findAll(texts[i]).any { trip ->
+                OfferPatterns.PICKUP.findAll(texts[i]).none { trip.range.first >= it.range.first && trip.range.last <= it.range.last }
+            } ||
                 OfferPatterns.TRIP_KM_TIME.containsMatchIn(texts[i])
         }
         val acceptAt = texts.indexOfFirst { t -> OfferPatterns.ACCEPT_KEYWORDS.any { t.lowercase().contains(it) } }

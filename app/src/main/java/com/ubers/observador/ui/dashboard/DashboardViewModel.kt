@@ -101,7 +101,8 @@ data class DashboardUiState(
     /** 1.36.0: the driver's care sectors, the «solo sectores» chip and how many offers of the period fall in them. */
     val careSectors: List<com.ubers.observador.domain.sectors.CareSector> = emptyList(),
     val sectorOnly: Boolean = false,
-    val sectorCount: Int = 0
+    val sectorCount: Int = 0,
+    val excludedOfferCount: Int = 0
 )
 
 /** "Mejores horas para salir": its own 7 / 30-day window, separate from the summary chips. */
@@ -291,6 +292,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                 DashboardUiState(
                     period = w.period,
                     summary = DashboardStats.summarize(scored, cuts),
+                    excludedOfferCount = scored.count { it.excludedFromAnalysis },
                     days = DashboardStats.groupByWorkday(scored, w.clock),
                     thresholds = cuts,
                     currentWorkday = w.currentWorkday,
@@ -470,6 +472,10 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch {
         com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         settings.updateObserverEnabled(enabled)
+    }
+
+    fun setOfferExcluded(id: Long, excluded: Boolean) = viewModelScope.launch {
+        repository.setExcluded(id, excluded)
     }
 
     fun deleteOffer(id: Long) = viewModelScope.launch {

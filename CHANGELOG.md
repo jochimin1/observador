@@ -16,6 +16,23 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.38.0] - 2026-11-12
+
+### Añadido
+- Cada oferta guarda la versión de las reglas del lector y del clasificador, la versión de Uber Driver observada, el identificador de su lectura, la confianza y los motivos de baja confianza. Las ofertas anteriores quedan marcadas como «Registro anterior: sin datos de lectura».
+- Registro de lecturas siempre activo y acotado a 10 000 resultados: tipo de pantalla, versiones, motivos, tarjetas leídas y rechazadas, estado del viaje, eventos y tipo de pantalla de dinero. No guarda textos de pantalla, nombres, direcciones ni coordenadas. Se consulta y exporta en JSON desde Ajustes.
+- Una lectura puede marcarse como dudosa desde la ficha de la oferta y volver a incluirse. Se conserva en la lista, el historial y las exportaciones; deja de contar en estadísticas de ofertas, mejores horas, sectores, reportes de ofertas y calibración. El dinero real no se modifica.
+- Corpus de lectura versionado (`reading-corpus/v1`) con la secuencia completa oferta → recogida → llegada → inicio → fin → dinero, una cancelación y tarjetas con formatos difíciles; las métricas se informan por tipo de pantalla.
+
+### Corregido
+- El lector deja de calificar tarjetas que no puede leer con certeza: varios precios totales, varias recogidas o recorridos, importes mal formados y cifras imposibles muestran «No pude leer esta oferta» con el motivo, en lugar de un puntaje.
+- Los importes con miles («RD$1,250.00», «RD$1 250,00»), coma decimal y puntuación final se leen completos; un número de otro nodo ya no se une al precio. Los recargos incluidos y las tasas por km siguen sin tomarse como precio.
+- Las tarjetas del Radar se separan por su botón; una tarjeta dañada ya no oculta la siguiente. Solo un botón completo («Aceptar», «Me interesa»…) cuenta como acción, no un texto que contenga esa palabra.
+- La descripción de accesibilidad idéntica a su texto ya no duplica el nodo leído.
+
+### Datos
+- Room pasa a **15** con una migración aditiva: columnas de lectura en `detected_offers` y la tabla `reading_audits`. No se reescribe ninguna oferta antigua; las dañadas por errores anteriores no se reparan sin evidencia del importe real.
+
 ## [1.37.2] - 2026-11-12
 
 ### Corregido

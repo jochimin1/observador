@@ -15,6 +15,10 @@
     <!-- Fase 8K: the street map of a trip's route (OpenStreetMap tiles) and the names of its places -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <queries>
+        <package android:name="com.ubercab.driver" />
+    </queries>
+
     <application
         android:name=".ObservadorApplication"
         android:allowBackup="false"

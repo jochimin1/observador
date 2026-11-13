@@ -37,7 +37,7 @@ data class ScreenSnapshot(
         nodes.flatMap { node ->
             listOfNotNull(
                 node.text?.trim()?.takeIf { it.isNotEmpty() },
-                node.contentDescription?.trim()?.takeIf { it.isNotEmpty() }
+                node.contentDescription?.trim()?.takeIf { it.isNotEmpty() && it != node.text?.trim() }
             )
         }
     }

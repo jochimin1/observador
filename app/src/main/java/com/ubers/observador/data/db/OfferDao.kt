@@ -10,6 +10,15 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface OfferDao {
 
+    @Query("UPDATE detected_offers SET excluded_from_analysis = :excluded WHERE id = :id")
+    suspend fun setExcluded(id: Long, excluded: Boolean): Int
+
+    @Query("SELECT id FROM detected_offers WHERE excluded_from_analysis = 1 ORDER BY id")
+    fun observeExcludedIds(): Flow<List<Long>>
+
+    @Query("SELECT * FROM detected_offers WHERE offer_hash IN (:hashes)")
+    suspend fun getByHashes(hashes: List<String>): List<OfferEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(offer: OfferEntity)
 

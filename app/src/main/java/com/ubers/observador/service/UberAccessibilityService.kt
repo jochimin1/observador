@@ -90,6 +90,7 @@ class UberAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         if (com.ubers.observador.data.backup.DataRecovery.failure != null) { observing = false; return }
         settings = AppSettings(applicationContext)
+        ReadingAuditRecorder.init(applicationContext)
         repository = OfferRepository(AppDatabase.getInstance(applicationContext))
         shadowScorer = ShadowScorer(settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)))
         // Use `this` so TYPE_ACCESSIBILITY_OVERLAY is backed by the service context
@@ -150,6 +151,9 @@ class UberAccessibilityService : AccessibilityService() {
         mainHandler.postDelayed(parse, DEBOUNCE_MS)
     }
 
+    /** 1.38.0: the unreadable card already announced, so a repaint does not show the notice again. */
+    private var unreadableKey: Int? = null
+
     /** Reads the tree once; the offer parser and the ride lifecycle both work from that copy. */
     private fun readScreen() {
         if (!observing) return
@@ -167,9 +171,11 @@ class UberAccessibilityService : AccessibilityService() {
         // The card is read from the active window; if it is not there (the card can be its own
         // window, or another app is in front), the other Uber windows are tried (Fase 8F)
         // Fase 8I: Uber's Radar shows several cards at once; each one is read (top first)
-        val active = if (snapshot.packageName == UBER_DRIVER_PACKAGE) OfferParser.parseAll(snapshot.texts) else emptyList()
+        val active = if (snapshot.packageName == UBER_DRIVER_PACKAGE) ReadingAuditRecorder.read(snapshot).offers else emptyList()
         val found: Pair<List<UberOffer>, ScreenSnapshot>? =
-            active.takeIf { it.isNotEmpty() }?.let { it to snapshot } ?: offerFromOtherWindows(snapshot.timestampMs)
+            active.takeIf { it.isNotEmpty() }?.let { it to snapshot } ?: if (
+                snapshot.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(snapshot.texts)
+            ) null else offerFromOtherWindows(snapshot.timestampMs)
         val offerScreen = found?.second ?: snapshot.takeIf {
             it.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(it.texts)
         }
@@ -197,9 +203,28 @@ class UberAccessibilityService : AccessibilityService() {
         identified.drop(1).forEachIndexed { i, card -> recordExtraCard(card, i + 2, found?.second?.windowId) }
 
         if (offer == null) {
+            if (snapshot.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(snapshot.texts)) {
+                val reading = ReadingAuditRecorder.read(snapshot)
+                val key = snapshot.texts.hashCode()
+                if (reading.problems.isNotEmpty() && unreadableKey != key) {
+                    unreadableKey = key
+                    overlayManager.dismiss()
+                    notifier.cancel()
+                    val generation = readingGeneration
+                    scope.launch {
+                        if (settings.showOverlay.first()) mainHandler.post {
+                            if (observing && generation == readingGeneration && unreadableKey == key && visibleOffers.isEmpty()) {
+                                overlayManager.showUnreadable(reading.problems.joinToString(". ") { it.label })
+                            }
+                        }
+                    }
+                }
+            } else unreadableKey = null
             scheduleAbsenceCheck()
             return
         }
+
+        unreadableKey = null
 
     }
 
@@ -218,7 +243,7 @@ class UberAccessibilityService : AccessibilityService() {
             try {
                 if (root.packageName?.toString() != UBER_DRIVER_PACKAGE) continue
                 val s = ScreenSnapshotFactory.from(root, atMs)
-                val cards = OfferParser.parseAll(s.texts)
+                val cards = ReadingAuditRecorder.read(s).offers
                 if (cards.isEmpty()) continue
                 return cards to s
             } catch (e: RuntimeException) {

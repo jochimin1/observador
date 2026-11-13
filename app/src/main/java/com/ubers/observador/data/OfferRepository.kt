@@ -11,6 +11,10 @@ class OfferRepository(db: AppDatabase) {
 
     private val dao = db.offerDao()
 
+    suspend fun setExcluded(id: Long, excluded: Boolean): Boolean = MaintenanceGate.shared.access {
+        dao.setExcluded(id, excluded) == 1
+    }
+
     suspend fun save(analysis: OfferAnalysis): Unit = MaintenanceGate.shared.access {
         dao.insert(analysis.toEntity())
     }

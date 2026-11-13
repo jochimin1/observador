@@ -20,7 +20,9 @@ data class UberOffer(
     val product: String? = null,
     val exclusive: Boolean? = null,
     /** 1.37.1: one visible appearance; kept in the existing offer_hash logical-link columns. */
-    val appearanceId: String? = null
+    val appearanceId: String? = null,
+    /** Audit metadata never changes content or appearance identity. */
+    val readingTrace: com.ubers.observador.domain.lifecycle.OfferReadTrace? = null
 ) {
     /** Old numerical hashes remain readable. Newly observed cards carry their own appearance id. */
     fun offerHash(): String =

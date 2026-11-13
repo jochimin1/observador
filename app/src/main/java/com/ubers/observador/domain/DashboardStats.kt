@@ -58,13 +58,14 @@ object DashboardStats {
     }
 
     fun summarize(offers: List<OfferEntity>, cuts: QualityThresholds): PeriodSummary {
-        if (offers.isEmpty()) return PeriodSummary()
-        val perKm = offers.map { it.rdpPerKm }
-        val perHour = offers.map { it.rdpPerHour }
+        val included = ReadingEligibility.offers(offers)
+        if (included.isEmpty()) return PeriodSummary()
+        val perKm = included.map { it.rdpPerKm }
+        val perHour = included.map { it.rdpPerHour }
         var bad = 0
         var good = 0
         var excellent = 0
-        for (o in offers) {
+        for (o in included) {
             when (cuts.classify(o.score)) {
                 OfferQuality.BAD -> bad++
                 OfferQuality.GOOD -> good++
@@ -72,16 +73,16 @@ object DashboardStats {
             }
         }
         return PeriodSummary(
-            count = offers.size,
+            count = included.size,
             medianRdpPerKm = median(perKm),
             avgRdpPerKm = perKm.average(),
             medianRdpPerHour = median(perHour),
             avgRdpPerHour = perHour.average(),
-            avgScore = offers.map { it.score }.average(),
+            avgScore = included.map { it.score }.average(),
             bad = bad,
             good = good,
             excellent = excellent,
-            best = offers.maxWith(compareBy<OfferEntity>({ it.score }, { it.price }))
+            best = included.maxWith(compareBy<OfferEntity>({ it.score }, { it.price }))
         )
     }
 
@@ -93,8 +94,8 @@ object DashboardStats {
                 DayGroup(
                     date = date,
                     count = dayOffers.size,
-                    medianRdpPerKm = median(dayOffers.map { it.rdpPerKm }),
-                    avgScore = dayOffers.map { it.score }.average(),
+                    medianRdpPerKm = median(ReadingEligibility.offers(dayOffers).map { it.rdpPerKm }),
+                    avgScore = ReadingEligibility.offers(dayOffers).map { it.score }.takeIf { it.isNotEmpty() }?.average() ?: 0.0,
                     offers = dayOffers
                 )
             }
