@@ -163,6 +163,17 @@ class AppSettings(private val context: Context) {
     /** 1.35.0: the general switch «Avisar por sectores» (on by default; nothing happens with an empty list). */
     val careSectorsEnabled: Flow<Boolean> = context.dataStore.data.map { it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] ?: true }
 
+    /** 1.37.1: action gates must come from the same preferences revision, not separate first() calls. */
+    val closeConfiguration: Flow<com.ubers.observador.domain.sectors.CloseConfiguration> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.sectors.CloseConfiguration(
+            observing = prefs[KEY_OBSERVER_ENABLED] ?: true,
+            automatic = prefs[KEY_MODE] == MODE_AUTO,
+            sectorsEnabled = prefs[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] ?: true,
+            showOverlay = prefs[KEY_SHOW_OVERLAY] ?: true,
+            sectors = com.ubers.observador.domain.sectors.CareSectorCodec.decode(prefs[stringPreferencesKey("care_sectors")]).orEmpty()
+        )
+    }
+
     suspend fun updateCareSectorsEnabled(on: Boolean) = context.dataStore.edit {
         it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] = on
     }

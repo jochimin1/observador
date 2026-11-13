@@ -25,6 +25,9 @@ class OverlayManager(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
 
+    /** Main thread: a real cancel affordance is required before scheduling or executing a close. */
+    val isShowing: Boolean get() = overlayView != null
+
     /** 1.37.0: called when the driver taps the floating card (it stops a pending close). */
     var onTap: (() -> Unit)? = null
 

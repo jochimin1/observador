@@ -14,6 +14,25 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 ## [Sin publicar]
 
+## [1.37.1] - 2026-11-12
+
+### Corregido
+- Cada aparición de una oferta tiene ahora un identificador propio, conservado durante sus repintados y al reordenar el Radar. Direcciones, modalidad, exclusivo y botón distinguen su contenido; el formato numérico no depende del idioma del teléfono. Una ausencia confirmada o un cambio de ventana inicia otra aparición.
+- Inicio, Reportes y Análisis dejan de marcar todas las ofertas con las mismas cifras como tomadas. Los enlaces antiguos requieren la fecha exacta de la oferta copiada en el viaje; cuando hay dudas, el viaje conserva su propia fila sin asignarlo a otra oferta. Dos viajes con la misma hora de fin ya no hacen desaparecer uno de la lista. El análisis en sombra tampoco toma el resultado de otra aparición del mismo importe.
+- La oferta se guarda por la cola compartida antes de los eventos del viaje que la copia. La búsqueda de esa oferta no toma filas vistas después del evento. Cuando el Radar muestra varias tarjetas y no revela cuál se aceptó, no se atribuye el viaje a la primera.
+- Los cierres pendientes se cancelan al tocar la tarjeta, cambiar de modo, pausar, modificar sectores, ocultar la tarjeta flotante, cambiar de ventana o perder la oferta. Las comprobaciones se repiten con una sola lectura de ajustes inmediatamente antes de ejecutar; los trabajos atrasados no rearman una cancelación.
+- La X se verifica con el contenido completo de la tarjeta y su ventana, además del precio. Se exige Uber al frente y una tarjeta flotante visible para cancelar. Se liberan también las raíces de accesibilidad que una salida temprana no llegó a recorrer.
+- El límite diario se reserva en disco antes de cada toque real futuro: un intento que falle o no pueda verificarse también consume un cupo. «CERRADA» solo se registra tras comprobar que desapareció la tarjeta; aceptar el comando Android no basta.
+
+### Técnico
+- Se reutilizan las columnas de enlace existentes (`offer_hash` / `related_offer_hash`) con IDs `OFFER-V2-…`: la estructura sigue en Room 14 y los datos anteriores se conservan.
+- El parser de ofertas se extrae a Kotlin puro para comprobar con el mismo código las tarjetas iniciales y las relecturas de cierre.
+- Pruebas de regresión de identidad, asociaciones antiguas, Radar, cierre pendiente, ventanas, parser y presupuesto diario persistente.
+
+### Pendiente de validar
+- El toque real sigue **desactivado** (`CloseTarget.VALIDATED = false`); Automático continúa en simulación. Validación de la X, comportamiento real en Uber y pruebas físicas pendientes.
+- Los bloqueos de lint y los demás trabajos de respaldo/migración del plan se atienden en la 1.37.2.
+
 ## [1.37.0] - 2026-11-12
 
 ### Añadido

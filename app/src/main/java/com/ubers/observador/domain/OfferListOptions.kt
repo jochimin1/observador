@@ -52,27 +52,34 @@ data class OfferLedger(
     companion object {
         /**
          * All offers seen, plus the trips whose offer row is gone (deleted, or never stored) as
-         * rows of their own, so a trip taken never disappears from the list. An offer is taken
-         * when a trip points at its hash; with several trips for one hash the newest decides.
+         * rows of their own. New logical ids refer to one appearance. A legacy numerical hash
+         * needs the snapshot's exact detection time; ambiguous links are left unresolved.
          */
         fun of(offers: List<OfferEntity>, trips: List<com.ubers.observador.domain.trips.Trip>): OfferLedger {
-            val byHash = trips.filter { it.relatedOfferHash != null }
-                .sortedBy { it.updatedAt }
-                .associateBy { requireNotNull(it.relatedOfferHash) }
+            val byHash = offers.groupBy { it.offerHash }
+            val candidates = trips.distinctBy { it.id }.mapNotNull { t ->
+                val hash = t.relatedOfferHash ?: return@mapNotNull null
+                val matching = byHash[hash].orEmpty().filter { o ->
+                    com.ubers.observador.domain.models.UberOffer.isAppearanceId(hash) ||
+                        t.offer?.offerSeenAt == o.detectedAt
+                }
+                matching.singleOrNull()?.let { it.id to t }
+            }.groupBy({ it.first }, { it.second })
             val status = HashMap<Long, com.ubers.observador.domain.trips.TripStatus>()
             val tripOf = HashMap<Long, com.ubers.observador.domain.trips.Trip>()
-            offers.forEach { o -> byHash[o.offerHash]?.let { status[o.id] = it.status; tripOf[o.id] = it } }
-            val seen = offers.map { it.offerHash }.toSet()
-            val orphan = trips.filter { it.relatedOfferHash == null || it.relatedOfferHash !in seen }
-            val extra = orphan.mapNotNull { t -> CompletedTrips.offerRowOf(t)?.let { it to t } }
+            candidates.forEach { (id, matches) -> matches.singleOrNull()?.let { status[id] = it.status; tripOf[id] = it } }
+            val linked = tripOf.values.map { it.id }.toSet()
+            val orphan = trips.distinctBy { it.id }.filter { it.id !in linked }.sortedBy { it.id }
             val used = offers.map { it.id }.toMutableSet()
             val added = ArrayList<OfferEntity>()
-            extra.forEach { (row, t) ->
-                if (used.add(row.id)) {
-                    added += row
-                    status[row.id] = t.status
-                    tripOf[row.id] = t
-                }
+            orphan.forEach { t ->
+                val row = CompletedTrips.offerRowOf(t) ?: return@forEach
+                // Synthetic rows occupy a negative namespace; equal completion times never drop a trip.
+                var id = t.id.hashCode().toLong() or Long.MIN_VALUE
+                while (!used.add(id)) id = if (id == Long.MIN_VALUE) -1L else id - 1L
+                added += row.copy(id = id)
+                status[id] = t.status
+                tripOf[id] = t
             }
             return OfferLedger((offers + added).sortedByDescending { it.detectedAt }, status, tripOf)
         }

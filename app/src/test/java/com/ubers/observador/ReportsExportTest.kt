@@ -95,7 +95,7 @@ class ReportsExportTest {
         cancelledAt = end.takeIf { status == TripStatus.CANCELLED },
         interruptedAt = end.takeIf { status == TripStatus.INTERRUPTED },
         createdAt = accepted, updatedAt = end ?: accepted,
-        offer = TripOfferSnapshot(100.0, 1.0, 3, 4.0, 10, 50, accepted - 5_000),
+        offer = TripOfferSnapshot(100.0, 1.0, 3, 4.0, 10, 50, accepted - 60_000),
         riderName = "stefany"
     )
 

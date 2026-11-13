@@ -18,7 +18,7 @@ object ScreenSnapshotFactory {
     fun from(root: AccessibilityNodeInfo, timestampMs: Long): ScreenSnapshot {
         val nodes = ArrayList<ScreenNode>()
         collect(root, 0, nodes)
-        return ScreenSnapshot(timestampMs, root.packageName?.toString().orEmpty(), nodes)
+        return ScreenSnapshot(timestampMs, root.packageName?.toString().orEmpty(), nodes, root.windowId)
     }
 
     // recycle() is a no-op from API 33 but still frees nodes on the API 30-32 phones minSdk allows
@@ -37,7 +37,8 @@ object ScreenSnapshotFactory {
             left = r.left,
             top = r.top,
             right = r.right,
-            bottom = r.bottom
+            bottom = r.bottom,
+            visibleToUser = node.isVisibleToUser
         )
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue

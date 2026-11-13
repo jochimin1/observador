@@ -56,7 +56,7 @@ object CloseTarget {
     }
 
     private fun isCloseCandidate(n: ScreenNode): Boolean {
-        if (!n.clickable || !n.enabled) return false
+        if (!n.clickable || !n.enabled || !n.visibleToUser) return false
         val w = words(n)
         if (w.any { word -> NEVER_WORDS.any { word == it } }) return false
         return CLOSE_WORDS.any { it in w }
@@ -79,6 +79,28 @@ object CloseTarget {
             0 -> Result.Refused("No se reconoce la X de la tarjeta")
             else -> Result.Refused("Hay ${candidates.size} botones que podrían ser la X")
         }
+    }
+
+    /** Full content and window identity, in addition to the conservative price/unique-X check. */
+    fun find(
+        snapshot: ScreenSnapshot,
+        expected: com.ubers.observador.domain.models.UberOffer,
+        windowId: Int
+    ): Result {
+        if (snapshot.packageName != "com.ubercab.driver" || snapshot.windowId != windowId) {
+            return Result.Refused("La ventana cambió")
+        }
+        val found = find(snapshot, expected.price)
+        if (found !is Result.Found) return found
+        val actions = actionIndices(snapshot.nodes)
+        val end = actions.first { it > found.index }
+        val start = actions.lastOrNull { it < found.index }?.plus(1) ?: 0
+        val texts = snapshot.copy(nodes = snapshot.nodes.subList(start, end + 1)).texts
+        val actual = com.ubers.observador.domain.lifecycle.OfferCardParser.parseAll(texts).singleOrNull()
+        if (actual == null || actual.contentFingerprint() != expected.contentFingerprint()) {
+            return Result.Refused("La tarjeta cambió")
+        }
+        return found
     }
 }
 
@@ -114,6 +136,7 @@ object CloseLog {
     const val CLOSED = "CERRADA"
     const val SIMULATED = "SIMULADA"
     const val NOT_CLOSED = "NO CERRADA"
+    const val REQUESTED = "TOQUE SOLICITADO"
 
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val TIME = DateTimeFormatter.ofPattern("HH:mm:ss")

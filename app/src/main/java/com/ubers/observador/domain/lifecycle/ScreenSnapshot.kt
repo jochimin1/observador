@@ -16,7 +16,8 @@ data class ScreenNode(
     val left: Int = 0,
     val top: Int = 0,
     val right: Int = 0,
-    val bottom: Int = 0
+    val bottom: Int = 0,
+    val visibleToUser: Boolean = true
 )
 
 /**
@@ -27,7 +28,9 @@ data class ScreenNode(
 data class ScreenSnapshot(
     val timestampMs: Long,
     val packageName: String,
-    val nodes: List<ScreenNode>
+    val nodes: List<ScreenNode>,
+    /** Runtime window identity, not persisted or exported. */
+    val windowId: Int? = null
 ) {
     /** Text, then description, of each node, trimmed and without blanks: what OfferParser has always read. */
     val texts: List<String> by lazy {

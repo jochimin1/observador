@@ -90,8 +90,14 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateMaxPickupMin(v: Int) = viewModelScope.launch { appSettings.updateMaxPickupMin(v) }
     fun updateMinScore(v: Int) = viewModelScope.launch { appSettings.updateMinScore(v) }
     fun updateOverlayDuration(v: Int) = viewModelScope.launch { appSettings.updateOverlayDuration(v) }
-    fun updateShowOverlay(v: Boolean) = viewModelScope.launch { appSettings.updateShowOverlay(v) }
-    fun updateMode(v: String) = viewModelScope.launch { appSettings.updateMode(v) }
+    fun updateShowOverlay(v: Boolean) = viewModelScope.launch {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
+        appSettings.updateShowOverlay(v)
+    }
+    fun updateMode(v: String) = viewModelScope.launch {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
+        appSettings.updateMode(v)
+    }
 
     /** Fase 8I: «Avisos de ofertas». */
     val offerAlerts: StateFlow<com.ubers.observador.domain.OfferAlerts> = appSettings.offerAlerts
@@ -107,7 +113,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val observerEnabled: StateFlow<Boolean> = appSettings.observerEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch { appSettings.updateObserverEnabled(enabled) }
+    fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
+        appSettings.updateObserverEnabled(enabled)
+    }
 
     // ---- Expenses (Fase 8B) ----
 
@@ -271,6 +280,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Loads every value of the profile at once. A profile with a value out of range is refused. */
     fun applyProfile(id: String) = viewModelScope.launch {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         val profile = appSettings.profiles.first().firstOrNull { it.id == id } ?: return@launch
         _profileMessage.value = if (!profile.values.isValid) {
             "Este perfil tiene un valor fuera de rango y no se aplicó."

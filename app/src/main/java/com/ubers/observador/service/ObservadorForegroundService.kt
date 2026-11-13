@@ -180,8 +180,14 @@ class ObservadorForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_PAUSE -> scope.launch { settings.updateObserverEnabled(false) }
-            ACTION_TO_ASSISTED -> scope.launch { settings.updateMode(AppSettings.MODE_ASSISTED) }
+            ACTION_PAUSE -> {
+                UberAccessibilityService.instance?.cancelPendingSectorCloses()
+                scope.launch { settings.updateObserverEnabled(false) }
+            }
+            ACTION_TO_ASSISTED -> {
+                UberAccessibilityService.instance?.cancelPendingSectorCloses()
+                scope.launch { settings.updateMode(AppSettings.MODE_ASSISTED) }
+            }
             ACTION_RESUME -> scope.launch { settings.updateObserverEnabled(true) }
             ACTION_REFRESH -> notification?.let { startForegroundTyped(it) }
             // Fase 8L: «Apagar» in the notification

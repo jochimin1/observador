@@ -100,8 +100,17 @@ object ShadowAnalyzer {
     ): ShadowReport {
         val mine = evaluations.filter { it.candidateVersionId == candidateVersionId }
             .groupBy { it.offerHash }.map { (_, list) -> list.minBy { it.evaluatedAtMs } }
-        val byHash = samples.filter { it.offerHash != null && it.realizedGrossPerEngagedHour != null }.associateBy { it.offerHash!! }
-        val joined = mine.mapNotNull { e -> byHash[e.offerHash]?.let { e to it } }
+        val byHash = samples.filter { it.offerHash != null }.groupBy { it.offerHash!! }
+        // Numerical legacy hashes may recur. A legacy evaluation belongs only to a unique
+        // appearance whose detection/acceptance interval contains the evaluation, never the latest trip.
+        val matched = mine.mapNotNull { e ->
+            byHash[e.offerHash].orEmpty().filter { sample ->
+                com.ubers.observador.domain.models.UberOffer.isAppearanceId(e.offerHash) ||
+                    (sample.detectedAtMs != null && sample.acceptedAtMs != null &&
+                        e.evaluatedAtMs >= sample.detectedAtMs && e.evaluatedAtMs <= sample.acceptedAtMs)
+            }.singleOrNull()?.let { e to it }
+        }
+        val joined = matched.filter { it.second.realizedGrossPerEngagedHour != null }
         val outcomes = joined.map { it.second.realizedGrossPerEngagedHour!! }
         fun rho(score: (ShadowEvaluation) -> Int) = Spearman.rho(joined.map { score(it.first).toDouble() }, outcomes)
         val evalByTrip = joined.associate { it.second.tripId to it.first }
@@ -123,8 +132,7 @@ object ShadowAnalyzer {
         val blockers = LinkedHashSet<ShadowGateReason>()
         if (joined.size < IntelligencePolicy.SHADOW_MIN_RESULTS) blockers += ShadowGateReason.TOO_FEW_RESULTS
         // Of the shadow-scored offers that became completed trips, how many have a usable result
-        val hashes = mine.map { it.offerHash }.toSet()
-        val tripsFromShadow = samples.count { it.offerHash != null && it.offerHash in hashes }
+        val tripsFromShadow = matched.size
         if (tripsFromShadow > 0 && joined.size.toDouble() / tripsFromShadow < IntelligencePolicy.LOW_COVERAGE) {
             blockers += ShadowGateReason.LOW_COVERAGE
         }

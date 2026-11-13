@@ -71,6 +71,7 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setEnabled(on: Boolean) {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         viewModelScope.launch { settings.updateCareSectorsEnabled(on) }
     }
 
@@ -78,6 +79,7 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
     fun save(sector: CareSector, replacing: CareSector?) {
         val clean = sector.copy(name = CareSectorCodec.cleanName(sector.name).take(CareSector.MAX_NAME))
         if (clean.name.isEmpty()) return
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         viewModelScope.launch {
             var list = settings.careSectors.first()
             if (replacing != null) list = list.filterNot { SectorMatcher.words(it.name) == SectorMatcher.words(replacing.name) }
@@ -86,6 +88,7 @@ class SectorsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun remove(sector: CareSector) {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         viewModelScope.launch {
             val key = SectorMatcher.words(sector.name)
             settings.updateCareSectors(settings.careSectors.first().filterNot { SectorMatcher.words(it.name) == key })

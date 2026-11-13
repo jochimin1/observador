@@ -28,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.ubers.observador.domain.sectors.CloseConfiguration
 
 class UberAccessibilityService : AccessibilityService() {
 
@@ -35,6 +37,9 @@ class UberAccessibilityService : AccessibilityService() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val tracker = OfferSessionTracker()
+    private val appearances = OfferAppearanceTracker()
+    private var visibleOffers = emptySet<String>()
+    private var readingGeneration = 0L
 
     private lateinit var settings: AppSettings
     private lateinit var repository: OfferRepository
@@ -89,7 +94,7 @@ class UberAccessibilityService : AccessibilityService() {
         // Use `this` so TYPE_ACCESSIBILITY_OVERLAY is backed by the service context
         overlayManager = OverlayManager(this)
         // 1.37.0: «Automático» closes cards of «Cerrar» sectors; a tap on the floating card stops it
-        sectorCloser = SectorCloser(this, mainHandler)
+        sectorCloser = SectorCloser(this, mainHandler, scope, settings) { observing && overlayManager.isShowing }
         overlayManager.onTap = { sectorCloser.cancelAll() }
         notifier = OfferNotifier(applicationContext)
         instance = this
@@ -97,6 +102,11 @@ class UberAccessibilityService : AccessibilityService() {
         // The on/off switch decides when the lifecycle counts as connected (first value comes at once)
         scope.launch {
             settings.observerEnabled.collect { enabled -> mainHandler.post { setObserving(enabled) } }
+        }
+        scope.launch {
+            settings.closeConfiguration.collect { config ->
+                withContext(Dispatchers.Main.immediate) { sectorCloser.configure(config) }
+            }
         }
         Log.d(TAG, "Service connected")
     }
@@ -143,7 +153,11 @@ class UberAccessibilityService : AccessibilityService() {
     private fun readScreen() {
         if (!observing) return
         // Null root means the window tree isn't ready: unknown, not "card gone"
-        val root = rootInActiveWindow ?: return
+        val root = rootInActiveWindow ?: run {
+            sectorCloser.observe(emptyList(), null)
+            visibleOffers = emptySet()
+            return
+        }
         val snapshot = try {
             ScreenSnapshotFactory.from(root, System.currentTimeMillis())
         } finally {
@@ -158,27 +172,34 @@ class UberAccessibilityService : AccessibilityService() {
         val offerScreen = found?.second ?: snapshot.takeIf {
             it.packageName == UBER_DRIVER_PACKAGE && OfferParseCheck.hasAccept(it.texts)
         }
-        val offer: UberOffer? = found?.first?.firstOrNull()
+        val identified = appearances.observe(found?.first.orEmpty(), SystemClock.elapsedRealtime(), found?.second?.windowId)
+        val offer: UberOffer? = identified.firstOrNull()
+        visibleOffers = identified.map { it.offerHash() }.toSet()
+        sectorCloser.observe(identified, found?.second?.windowId)
         offerScreen?.let { s ->
             OfferDebug.onOfferScreen(
                 s, if (offer != null) OfferParseStep.OK else OfferParseCheck.check(s.texts),
                 offer?.let { OfferPlaces(it.pickupAddress, it.dropoffAddress) }, otherWindow = found != null && active.isEmpty()
             )
         }
-        observeLifecycle(snapshot, offer?.offerHash())
+        // Submit the offer write BEFORE lifecycle events can create the trip that copies it.
+        if (offer != null) {
+            cancelAbsenceCheck()
+            val hash = offer.offerHash()
+            if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
+                sessionStart(offer, hash, found?.second?.windowId)
+            }
+        }
+        val cardCount = found?.second?.let { com.ubers.observador.domain.sectors.CloseTarget.actionIndices(it.nodes).size } ?: 0
+        observeLifecycle(snapshot, appearances.lifecycleOfferId(identified, cardCount))
         scheduleKeepAlive()
-        found?.first?.drop(1)?.forEachIndexed { i, card -> recordExtraCard(card, i + 2) }
+        identified.drop(1).forEachIndexed { i, card -> recordExtraCard(card, i + 2, found?.second?.windowId) }
 
         if (offer == null) {
             scheduleAbsenceCheck()
             return
         }
 
-        cancelAbsenceCheck()
-        val hash = offer.offerHash()
-        if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
-            sessionStart(offer, hash)
-        }
     }
 
     /** An offer card in an Uber window other than the active one, or null. Every node is released. */
@@ -262,12 +283,14 @@ class UberAccessibilityService : AccessibilityService() {
         absenceRunnable = null
     }
 
-    private fun sessionStart(offer: UberOffer, hash: String) {
+    private fun sessionStart(offer: UberOffer, hash: String, windowId: Int?) {
         Log.d(TAG, "Session started: $hash")
         overlayManager.dismiss()
         notifier.cancel()
 
-        scope.launch {
+        val generation = readingGeneration
+        val closeRevision = sectorCloser.revision
+        PersistenceQueue.shared().enqueue {
             try {
                 val analysis = engine.analyze(offer, settings.engineSettings.first())
                 val quality = settings.qualityThresholds.first().classify(analysis.score)
@@ -289,9 +312,10 @@ class UberAccessibilityService : AccessibilityService() {
                 val overlaySeconds = settings.overlayDurationSeconds.first()
                 // Fase 8I: «Avisos de ofertas» decides; only a newly recorded offer notifies
                 // 1.35.0: care sectors in the pickup or the drop-off; 1.37.0: closing in «Automático»
-                val match = sectorMatch(offer)
+                val closeConfiguration = settings.closeConfiguration.first()
+                val match = sectorMatch(offer, closeConfiguration)
                 val mode = settings.operatingMode.first()
-                val close = closeOutcome(match, mode, saved)
+                val close = closeOutcome(match, closeConfiguration, saved)
                 val banner = match?.let { com.ubers.observador.domain.sectors.CloseRules.banner(it, null, close) }
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
                     saved, settings.offerAlerts.first(), mode == AppSettings.MODE_ASSISTED || mode == AppSettings.MODE_AUTO, quality
@@ -299,7 +323,7 @@ class UberAccessibilityService : AccessibilityService() {
 
                 mainHandler.post {
                     // The card may already be gone or replaced while we were analysing
-                    if (tracker.activeHash != hash) return@post
+                    if (!observing || generation != readingGeneration || tracker.activeHash != hash || hash !in visibleOffers) return@post
                     if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds, large, banner)
                     OfferDebug.onOverlay(showOverlay)
                     if (notify) {
@@ -309,8 +333,7 @@ class UberAccessibilityService : AccessibilityService() {
                     if (saved && banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
                     if (match != null && close != com.ubers.observador.domain.sectors.CloseOutcome.NONE) {
                         sectorCloser.schedule(
-                            hash, offer.price, com.ubers.observador.domain.sectors.SectorBanner.places(match),
-                            simulate = close == com.ubers.observador.domain.sectors.CloseOutcome.SIMULATE
+                            offer, windowId, com.ubers.observador.domain.sectors.SectorBanner.places(match), closeRevision
                         )
                     }
                 }
@@ -337,12 +360,12 @@ class UberAccessibilityService : AccessibilityService() {
 
     /**
      * Fase 8I: a card of the Radar below the first one. It is stored (once, as any offer) and may
-     * notify on its own id; the floating card and the ride lifecycle stay with the first card.
+     * notify on its own id. The overlay follows the first card; ambiguous acceptance stays unlinked.
      */
     /** 1.35.0: the care sector band of [offer], or null (switch off, empty list or no sector found). */
-    private suspend fun sectorMatch(offer: UberOffer): com.ubers.observador.domain.sectors.SectorMatch? {
-        if (!settings.careSectorsEnabled.first()) return null
-        val sectors = settings.careSectors.first()
+    private fun sectorMatch(offer: UberOffer, config: CloseConfiguration): com.ubers.observador.domain.sectors.SectorMatch? {
+        if (!config.sectorsEnabled) return null
+        val sectors = config.sectors
         if (sectors.isEmpty()) return null
         return com.ubers.observador.domain.sectors.SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors)
             .takeIf { !it.isEmpty }
@@ -351,46 +374,49 @@ class UberAccessibilityService : AccessibilityService() {
     /** 1.37.0: whether this card is closed (or simulated): «Automático», a «Cerrar» sector, first sighting, under the daily cap. */
     private fun closeOutcome(
         match: com.ubers.observador.domain.sectors.SectorMatch?,
-        mode: String,
+        config: CloseConfiguration,
         saved: Boolean
     ): com.ubers.observador.domain.sectors.CloseOutcome {
-        if (match == null || !saved) return com.ubers.observador.domain.sectors.CloseOutcome.NONE
+        if (match == null || !saved || !config.observing || !config.showOverlay) return com.ubers.observador.domain.sectors.CloseOutcome.NONE
         return com.ubers.observador.domain.sectors.CloseRules.decide(
-            automatic = mode == AppSettings.MODE_AUTO,
+            automatic = config.automatic,
             level = match.level,
             validated = com.ubers.observador.domain.sectors.CloseTarget.VALIDATED,
-            closedToday = CloseLogStore.closedToday(this)
+            closedToday = CloseLogStore.usedToday(this)
         )
     }
 
-    private fun recordExtraCard(offer: UberOffer, position: Int) {
+    private fun recordExtraCard(offer: UberOffer, position: Int, windowId: Int?) {
         val hash = offer.offerHash()
         if (hash == tracker.activeHash) return
         val now = SystemClock.elapsedRealtime()
         extraCards.entries.removeAll { now - it.value > EXTRA_CARD_MEMORY_MS }
         if (extraCards.containsKey(hash)) return
         extraCards[hash] = now
-        scope.launch {
+        val generation = readingGeneration
+        val closeRevision = sectorCloser.revision
+        PersistenceQueue.shared().enqueue {
             try {
                 val analysis = engine.analyze(offer, settings.engineSettings.first())
                 val quality = settings.qualityThresholds.first().classify(analysis.score)
                 val saved = repository.saveOrSkip(analysis, settings.graceWindowSeconds.first() * 1000L)
-                val match = sectorMatch(offer)
+                val closeConfiguration = settings.closeConfiguration.first()
+                val match = sectorMatch(offer, closeConfiguration)
                 val mode = settings.operatingMode.first()
-                val close = closeOutcome(match, mode, saved)
+                val close = closeOutcome(match, closeConfiguration, saved)
                 val banner = match?.let { com.ubers.observador.domain.sectors.CloseRules.banner(it, position, close) }
                 val notify = com.ubers.observador.domain.OfferAlerts.shouldNotify(
                     saved, settings.offerAlerts.first(), mode == AppSettings.MODE_ASSISTED || mode == AppSettings.MODE_AUTO, quality
                 ) || (saved && banner != null)
                 mainHandler.post {
+                    if (!observing || generation != readingGeneration || hash !in visibleOffers) return@post
                     if (notify) {
                         notifier.notifyGoodOffer(analysis, quality, notifier.idFor(hash), sectorTitle = banner?.text)
                         if (banner?.avoid == true) SectorAlert.buzz(this@UberAccessibilityService)
                     }
                     if (match != null && close != com.ubers.observador.domain.sectors.CloseOutcome.NONE) {
                         sectorCloser.schedule(
-                            hash, offer.price, "Tarjeta $position · " + com.ubers.observador.domain.sectors.SectorBanner.places(match),
-                            simulate = close == com.ubers.observador.domain.sectors.CloseOutcome.SIMULATE
+                            offer, windowId, "Tarjeta $position · " + com.ubers.observador.domain.sectors.SectorBanner.places(match), closeRevision
                         )
                     }
                 }
@@ -409,6 +435,10 @@ class UberAccessibilityService : AccessibilityService() {
     }
 
     private fun resetState() {
+        readingGeneration++
+        appearances.reset()
+        visibleOffers = emptySet()
+        extraCards.clear()
         if (::sectorCloser.isInitialized) sectorCloser.clear()
         debounceRunnable?.let { mainHandler.removeCallbacks(it) }
         debounceRunnable = null
@@ -420,6 +450,12 @@ class UberAccessibilityService : AccessibilityService() {
         tracker.reset()
         if (::overlayManager.isInitialized) overlayManager.dismiss()
         if (::notifier.isInitialized) notifier.cancel()
+    }
+
+    /** Cancel immediately from the notification/UI, before a settings write can suspend. */
+    fun cancelPendingSectorCloses() {
+        if (Looper.myLooper() == Looper.getMainLooper()) sectorCloser.cancelAll()
+        else mainHandler.post { if (::sectorCloser.isInitialized) sectorCloser.cancelAll() }
     }
 
     override fun onInterrupt() {

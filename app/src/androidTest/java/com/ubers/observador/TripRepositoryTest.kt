@@ -168,6 +168,35 @@ class TripRepositoryTest {
     }
 
     @Test
+    fun identicalFiguresKeepTheirOwnAppearanceThroughRoom() = runBlocking {
+        val first = OfferEntity(0, "OFFER-V2-first", 900, 136.06, 4.1, 7, 7.2, 11, 11.3, 18, 12.0, 453.0, 17.0, 119.0, 76)
+        db.offerDao().insert(first)
+        db.offerDao().insert(first.copy(offerHash = "OFFER-V2-second", detectedAt = 9_000, score = 40))
+        repository.persist(input(RideLifecycleEventType.ACCEPTANCE_CONFIRMED, RideLifecycleState.OFFER_VISIBLE,
+            RideLifecycleState.TO_PICKUP, 1_000, session = "first").copy(relatedOfferHash = first.offerHash), null)
+        repository.persist(input(RideLifecycleEventType.ACCEPTANCE_CONFIRMED, RideLifecycleState.OFFER_VISIBLE,
+            RideLifecycleState.TO_PICKUP, 10_000, session = "second").copy(relatedOfferHash = "OFFER-V2-second"), null)
+        val trips = db.tripDao().getAllTrips().associateBy { it.relatedOfferHash }
+        assertEquals(900L, trips.getValue(first.offerHash).offerSeenAt)
+        assertEquals(76, trips.getValue(first.offerHash).scoreAtDetection)
+        assertEquals(9_000L, trips.getValue("OFFER-V2-second").offerSeenAt)
+        assertEquals(40, trips.getValue("OFFER-V2-second").scoreAtDetection)
+    }
+
+    @Test
+    fun aLegacyTripDoesNotCopyAnOfferDetectedAfterItsAcceptance() = runBlocking {
+        val hash = "136.06-4.1-7-7.2-11"
+        val first = OfferEntity(0, hash, 900, 136.06, 4.1, 7, 7.2, 11, 11.3, 18, 12.0, 453.0, 17.0, 119.0, 76)
+        db.offerDao().insert(first)
+        db.offerDao().insert(first.copy(detectedAt = 9_000, score = 40))
+        repository.persist(input(RideLifecycleEventType.ACCEPTANCE_CONFIRMED, RideLifecycleState.OFFER_VISIBLE,
+            RideLifecycleState.TO_PICKUP, 1_000), null)
+        val trip = db.tripDao().getAllTrips().single()
+        assertEquals(900L, trip.offerSeenAt)
+        assertEquals(76, trip.scoreAtDetection)
+    }
+
+    @Test
     fun aTripSurvivesARestartAndIsRestoredAsTheSameTrip() = runBlocking<Unit> {
         val name = "trip-restart-test.db"
         context.deleteDatabase(name)

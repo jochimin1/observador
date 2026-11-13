@@ -38,7 +38,7 @@ class TripRepository(private val db: AppDatabase) {
         val others = trips.getByStatuses(OPEN_STATUSES).map { it.toDomain() }
             .filter { it.lifecycleSessionId != input.lifecycleSessionId }
         val offer = if (forSession == null) {
-            input.relatedOfferHash?.let { offers.getLatestByHash(it)?.toTripOfferSnapshot() }
+            input.relatedOfferHash?.let { offers.getLatestByHashAtOrBefore(it, input.timestampMs)?.toTripOfferSnapshot() }
         } else {
             null
         }

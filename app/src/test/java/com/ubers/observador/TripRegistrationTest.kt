@@ -251,8 +251,8 @@ class TripRegistrationTest {
     fun `the home list tells offered from taken`() {
         val offers = listOf(offerRow(1, "h-a", 3_000), offerRow(2, "h-x", 2_000), offerRow(3, "h-b", 1_000))
         val trips = listOf(
-            base("a", TripStatus.COMPLETED).copy(completedAt = 5_000L),
-            base("b", TripStatus.CANCELLED).copy(cancelledAt = 4_000L)
+            base("a", TripStatus.COMPLETED).copy(completedAt = 5_000L, offer = offer.copy(offerSeenAt = 3_000)),
+            base("b", TripStatus.CANCELLED).copy(cancelledAt = 4_000L, offer = offer.copy(offerSeenAt = 1_000))
         )
         val ledger = OfferLedger.of(offers, trips)
         assertEquals(3, ledger.counts.all)
@@ -275,10 +275,12 @@ class TripRegistrationTest {
     }
 
     @Test
-    fun `with two trips for one offer the newest decides`() {
+    fun `two trips claiming the same legacy appearance remain unresolved`() {
         val offers = listOf(offerRow(1, "h-a", 3_000))
-        val older = base("a", TripStatus.INTERRUPTED).copy(updatedAt = 10_000L, interruptedAt = 9_000L)
-        val newer = base("a2", TripStatus.COMPLETED).copy(relatedOfferHash = "h-a", updatedAt = 20_000L, completedAt = 19_000L)
-        assertEquals(TripStatus.COMPLETED, OfferLedger.of(offers, listOf(older, newer)).tripStatus[1L])
+        val older = base("a", TripStatus.INTERRUPTED).copy(updatedAt = 10_000L, interruptedAt = 9_000L, offer = offer.copy(offerSeenAt = 3_000))
+        val newer = base("a2", TripStatus.COMPLETED).copy(relatedOfferHash = "h-a", updatedAt = 20_000L, completedAt = 19_000L, offer = offer.copy(offerSeenAt = 3_000))
+        val ledger = OfferLedger.of(offers, listOf(older, newer))
+        assertNull(ledger.tripStatus[1L])
+        assertEquals(setOf(older.id, newer.id), ledger.tripOf.values.map { it.id }.toSet())
     }
 }

@@ -115,7 +115,6 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         val active = repo.ensureCurrent(profit, now)
         val versions = repo.versions()
         val dataset = repo.loadDataset(from, now + 1, includeUnconfirmed = unconfirmed)
-        val accepted = repo.acceptedOfferHashesSince(from)
         val offers = repo.offersSince(from)
         val candidate = shadowId?.let { repo.version(it) }
         val evaluations = candidate?.let { repo.shadowEvaluations(it.id) } ?: emptyList()
@@ -130,13 +129,14 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         val report = withContext(Dispatchers.Default) {
+            val accepted = com.ubers.observador.domain.OfferLedger.of(offers, periodTrips).tripOf.keys
             // Fase 5's market (offers seen) by 2-hour slot, passed apart and only compared, never mixed
             val market = offers.groupBy { Instant.ofEpochMilli(it.detectedAt).atZone(zone).hour / 2 }
                 .mapValues { (_, l) -> Stats.median(l.map { it.rdpPerHour }) ?: 0.0 }
             val decisions = offers.map {
                 OfferDecisionInput(
                     it.offerHash, it.score, profit.thresholds.classify(it.score),
-                    if (it.offerHash in accepted) OfferDecisionOutcome.ACCEPTED else OfferDecisionOutcome.UNKNOWN
+                    if (it.id in accepted) OfferDecisionOutcome.ACCEPTED else OfferDecisionOutcome.UNKNOWN
                 )
             }
             IntelligenceEngine.analyze(

@@ -465,7 +465,10 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     val observerEnabled: StateFlow<Boolean> = settings.observerEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch { settings.updateObserverEnabled(enabled) }
+    fun setObserverEnabled(enabled: Boolean) = viewModelScope.launch {
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
+        settings.updateObserverEnabled(enabled)
+    }
 
     fun deleteOffer(id: Long) = viewModelScope.launch {
         // null when a repeated swipe callback already deleted it: no second notice
