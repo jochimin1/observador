@@ -16,6 +16,22 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.41.0] - 2026-11-13
+
+Dinero completo y correcciones auditables. Notas: [docs/releases/1.41.0.md](docs/releases/1.41.0.md).
+
+### Añadido
+- Registrar y corregir importes en RD$ desde la ficha del Centro de Viajes: total, tarifa, propina, promoción, ajuste, comisión y cargo por cancelación. Vista previa del ingreso antes/después, fuente, fechas e historial conservado.
+- Anular un importe y deshacer cambios mediante nuevas observaciones, sin borrar los originales. Guardado transaccional e intentos repetidos del mismo cambio sin duplicar dinero.
+- Explicación de dinero pendiente, parcial o confirmado, independiente del cierre del viaje. Los componentes incluidos no se vuelven a sumar; un total posterior absorbe pagos adicionales anteriores. Las comisiones adicionales descuentan, sin inventar un ingreso cuando falta el total.
+- Cobros en efectivo y digitales separados del ingreso y del saldo a transferir por Uber.
+- Ingreso confirmado por cancelación atribuido a la fecha de cancelación, sin contar el viaje como realizado. Los pagos tardíos se atribuyen al periodo del viaje original.
+- Conciliación con límites explícitos del periodo de Uber, capturados o indicados por el conductor para la consulta; no presupone que coincidan con la jornada configurada ni modifica los importes guardados.
+
+### Datos
+- Room **16**, sin migración ni columnas nuevas. Observaciones, anulaciones y restituciones utilizan el registro financiero existente. Los totales manuales prevalecen sobre nuevas lecturas hasta que el conductor los corrija o anule.
+- Herramientas de pruebas: Espresso 3.7.0 para sustituir el acceso obsoleto a `InputManager.getInstance` al probar los formularios en Android moderno.
+
 ## [1.40.0] - 2026-11-13
 
 Centro de Viajes. Notas: [docs/releases/1.40.0.md](docs/releases/1.40.0.md).

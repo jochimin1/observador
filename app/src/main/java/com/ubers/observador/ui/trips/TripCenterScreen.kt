@@ -248,21 +248,7 @@ fun TripDetailScreen(tripId: String, onBack: () -> Unit, vm: TripCenterViewModel
                 )
             }
             if (sum.tip > 0) InfoLine(R.drawable.ic_payments, "Propina: ${MoneyFormat.format(MoneyAmount(sum.tip, sum.currencyCode ?: com.ubers.observador.domain.money.Currencies.DOP))}")
-            if (s.observations.isNotEmpty()) SheetGroup {
-                Text("Dinero visto", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                val voided = s.observations.mapNotNull { it.voidsObservationId }.toSet()
-                s.observations.filter { it.type != FinancialObservationType.VOID }.forEach { o ->
-                    val gone = o.observationId in voided
-                    Row {
-                        Text(
-                            EarningsFormat.typeLabel(o.type) + (if (o.source == FinancialSource.MANUAL) " · a mano" else "") +
-                                " · ${TripSheets.hourShort(o.observedAtMs, zone)}" + (if (gone) " · anulada" else ""),
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f)
-                        )
-                        Text(MoneyFormat.format(o.amount), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
+            TripMoneyEditor(t, sum, s.observations, vm::saveMoney, vm::voidMoney, vm::undoMoney)
 
             // Cancelled: what it cost
             TripDetails.cancelled(t, s.distance?.let { it.pickupMm + it.tripMm }, sum)?.let { c ->

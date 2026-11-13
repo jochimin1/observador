@@ -72,6 +72,9 @@ data class GoalsUi(
     val weekly: GoalProgress? = null
 )
 
+data class PlatformIntervalComparison(val startMs: Long, val endMs: Long, val result: Reconciliation, val manual: Boolean = false)
+private data class UberPeriodChoice(val snapshotId: String, val startMs: Long, val endMs: Long)
+
 data class EarningsUiState(
     val loading: Boolean = true,
     val range: EarningsRange = EarningsRange.DAY,
@@ -85,6 +88,8 @@ data class EarningsUiState(
     val km: Long? = null,
     val reconciliation: Reconciliation? = null,
     val uberCapturedAt: Long? = null,
+    val platformInterval: PlatformIntervalComparison? = null,
+    val referenceSnapshot: PlatformEarningsSnapshot? = null,
     val goals: GoalsUi = GoalsUi(),
     val manual: List<ManualAssignmentRow> = emptyList(),
     /** Only for a week (Fase 8D), compared with the one before when both have 80 % coverage. */
@@ -127,6 +132,17 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     val exporter = com.ubers.observador.ui.components.ReportExporter(app, viewModelScope)
 
     private val selection = MutableStateFlow(EarningsRange.DAY to 0)
+    private val uberPeriod = MutableStateFlow<UberPeriodChoice?>(null)
+
+    fun compareUberPeriod(start: String, end: String): String? {
+        val snapshot = state.value.referenceSnapshot ?: return "Ya no hay una referencia de Uber."
+        val limits = com.ubers.observador.domain.finance.ExplicitMoneyPeriod.parse(start, end, ZoneId.systemDefault())
+            ?: return "Usa AAAA-MM-DD HH:mm, con fin posterior al inicio y hasta 366 días."
+        uberPeriod.value = UberPeriodChoice(snapshot.snapshotId, limits.first, limits.second)
+        return null
+    }
+
+    fun clearUberPeriod() { uberPeriod.value = null }
 
     private val _assign = MutableStateFlow<AssignSheet?>(null)
     val assign: StateFlow<AssignSheet?> = _assign.asStateFlow()
@@ -146,7 +162,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
 
     private data class Changes(val trips: Any?, val money: Any?, val manual: List<FinancialObservation>, val sessions: Any?)
     private data class Extra(val expenses: ExpenseData, val segments: List<DistanceSegment>, val daySnap: PlatformEarningsSnapshot?, val weekSnap: PlatformEarningsSnapshot?)
-    private data class Config(val hour: Int, val goals: GoalSettings, val workShare: Int, val includeTest: Boolean)
+    private data class Config(val hour: Int, val goals: GoalSettings, val workShare: Int, val includeTest: Boolean, val uberPeriod: UberPeriodChoice?)
 
     private val changes = combine(
         trips.observeCounts(), money.observeRecentObservations(1), money.observeManual(), online.observeRecent(1)
@@ -157,7 +173,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
         money.observeLatestPlatformSnapshot(PlatformPeriodType.DAY), money.observeLatestPlatformSnapshot(PlatformPeriodType.WEEK)
     ) { e, d, ds, ws -> Extra(e, d, ds, ws) }
 
-    private val config = combine(settings.workdayStartHour, settings.goals, settings.workSharePct, settings.showTestData) { h, g, w, t -> Config(h, g, w, t) }
+    private val config = combine(settings.workdayStartHour, settings.goals, settings.workSharePct, settings.showTestData, uberPeriod) { h, g, w, t, p -> Config(h, g, w, t, p) }
 
     val state: StateFlow<EarningsUiState> = combine(changes, extra, config, selection, minuteTicker) { c, e, cfg, sel, now ->
         Inputs(c, e, cfg, sel.first, sel.second, now)
@@ -197,6 +213,24 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 EarningsRange.MONTH -> null
             }?.takeIf { it.capturedAtMs >= window.startMs && it.capturedAtMs < window.endMs }
             val reconciliation = snapshot?.let { Reconciler.reconcile(report.summary, window.startMs, window.endMs, it) }
+            val platformInterval = snapshot?.let { snap ->
+                val choice = i.config.uberPeriod?.takeIf { it.snapshotId == snap.snapshotId }
+                val reference = if (choice == null) snap else snap.copy(periodStartMs = choice.startMs, periodEndMs = choice.endMs)
+                val start = reference.periodStartMs
+                val end = reference.periodEndMs
+                if (start == null || end == null || end <= start ||
+                    (choice == null && start == window.startMs && end == window.endMs)) null
+                else {
+                    val source = money.earningsInputs(start, end)
+                    val candidates = TestData.filter(source.completedTrips, test) { it.id }
+                    val selected = candidates.filter { com.ubers.observador.domain.earnings.TripIncome.earnedAt(it, source.summaries[it.id]) != null }
+                    val sums = selected.map { source.summaries[it.id] ?: TripFinancialSummary(it.id, null, null, null, null, completeness = com.ubers.observador.domain.finance.FinancialCompleteness.UNKNOWN) }
+                    val income = com.ubers.observador.domain.finance.EarningsPeriods.summarize(Currencies.DOP, sums,
+                        TestData.filter(source.unassigned, test) { it.observationId },
+                        selected.filter { it.status == com.ubers.observador.domain.trips.TripStatus.CANCELLED }.map { it.id }.toSet())
+                    PlatformIntervalComparison(start, end, Reconciler.reconcile(income, start, end, reference), choice != null)
+                }
+            }
             val tripIds = report.trips.map { it.tripId }.toSet()
             val weekly = if (i.range != EarningsRange.WEEK) null else try {
                 reports.weekly(window, clock, now, i.config.goals.weeklyMinor, i.config.workShare, test)
@@ -215,6 +249,8 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 km = km,
                 reconciliation = reconciliation,
                 uberCapturedAt = snapshot?.capturedAtMs,
+                platformInterval = platformInterval,
+                referenceSnapshot = snapshot,
                 goals = goals(i.config.goals, clock, now, if (i.range == EarningsRange.DAY && i.offset == 0) report to onlineSummary else null, i.extra.daySnap),
                 manual = ManualAssignment.live(i.changes.manual).filter { it.tripId in tripIds },
                 weekly = weekly,

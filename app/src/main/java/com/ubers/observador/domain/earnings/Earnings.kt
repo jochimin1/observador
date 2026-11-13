@@ -88,7 +88,8 @@ data class TripMoneyRow(
     /** Fase 8F: as Uber showed them (the driver chose to keep them). */
     val riderName: String? = null,
     val pickupAddress: String? = null,
-    val dropoffAddress: String? = null
+    val dropoffAddress: String? = null,
+    val cancelled: Boolean = false
 )
 
 /** Real income of one working day. Trips without confirmed money add nothing; they are counted apart. */
@@ -118,6 +119,13 @@ data class EarningsReport(
     val pending: List<PendingAmount>
 )
 
+/** Income date is independent of capture date. A cancellation counts only with confirmed money. */
+object TripIncome {
+    fun earnedAt(trip: Trip, summary: TripFinancialSummary?): Long? = TripOutcome.endedAt(trip)
+        ?: trip.cancelledAt?.takeIf { trip.status == TripStatus.CANCELLED &&
+            summary?.completeness == FinancialCompleteness.CONFIRMED && summary.effectiveEarnings != null }
+}
+
 object EarningsReports {
 
     private val PERIOD_INCOME = setOf(FinancialObservationType.PROMOTION, FinancialObservationType.ADJUSTMENT, FinancialObservationType.OTHER)
@@ -136,7 +144,7 @@ object EarningsReports {
         currencyCode: String = Currencies.DOP
     ): EarningsReport {
         val completed = trips.filter { t ->
-            val at = TripOutcome.endedAt(t)
+            val at = TripIncome.earnedAt(t, summaries[t.id])
             at != null && at >= window.startMs && at < window.endMs
         }
         fun summaryOf(t: Trip) = summaries[t.id] ?: TripFinancialSummary(
@@ -146,23 +154,24 @@ object EarningsReports {
         )
         val voids = unassigned.filter { it.type == FinancialObservationType.VOID }
         val inWindow = unassigned.filter { it.type != FinancialObservationType.VOID && it.observedAtMs >= window.startMs && it.observedAtMs < window.endMs }
-        val summary = EarningsPeriods.summarize(currencyCode, completed.map(::summaryOf), inWindow + voids)
+        val cancelledIds = completed.filter { it.status == TripStatus.CANCELLED }.map { it.id }.toSet()
+        val summary = EarningsPeriods.summarize(currencyCode, completed.map(::summaryOf), inWindow + voids, cancelledIds)
 
         val bars = window.days.map { day ->
-            val dayTrips = completed.filter { clock.workdayOf(requireNotNull(TripOutcome.endedAt(it))) == day }
+            val dayTrips = completed.filter { clock.workdayOf(requireNotNull(TripIncome.earnedAt(it, summaries[it.id]))) == day }
             val dayAmounts = inWindow.filter { clock.workdayOf(it.observedAtMs) == day }
-            val s = EarningsPeriods.summarize(currencyCode, dayTrips.map(::summaryOf), dayAmounts + voids)
+            val s = EarningsPeriods.summarize(currencyCode, dayTrips.map(::summaryOf), dayAmounts + voids, cancelledIds)
             DayBar(day, s.totalObservedEarnings, s.completedTripCount, s.confirmedTripCount)
         }
         val best = bars.filter { it.incomeMinor > 0 }.maxWithOrNull(compareBy<DayBar> { it.incomeMinor }.thenByDescending { it.day })
 
-        val rows = completed.sortedByDescending { TripOutcome.endedAt(it) }.map { t ->
+        val rows = completed.sortedByDescending { TripIncome.earnedAt(it, summaries[it.id]) }.map { t ->
             val s = summaryOf(t)
             val offered = s.offeredAmount ?: t.offer?.offeredAmount?.let { MoneyAmount.fromLegacyDouble(it, currencyCode) }
-            val diff = s.copy(offeredAmount = offered).differenceFromOffer()
+            val diff = if (t.status == TripStatus.CANCELLED) null else s.copy(offeredAmount = offered).differenceFromOffer()
             TripMoneyRow(
                 tripId = t.id,
-                completedAt = requireNotNull(TripOutcome.endedAt(t)),
+                completedAt = requireNotNull(TripIncome.earnedAt(t, s)),
                 endConfirmed = TripOutcome.isConfirmed(t),
                 offered = offered,
                 real = if (s.completeness == FinancialCompleteness.CONFIRMED) s.effectiveEarnings else null,
@@ -174,7 +183,8 @@ object EarningsReports {
                 pendingReviewCount = s.pendingReviewCount,
                 riderName = t.riderName,
                 pickupAddress = t.offer?.pickupAddress,
-                dropoffAddress = t.offer?.dropoffAddress
+                dropoffAddress = t.offer?.dropoffAddress,
+                cancelled = t.status == TripStatus.CANCELLED
             )
         }
         return EarningsReport(window, summary, bars, best, rows, pending(inWindow + voids, currencyCode))

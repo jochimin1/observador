@@ -16,12 +16,16 @@ enum class FinancialObservationType(val storageKey: String) {
     CANCELLATION_FEE("CANCELLATION_FEE"),
     TOLL_REIMBURSEMENT("TOLL_REIMBURSEMENT"),
     OTHER("OTHER"),
+    COMMISSION("COMMISSION"),
+    CASH_COLLECTED("CASH_COLLECTED"),
+    DIGITAL_COLLECTED("DIGITAL_COLLECTED"),
     UNKNOWN("UNKNOWN"),
     /** Append-only correction: cancels the observation in [FinancialObservation.voidsObservationId]. */
     VOID("VOID");
 
     /** Types allowed to be negative (a deduction). A negative total or tip is an anomaly. */
-    val mayBeNegative: Boolean get() = this == ADJUSTMENT || this == OTHER
+    val mayBeNegative: Boolean get() = this == ADJUSTMENT || this == OTHER || this == COMMISSION
+    val isCollection: Boolean get() = this == CASH_COLLECTED || this == DIGITAL_COLLECTED
 
     companion object {
         fun fromStorage(key: String?) = entries.firstOrNull { it.storageKey == key } ?: UNKNOWN
@@ -218,7 +222,7 @@ object TripFinancialAggregator {
 
     fun aggregate(tripId: String, offered: MoneyAmount?, observations: List<FinancialObservation>): TripFinancialSummary {
         val voided = observations.mapNotNull { it.voidsObservationId }.toSet()
-        val live = observations.filter { it.type != FinancialObservationType.VOID && it.observationId !in voided }
+        val live = observations.filter { it.type != FinancialObservationType.VOID && !it.type.isCollection && it.observationId !in voided }
             .sortedWith(compareBy<FinancialObservation> { it.observedAtMs }.thenBy { it.observationId })
         val anomalies = LinkedHashSet<FinancialAnomaly>()
 
@@ -236,7 +240,9 @@ object TripFinancialAggregator {
         val usable = usable0 - wrongCurrency.toSet() - negative.toSet()
 
         val absolutes = usable.filter { it.semantics == AmountSemantics.ABSOLUTE_TOTAL }
-        val latest = absolutes.lastOrNull()
+        // A driver correction remains explicit until undone; a later screen must not silently erase it.
+        val latest = absolutes.lastOrNull { it.source == FinancialSource.MANUAL && ManualMoney.ENTRY in it.evidence }
+            ?: absolutes.lastOrNull()
         absolutes.zipWithNext().forEach { (a, b) ->
             val close = b.observedAtMs - a.observedAtMs <= FinancePolicy.CONFLICT_WINDOW_MS
             if (a.amount != b.amount && close) anomalies += FinancialAnomaly.CONFLICTING_TOTALS
@@ -256,8 +262,8 @@ object TripFinancialAggregator {
 
         // Breakdown: the latest group of components, plus deltas still counting on top of the base
         val components = usable.filter { it.semantics == AmountSemantics.COMPONENT }
-        val latestGroup = components.lastOrNull()?.breakdownGroupId
-        val breakdown = components.filter { it.breakdownGroupId == latestGroup } + (if (latest == null) deltas else deltasAfter)
+        val latestGroup = components.lastOrNull { it.breakdownGroupId != null }?.breakdownGroupId
+        val breakdown = components.filter { it.breakdownGroupId == latestGroup || (it.source == FinancialSource.MANUAL && it.breakdownGroupId == null) } + (if (latest == null) deltas else deltasAfter)
         fun part(type: FinancialObservationType) = breakdown.filter { it.type == type }.sumOf { it.amount.minorUnits }
         if (latest != null && latestGroup != null) {
             val groupSum = components.filter { it.breakdownGroupId == latestGroup }.sumOf { it.amount.minorUnits }
@@ -283,7 +289,7 @@ object TripFinancialAggregator {
             promotion = part(FinancialObservationType.PROMOTION),
             adjustment = part(FinancialObservationType.ADJUSTMENT),
             cancellationFee = part(FinancialObservationType.CANCELLATION_FEE),
-            other = part(FinancialObservationType.OTHER) + part(FinancialObservationType.TOLL_REIMBURSEMENT),
+            other = part(FinancialObservationType.OTHER) + part(FinancialObservationType.TOLL_REIMBURSEMENT) + part(FinancialObservationType.COMMISSION),
             completeness = completeness,
             anomalies = anomalies,
             observationCount = live.size,
@@ -337,7 +343,8 @@ data class EarningsPeriodSummary(
     /** Amounts kept but not summed (low confidence, unknown type, other currency, unlinked). */
     val pendingReviewCount: Int,
     /** Of those, amounts waiting to be linked to a trip ("Pendientes de vincular"). */
-    val unlinkedPendingCount: Int
+    val unlinkedPendingCount: Int,
+    val cancelledIncomeCount: Int = 0
 ) {
     /** Share of completed trips whose money is confirmed. Not the same as confidence. */
     val coverage: BigDecimal?
@@ -361,11 +368,12 @@ object EarningsPeriods {
     fun summarize(
         currencyCode: String,
         completedTrips: List<TripFinancialSummary>,
-        unassigned: List<FinancialObservation>
+        unassigned: List<FinancialObservation>,
+        cancelledTripIds: Set<String> = emptySet()
     ): EarningsPeriodSummary {
         val confirmed = completedTrips.filter { it.completeness == FinancialCompleteness.CONFIRMED && it.currencyCode == currencyCode }
         val voided = unassigned.mapNotNull { it.voidsObservationId }.toSet()
-        val live = unassigned.filter { it.type != FinancialObservationType.VOID && it.observationId !in voided }
+        val live = unassigned.filter { it.type != FinancialObservationType.VOID && !it.type.isCollection && it.observationId !in voided }
         val trustworthy = live.filter {
             it.confidence >= FinancePolicy.MIN_CONFIDENCE && it.type != FinancialObservationType.UNKNOWN &&
                 it.amount.currencyCode == currencyCode && it.semantics != AmountSemantics.COMPONENT &&
@@ -387,12 +395,13 @@ object EarningsPeriods {
             otherEarnings = confirmed.sumOf { it.other + it.cancellationFee } + unassignedOf(FinancialObservationType.OTHER),
             unassignedEarnings = unassignedSum,
             totalObservedEarnings = Math.addExact(tripEarnings, unassignedSum),
-            completedTripCount = completedTrips.size,
-            confirmedTripCount = confirmed.size,
+            completedTripCount = completedTrips.count { it.tripId !in cancelledTripIds },
+            confirmedTripCount = confirmed.count { it.tripId !in cancelledTripIds },
             partialTripCount = completedTrips.count { it.completeness == FinancialCompleteness.PARTIAL },
             unknownTripCount = completedTrips.count { it.completeness == FinancialCompleteness.UNKNOWN },
             pendingReviewCount = completedTrips.sumOf { it.pendingReviewCount } + (live.size - usable.size),
-            unlinkedPendingCount = unlinked.size
+            unlinkedPendingCount = unlinked.size,
+            cancelledIncomeCount = confirmed.count { it.tripId in cancelledTripIds }
         )
     }
 }

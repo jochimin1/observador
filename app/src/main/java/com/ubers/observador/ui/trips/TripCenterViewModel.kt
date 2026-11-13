@@ -144,6 +144,19 @@ class TripCenterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun open(id: String) { openId.value = id }
 
+    suspend fun saveMoney(request: com.ubers.observador.domain.finance.ManualMoneyRequest): com.ubers.observador.domain.finance.MoneyEditResult {
+        val id = openId.value ?: return com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Abre un viaje antes de registrar dinero.")
+        return money.recordManualMoney(id, request, System.currentTimeMillis())
+    }
+
+    fun voidMoney(observation: String) = act("Importe anulado. Puedes deshacerlo.", "El importe ya cambió.") { id, now ->
+        money.voidManualMoney(id, observation, java.util.UUID.randomUUID().toString(), now)
+    }
+
+    fun undoMoney(command: String) = act("Cambio de dinero deshecho.", "Ese cambio ya no se puede deshacer.") { id, now ->
+        money.undoManualMoney(id, command, java.util.UUID.randomUUID().toString(), now)
+    }
+
     fun correctName(name: String?) = act("Nombre corregido.", "El nombre no cambió.") { id, now -> trips.correctRiderName(id, name, now) }
 
     fun correctStatus(to: TripStatus) = act("Estado corregido. Ganancias lo tendrá en cuenta.", "Ese cambio de estado no es posible.") { id, now ->

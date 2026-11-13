@@ -77,6 +77,9 @@ object EarningsFormat {
         FinancialObservationType.CANCELLATION_FEE -> "Tarifa de cancelación"
         FinancialObservationType.TOLL_REIMBURSEMENT -> "Peaje"
         FinancialObservationType.OTHER -> "Otro ingreso"
+        FinancialObservationType.COMMISSION -> "Comisión"
+        FinancialObservationType.CASH_COLLECTED -> "Cobro en efectivo"
+        FinancialObservationType.DIGITAL_COLLECTED -> "Cobro digital recibido"
         FinancialObservationType.UNKNOWN -> "Sin tipo"
         FinancialObservationType.VOID -> "Anulación"
     }

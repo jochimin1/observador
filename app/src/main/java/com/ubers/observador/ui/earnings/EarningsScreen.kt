@@ -1,5 +1,7 @@
 package com.ubers.observador.ui.earnings
 
+import androidx.compose.material3.OutlinedTextField
+
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -223,11 +225,22 @@ fun EarningsScreen(
                 item { TimeCard(state.online, state.km, report.summary.totalObservedEarnings, report.summary.confirmedTripCount) }
                 state.expenses?.let { e -> item { ExpensesCard(e, state.net, report.window.range) } }
                 item { UberCard(state.reconciliation, state.uberCapturedAt) }
+                if (state.referenceSnapshot != null) item { UberPeriodEditor(viewModel) }
+                state.platformInterval?.let { comparison ->
+                    item {
+                        SectionCard(title = if (comparison.manual) "Periodo de Uber definido por ti" else "Periodo declarado por Uber", icon = R.drawable.ic_compare_arrows,
+                            subtitle = "${dayTime(comparison.startMs)} → ${dayTime(comparison.endMs)} (fin excluido)") {
+                            Text(if (comparison.manual) "Límites introducidos por ti para esta consulta. Verifica que correspondan al importe de Uber. No modifica los registros ni el total seleccionado." else "Esta comparación usa los límites capturados de Uber, que pueden diferir de tu jornada. No cambia el total del periodo seleccionado.")
+                            Text("Observador: ${comparison.result.local?.let { MoneyFormat.format(it) } ?: "—"} · Uber: ${comparison.result.platform?.let { MoneyFormat.format(it) } ?: "—"}")
+                            Text(EarningsFormat.reconciliation(comparison.result.status) + (comparison.result.difference?.let { " · ${MoneyFormat.format(it, signed = true)}" } ?: ""))
+                        }
+                    }
+                }
                 if (report.pending.isNotEmpty()) item { PendingCard(report.pending, onAssign = { viewModel.openAssign(it) }, onReject = { rejecting = it }) }
                 if (state.manual.isNotEmpty()) item { ManualCard(state.manual, onUndo = { viewModel.undo(it) }) }
                 item {
                     Text(
-                        "Viajes realizados (${report.trips.size})" + report.trips.count { !it.endConfirmed }.let { n ->
+                        "Viajes con registro (${report.trips.size})" + report.trips.count { !it.endConfirmed && !it.cancelled }.let { n ->
                             if (n > 0) " · $n sin cierre confirmado" else ""
                         },
                         style = MaterialTheme.typography.titleMedium,
@@ -329,7 +342,7 @@ private fun IncomeCard(report: EarningsReport) {
             )
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile(R.drawable.ic_two_wheeler, "Viajes", rd(s.tripEarnings), detail = "${s.confirmedTripCount} con total confirmado")
+            StatTile(R.drawable.ic_two_wheeler, "Viajes", rd(s.tripEarnings), detail = "${s.confirmedTripCount} terminados con total confirmado")
             listOf(
                 Triple("Propinas", s.tips, R.drawable.ic_emoji_events),
                 Triple("Promociones", s.promotions, R.drawable.ic_bolt),
@@ -341,6 +354,9 @@ private fun IncomeCard(report: EarningsReport) {
         }
         if (s.unassignedEarnings != 0L) {
             InfoLine(R.drawable.ic_info, "${rd(s.unassignedEarnings)} de promociones u otros ingresos del periodo, sin viaje: ya están en el total.")
+        }
+        if (s.cancelledIncomeCount > 0) {
+            InfoLine(R.drawable.ic_info, "Incluye ingresos confirmados de ${s.cancelledIncomeCount} cancelación(es), sin contarlas como viajes realizados.")
         }
         if (s.unlinkedPendingCount > 0 || s.pendingReviewCount > 0) {
             InfoLine(
@@ -646,6 +662,25 @@ private fun UberCard(r: Reconciliation?, capturedAt: Long?) {
     }
 }
 
+@Composable
+private fun UberPeriodEditor(vm: EarningsViewModel) {
+    var open by remember { mutableStateOf(false) }
+    var start by remember { mutableStateOf("") }
+    var end by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    TextButton(onClick = { open = true }) { Text("Definir intervalo de esta referencia") }
+    if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Periodo del importe de Uber") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Introduce los límites que corresponden al importe mostrado por Uber. Hora local; el final se excluye. La comparación solo dura esta consulta.")
+            OutlinedTextField(start, { start = it; error = null }, label = { Text("Inicio: AAAA-MM-DD HH:mm") }, singleLine = true)
+            OutlinedTextField(end, { end = it; error = null }, label = { Text("Fin: AAAA-MM-DD HH:mm") }, singleLine = true)
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = { vm.clearUberPeriod(); open = false }) { Text("Quitar intervalo manual") }
+        } },
+        confirmButton = { TextButton(onClick = { error = vm.compareUberPeriod(start, end); if (error == null) open = false }) { Text("Comparar") } },
+        dismissButton = { TextButton(onClick = { open = false }) { Text("Cancelar") } })
+}
+
 // ---------------------------------------------------------------- pending and manual
 
 @Composable
@@ -812,7 +847,8 @@ private fun TripRow(row: TripMoneyRow, showDay: Boolean, onClick: () -> Unit) {
                     Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(statusColor))
                     Text(statusText, style = MaterialTheme.typography.labelMedium, color = statusColor)
                 }
-                if (!row.endConfirmed) {
+                if (row.cancelled) Text("Cancelado con ingreso confirmado", style = MaterialTheme.typography.labelSmall)
+                if (!row.endConfirmed && !row.cancelled) {
                     Text(
                         "Cierre sin confirmar: Uber volvió a buscando",
                         style = MaterialTheme.typography.labelSmall,

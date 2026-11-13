@@ -47,6 +47,66 @@ class FinancialRepository(private val db: AppDatabase) {
     private val money = db.financialDao()
     private val trips = db.tripDao()
 
+    /** A batch and its rebuilt summary commit together. Retries of the same command do not add money twice. */
+    suspend fun recordManualMoney(tripId: String, request: com.ubers.observador.domain.finance.ManualMoneyRequest, nowMs: Long): com.ubers.observador.domain.finance.MoneyEditResult = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getById(tripId)?.toDomain()
+                ?: return@withTransaction com.ubers.observador.domain.finance.MoneyEditResult.Rejected("El viaje ya no existe.")
+            val policy = com.ubers.observador.domain.finance.ManualMoney
+            policy.validate(trip, request)?.let { return@withTransaction com.ubers.observador.domain.finance.MoneyEditResult.Rejected(it) }
+            val valueId = policy.id(tripId, request.commandId, "value")
+            val history = tripObservations(tripId).distinctBy { it.observationId }
+            history.firstOrNull { it.observationId == valueId }?.let { existing ->
+                val expected = policy.rows(trip, request, null, existing.observedAtMs).last()
+                return@withTransaction if (existing.type == expected.type && existing.semantics == expected.semantics && existing.amount == expected.amount)
+                    com.ubers.observador.domain.finance.MoneyEditResult.Saved(request.commandId)
+                else com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Ese identificador ya corresponde a otro cambio.")
+            }
+            val live = policy.live(history)
+            val original = request.replacesId?.let { id -> live.firstOrNull { it.observationId == id } }
+                ?: if (request.replacesId == null && request.type == FinancialObservationType.TRIP_TOTAL) {
+                    live.filter { it.semantics == com.ubers.observador.domain.finance.AmountSemantics.ABSOLUTE_TOTAL }
+                        .maxWithOrNull(compareBy<FinancialObservation> { it.source == FinancialSource.MANUAL && policy.ENTRY in it.evidence }.thenBy { it.observedAtMs })
+                } else null
+            if (request.replacesId != null && original == null) return@withTransaction com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Ese importe cambió. Vuelve a abrir su ficha.")
+            if (original != null && original.type != request.type) return@withTransaction com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Corrige el importe conservando su tipo.")
+            if (original != null && original.amount.currencyCode != Currencies.DOP) return@withTransaction com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Esta edición admite RD$. No se puede cambiar la moneda del importe original.")
+            val at = maxOf(nowMs, (history.maxOfOrNull { it.observedAtMs } ?: 0L) + 1)
+            policy.rows(trip, request, original, at).forEach { row -> money.insertObservation(row.toEntity(nowMs)) }
+            rebuild(tripId, nowMs)
+            com.ubers.observador.domain.finance.MoneyEditResult.Saved(request.commandId)
+        }
+    }
+
+    suspend fun voidManualMoney(tripId: String, observationId: String, commandId: String, nowMs: Long): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            if (trips.getById(tripId)?.toDomain()?.status?.isOpen != false) return@withTransaction false
+            val policy = com.ubers.observador.domain.finance.ManualMoney
+            val history = tripObservations(tripId).distinctBy { it.observationId }
+            val target = policy.live(history).firstOrNull { it.observationId == observationId } ?: return@withTransaction false
+            if (money.observationExists(policy.id(tripId, commandId, "void"))) return@withTransaction false
+            val row = policy.void(target, commandId, maxOf(nowMs, target.observedAtMs + 1),
+                listOf(policy.ACTION, policy.COMMAND + commandId, policy.REPLACES + observationId))
+            money.insertObservation(row.toEntity(nowMs))
+            rebuild(tripId, nowMs)
+            true
+        }
+    }
+
+    suspend fun undoManualMoney(tripId: String, commandId: String, undoId: String, nowMs: Long): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getById(tripId)?.toDomain() ?: return@withTransaction false
+            if (trip.status.isOpen) return@withTransaction false
+            val history = tripObservations(tripId).distinctBy { it.observationId }
+            val policy = com.ubers.observador.domain.finance.ManualMoney
+            val rows = policy.undoRows(trip, commandId, history, undoId, nowMs) ?: return@withTransaction false
+            if (rows.isEmpty() || rows.any { money.observationExists(it.observationId) }) return@withTransaction false
+            rows.forEach { money.insertObservation(it.toEntity(nowMs)) }
+            rebuild(tripId, nowMs)
+            true
+        }
+    }
+
     suspend fun persistObservation(input: FinancialObservation, nowMs: Long): FinancialPersistResult = MaintenanceGate.shared.access {
         db.withTransaction {
             // A trip id that is not stored is never kept: the amount waits unlinked instead
@@ -131,15 +191,18 @@ class FinancialRepository(private val db: AppDatabase) {
     /** Real money of trips completed in [from, to) plus unassigned amounts seen then. Offers never count. */
     suspend fun periodEarnings(from: Long, to: Long, currencyCode: String = Currencies.DOP): EarningsPeriodSummary = MaintenanceGate.shared.access {
         db.withTransaction {
-                val completed = trips.getTripsEndedBetween(from, to).map { it.id }
-                val stored = if (completed.isEmpty()) emptyMap() else money.getSummaries(completed).associateBy { it.tripId }
-                val summaries = completed.map { id ->
+                val candidates = trips.getTripsForIncomeBetween(from, to).map { it.toDomain() }
+                val ids = candidates.map { it.id }
+                val stored = if (ids.isEmpty()) emptyMap() else money.getSummaries(ids).associateBy { it.tripId }
+                val summaries = candidates.filter { com.ubers.observador.domain.earnings.TripIncome.earnedAt(it, stored[it.id]?.toDomain(currencyCode)) != null }.map { trip ->
+                    val id = trip.id
                     stored[id]?.toDomain(currencyCode) ?: TripFinancialSummary(
                         tripId = id, currencyCode = null, offeredAmount = null, latestAbsoluteTotal = null,
                         effectiveEarnings = null, completeness = FinancialCompleteness.UNKNOWN
                     )
                 }
-                EarningsPeriods.summarize(currencyCode, summaries, unassignedWithVoids(from, to))
+                EarningsPeriods.summarize(currencyCode, summaries, unassignedWithVoids(from, to),
+                    candidates.filter { it.status == com.ubers.observador.domain.trips.TripStatus.CANCELLED }.map { it.id }.toSet())
             }
     }
 
@@ -148,7 +211,7 @@ class FinancialRepository(private val db: AppDatabase) {
     /** What Ganancias needs for [from, to), read in one transaction so it is consistent. */
     suspend fun earningsInputs(from: Long, to: Long, currencyCode: String = Currencies.DOP): EarningsInputs = MaintenanceGate.shared.access {
         db.withTransaction {
-            val completed = trips.getTripsEndedBetween(from, to).map { it.toDomain() }
+            val completed = trips.getTripsForIncomeBetween(from, to).map { it.toDomain() }
             val ids = completed.map { it.id }
             val summaries = if (ids.isEmpty()) emptyMap() else money.getSummaries(ids).associate { it.tripId to it.toDomain(currencyCode) }
             EarningsInputs(completed, summaries, unassignedWithVoids(from, to))
@@ -167,7 +230,7 @@ class FinancialRepository(private val db: AppDatabase) {
     /** A trip's own observations and the voids that cancel them (its money history). */
     suspend fun tripObservations(tripId: String): List<FinancialObservation> = MaintenanceGate.shared.access {
         db.withTransaction {
-            (money.getObservationsForTrip(tripId) + money.getVoidsForTrip(tripId)).map { it.toDomain() }
+            (money.getObservationsForTrip(tripId) + money.getVoidsForTrip(tripId)).distinctBy { it.observationId }.map { it.toDomain() }
         }
     }
 

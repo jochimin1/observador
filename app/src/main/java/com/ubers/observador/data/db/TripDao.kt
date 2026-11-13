@@ -121,6 +121,15 @@ interface TripDao {
     )
     suspend fun getTripsEndedBetween(from: Long, to: Long): List<TripEntity>
 
+    /** Financial candidates also include cancellations; income still requires a confirmed total. */
+    @Query(
+        "SELECT * FROM trips WHERE (status = 'COMPLETED' AND completed_at >= :from AND completed_at < :to) OR " +
+            "(status = 'INTERRUPTED' AND has_anomalies = 0 AND (accepted_at IS NOT NULL OR pickup_navigation_at IS NOT NULL) " +
+            "AND interrupted_at >= :from AND interrupted_at < :to) OR " +
+            "(status = 'CANCELLED' AND cancelled_at >= :from AND cancelled_at < :to)"
+    )
+    suspend fun getTripsForIncomeBetween(from: Long, to: Long): List<TripEntity>
+
     /** Every trip created from [from] on, for the "tomados" mark of the home list (Fase 8H). */
     @Query("SELECT * FROM trips WHERE created_at >= :from ORDER BY created_at DESC")
     fun observeCreatedSince(from: Long): Flow<List<TripEntity>>
