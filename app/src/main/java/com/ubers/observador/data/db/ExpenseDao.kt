@@ -28,6 +28,7 @@ interface ExpenseDao {
 
     @Query("SELECT * FROM fuel_entries ORDER BY at") suspend fun getFuel(): List<FuelEntryEntity>
     @Query("SELECT * FROM expense_entries ORDER BY at") suspend fun getExpenses(): List<ExpenseEntryEntity>
+    @Query("SELECT * FROM recurring_costs ORDER BY starts_on") suspend fun getRecurring(): List<RecurringCostEntity>
     @Query("SELECT * FROM odometer_readings ORDER BY at") suspend fun getOdometer(): List<OdometerReadingEntity>
 
     @Query("DELETE FROM fuel_entries WHERE id LIKE :prefix || '%'") suspend fun deleteFuelByPrefix(prefix: String): Int

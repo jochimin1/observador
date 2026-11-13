@@ -16,6 +16,23 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.42.0] - 2026-11-13
+
+Rentabilidad operativa real. Notas: [docs/releases/1.42.0.md](docs/releases/1.42.0.md).
+
+### Añadido
+- Vista de rentabilidad operativa en Ganancias y beneficio asignado en cada viaje del Centro de Viajes. Ingreso confirmado, combustible consumido, reserva de mantenimiento, depreciación opcional, costos fijos y gastos sueltos laborales explicados por separado.
+- Modelos de costos con versión y vigencia: precio por galón, rendimiento, costos por km, fijo por jornada u hora y porcentaje laboral para gastos sueltos. La primera configuración puede empezar hoy con confirmación; las revisiones son futuras e inmutables.
+- Reparto de fijos que conserva exactamente los centavos y costos sin asignar a viaje visibles. Los km de recogida y viaje no se vuelven a sumar desde los segmentos; los km vacíos se incorporan aparte.
+- Beneficio estimado por hora en línea, hora comprometida y km operativo cuando hay datos suficientes. Cobertura GPS y motivos de «no calculable» para dinero, modelos, tiempo, huecos de señal, solapamientos o viajes abiertos.
+- Los pagos de combustible/mantenimiento y los recurrentes se mantienen en la vista de gastos, sin volver a descontarlos del resultado operativo.
+
+### Corregido
+- La lectura de gastos usada por reportes incluye también los costos recurrentes, igual que la pantalla de Gastos.
+
+### Datos
+- Room **17**, migración aditiva 16 → 17: tabla `operating_cost_models`. Los modelos viajan en el respaldo de base de datos; no cambian las observaciones financieras ni los viajes existentes.
+
 ## [1.41.0] - 2026-11-13
 
 Dinero completo y correcciones auditables. Notas: [docs/releases/1.41.0.md](docs/releases/1.41.0.md).

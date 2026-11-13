@@ -197,6 +197,7 @@ private fun statusColor(s: TripStatus) = when (s) {
 fun TripDetailScreen(tripId: String, onBack: () -> Unit, vm: TripCenterViewModel = viewModel(key = "trip-$tripId")) {
     LaunchedEffect(tripId) { vm.open(tripId) }
     val d by vm.detail.collectAsState()
+    val operating by vm.operating.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
     var editName by remember { mutableStateOf(false) }
@@ -249,6 +250,7 @@ fun TripDetailScreen(tripId: String, onBack: () -> Unit, vm: TripCenterViewModel
             }
             if (sum.tip > 0) InfoLine(R.drawable.ic_payments, "Propina: ${MoneyFormat.format(MoneyAmount(sum.tip, sum.currencyCode ?: com.ubers.observador.domain.money.Currencies.DOP))}")
             TripMoneyEditor(t, sum, s.observations, vm::saveMoney, vm::voidMoney, vm::undoMoney)
+            com.ubers.observador.ui.earnings.TripOperatingPanel(operating?.takeIf { it.tripId == t.id })
 
             // Cancelled: what it cost
             TripDetails.cancelled(t, s.distance?.let { it.pickupMm + it.tripMm }, sum)?.let { c ->

@@ -2,7 +2,7 @@
 
 Cada entrega implementada tiene una etiqueta `vX.Y.Z` y una rama `release/X.Y.Z` en el mismo commit. La etiqueta identifica la entrega; la rama permite volver a su código con `git switch`. Son puntos conservados de publicación: las nuevas funciones se desarrollan en otra rama.
 
-El catálogo [versiones.json](versiones.json) cubre las 52 versiones del changelog, desde 1.0.0 / 1 hasta 1.41.0 / 52. No se crean referencias para las versiones futuras del roadmap.
+El catálogo [versiones.json](versiones.json) cubre las 53 versiones del changelog, desde 1.0.0 / 1 hasta 1.42.0 / 53. No se crean referencias para las versiones futuras del roadmap.
 
 El [índice de changelogs](changelogs/README.md) contiene una ficha por versión con cambios y commits. Las correcciones documentales retrospectivas se publican en el historial actual; las etiquetas existentes conservan el contenido que identificaban.
 

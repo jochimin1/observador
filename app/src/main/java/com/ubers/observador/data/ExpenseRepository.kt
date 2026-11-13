@@ -37,7 +37,7 @@ class ExpenseRepository(private val db: AppDatabase) {
 
     suspend fun getAll(): ExpenseData = MaintenanceGate.shared.access {
         db.withTransaction {
-            ExpenseData(dao.getFuel().map { it.toDomain() }, dao.getExpenses().map { it.toDomain() }, emptyList(), dao.getOdometer().map { it.toDomain() })
+            ExpenseData(dao.getFuel().map { it.toDomain() }, dao.getExpenses().map { it.toDomain() }, dao.getRecurring().map { it.toDomain() }, dao.getOdometer().map { it.toDomain() })
         }
     }
 

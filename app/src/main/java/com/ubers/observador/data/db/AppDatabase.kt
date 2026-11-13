@@ -32,9 +32,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
-        TripCorrectionEntity::class
+        TripCorrectionEntity::class, OperatingCostModelEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -56,9 +56,23 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
 
     abstract fun routeDao(): RouteDao
+    abstract fun operatingCostDao(): OperatingCostDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.42.0: immutable operating cost parameters. Existing money, trips and expenses stay intact. */
+        internal val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS operating_cost_models (id TEXT NOT NULL, revision INTEGER NOT NULL, " +
+                    "effectiveDay TEXT NOT NULL, effectiveAtMs INTEGER NOT NULL, createdAtMs INTEGER NOT NULL, " +
+                    "zoneId TEXT NOT NULL, workdayHour INTEGER NOT NULL, fuelPriceMinor INTEGER NOT NULL, " +
+                    "kmPerGallonMilli INTEGER NOT NULL, maintenancePerKmMinor INTEGER NOT NULL, depreciationPerKmMinor INTEGER NOT NULL, " +
+                    "fixedMinor INTEGER NOT NULL, fixedBasis TEXT NOT NULL, looseWorkSharePct INTEGER NOT NULL, algorithm TEXT NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_operating_cost_models_effectiveAtMs ON operating_cost_models (effectiveAtMs)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_operating_cost_models_revision ON operating_cost_models (revision)")
+            }
+        }
 
         /** 1.38.0: additive audit metadata; old offers remain usable and explicitly have no trace. */
         /** 1.40.0: the trip correction log (Centro de Viajes). Only a new table: no row changes. */
@@ -419,7 +433,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .build()
     }
 }

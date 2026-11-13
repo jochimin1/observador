@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -80,6 +81,8 @@ class TripCenterViewModel(app: Application) : AndroidViewModel(app) {
     private val distances = DistanceRepository(db)
     private val routes = RouteRepository(db)
     private val settings = AppSettings(app)
+    private val operatingCosts = com.ubers.observador.data.OperatingRepository(db)
+    private val onlineCosts = com.ubers.observador.data.OnlineRepository(db)
 
     private val period = MutableStateFlow(StatsPeriod.WEEK)
     private val query = MutableStateFlow(TripQuery())
@@ -143,6 +146,21 @@ class TripCenterViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun open(id: String) { openId.value = id }
+
+    val operating: StateFlow<com.ubers.observador.domain.operating.OperatingTripResult?> = combine(
+        detail, operatingCosts.observeModels(), distances.observeAll(), onlineCosts.observeRecent(1), settings.showTestData
+    ) { d, _, _, _, test -> d?.trip to test }
+        .mapLatest { (trip, test) ->
+            trip ?: return@mapLatest null
+            val end = com.ubers.observador.domain.operating.OperatingCosts.endedAt(trip) ?: return@mapLatest null
+            try {
+                val clock = WorkdayClock(settings.workdayStartHour.first(), ZoneId.systemDefault())
+                val window = com.ubers.observador.domain.earnings.EarningsWindows.of(com.ubers.observador.domain.earnings.EarningsRange.DAY, 0, end, clock)
+                operatingCosts.report(window, clock, System.currentTimeMillis(), test).trips.firstOrNull { it.tripId == trip.id }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { Log.e(TAG, "Trip operating cost failed", e); null }
+        }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     suspend fun saveMoney(request: com.ubers.observador.domain.finance.ManualMoneyRequest): com.ubers.observador.domain.finance.MoneyEditResult {
         val id = openId.value ?: return com.ubers.observador.domain.finance.MoneyEditResult.Rejected("Abre un viaje antes de registrar dinero.")

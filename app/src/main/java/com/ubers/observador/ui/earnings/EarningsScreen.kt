@@ -224,6 +224,7 @@ fun EarningsScreen(
                 if (report.window.range != EarningsRange.DAY) item { BarsCard(report) }
                 item { TimeCard(state.online, state.km, report.summary.totalObservedEarnings, report.summary.confirmedTripCount) }
                 state.expenses?.let { e -> item { ExpensesCard(e, state.net, report.window.range) } }
+                item { OperatingPanel(state.operating, state.costModels, state.clock, viewModel::saveCostModel) }
                 item { UberCard(state.reconciliation, state.uberCapturedAt) }
                 if (state.referenceSnapshot != null) item { UberPeriodEditor(viewModel) }
                 state.platformInterval?.let { comparison ->

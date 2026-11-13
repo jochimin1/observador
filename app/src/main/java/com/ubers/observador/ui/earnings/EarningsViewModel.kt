@@ -90,6 +90,8 @@ data class EarningsUiState(
     val uberCapturedAt: Long? = null,
     val platformInterval: PlatformIntervalComparison? = null,
     val referenceSnapshot: PlatformEarningsSnapshot? = null,
+    val operating: com.ubers.observador.domain.operating.OperatingReport? = null,
+    val costModels: List<com.ubers.observador.domain.operating.OperatingCostModel> = emptyList(),
     val goals: GoalsUi = GoalsUi(),
     val manual: List<ManualAssignmentRow> = emptyList(),
     /** Only for a week (Fase 8D), compared with the one before when both have 80 % coverage. */
@@ -126,6 +128,10 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     private val expenses = ExpenseRepository(db)
     private val distances = DistanceRepository(db)
     private val settings = AppSettings(app)
+    private val operating = com.ubers.observador.data.OperatingRepository(db)
+
+    suspend fun saveCostModel(input: com.ubers.observador.domain.operating.OperatingCostInput): String? =
+        operating.save(input, state.value.clock, System.currentTimeMillis())
     private val reports = com.ubers.observador.data.export.ReportData(db)
 
     /** Save or share the files of the period on screen (Fase 8D). */
@@ -161,7 +167,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private data class Changes(val trips: Any?, val money: Any?, val manual: List<FinancialObservation>, val sessions: Any?)
-    private data class Extra(val expenses: ExpenseData, val segments: List<DistanceSegment>, val daySnap: PlatformEarningsSnapshot?, val weekSnap: PlatformEarningsSnapshot?)
+    private data class Extra(val expenses: ExpenseData, val segments: List<DistanceSegment>, val daySnap: PlatformEarningsSnapshot?, val weekSnap: PlatformEarningsSnapshot?, val models: List<com.ubers.observador.domain.operating.OperatingCostModel>)
     private data class Config(val hour: Int, val goals: GoalSettings, val workShare: Int, val includeTest: Boolean, val uberPeriod: UberPeriodChoice?)
 
     private val changes = combine(
@@ -170,8 +176,8 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val extra = combine(
         expenses.observeAll(), distances.observeAll(),
-        money.observeLatestPlatformSnapshot(PlatformPeriodType.DAY), money.observeLatestPlatformSnapshot(PlatformPeriodType.WEEK)
-    ) { e, d, ds, ws -> Extra(e, d, ds, ws) }
+        money.observeLatestPlatformSnapshot(PlatformPeriodType.DAY), money.observeLatestPlatformSnapshot(PlatformPeriodType.WEEK), operating.observeModels()
+    ) { e, d, ds, ws, models -> Extra(e, d, ds, ws, models) }
 
     private val config = combine(settings.workdayStartHour, settings.goals, settings.workSharePct, settings.showTestData, uberPeriod) { h, g, w, t, p -> Config(h, g, w, t, p) }
 
@@ -206,6 +212,9 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 window.firstDay, window.lastDay, clock, fuel, spending, recurring, i.config.workShare
             )
             val net = if (i.range == EarningsRange.DAY) null else ExpenseRules.net(report.summary, expenseSummary)
+            val operatingReport = try { operating.report(window, clock, now, test) }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: Exception) { Log.e(TAG, "Operating costs failed", e); null }
             val km = if (segments.isEmpty()) null else com.ubers.observador.domain.distance.DistanceTotals.kmBetween(segments, window.startMs, window.endMs, now)
             val snapshot = when (i.range) {
                 EarningsRange.DAY -> i.extra.daySnap
@@ -246,6 +255,8 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                 online = onlineSummary.takeIf { it.hasData },
                 expenses = expenseSummary,
                 net = net,
+                operating = operatingReport,
+                costModels = i.extra.models,
                 km = km,
                 reconciliation = reconciliation,
                 uberCapturedAt = snapshot?.capturedAtMs,
