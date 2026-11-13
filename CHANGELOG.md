@@ -16,6 +16,21 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.39.0] - 2026-11-13
+
+Salud de Observador y calidad de datos. Notas: [docs/releases/1.39.0.md](docs/releases/1.39.0.md).
+
+### Añadido
+- **Salud de Observador** (Ajustes › Salud, o tocando la barra de estado de Inicio cuando algo falla): accesibilidad, lectura de Uber, ofertas, GPS y guardado, cada uno con su estado, la edad de la última señal y qué hacer. Ningún estado dice «funciona» solo porque un permiso esté concedido: hace falta que el servicio esté conectado, que se reconozcan pantallas, que lleguen posiciones o que se escriba.
+- Distingue «no han llegado ofertas» (la lectura funciona) de «Uber se ve, pero no lo entiendo» (5 o más pantallas seguidas sin reconocer durante 10 min) y «GPS autorizado» de «GPS entregando posiciones» (sin posiciones 2 min después de pedirlas).
+- La cola de guardado cuenta trabajos pendientes, el más antiguo, la última escritura, fallos y si sigue en marcha. Un fallo recuperable se cuenta y la siguiente escritura sigue; la cancelación sigue terminándola; un error fatal se cuenta y no se oculta.
+- Historial local de incidentes (últimos 50, fuera de los respaldos de Android): un problema que se mantiene se anota una vez y su recuperación otra. «Exportar diagnóstico» en texto, con versiones, estados e incidentes, sin textos de Uber, nombres, direcciones, importes ni coordenadas.
+- **Laboratorio** (Ajustes › Laboratorio): capturas de Uber, registro de lecturas y, en la versión de desarrollo, datos de prueba, simulación de un fallo de guardado y los paneles de detectores, fuera de los ajustes de uso diario.
+
+### Cambiado
+- Una sola regla para los datos de prueba (`TEST-`): Inicio, Ganancias, Gastos, sus exportaciones, el resumen semanal y los reportes los excluyen salvo que se active «Mostrar datos de prueba» en Laboratorio, o el interruptor de una exportación concreta en Reportes. Antes, Ganancias, Gastos y el resumen semanal los incluían.
+- La barra de estado de Inicio solo muestra «Leyendo ofertas» si no hay problemas detectados; si los hay, muestra el problema y abre Salud.
+
 ## [1.38.0] - 2026-11-12
 
 ### Añadido

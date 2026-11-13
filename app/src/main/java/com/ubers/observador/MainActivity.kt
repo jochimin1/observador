@@ -177,6 +177,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private const val ROUTE_HEALTH = "health"
+private const val ROUTE_LAB = "lab"
+
 /** The main destinations, one per tab of the bottom bar (decision 7: five tabs at the bottom). */
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
     HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
@@ -239,6 +242,7 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                 DashboardScreen(
                     accessibilityEnabled = accessibilityEnabled,
                     onOpenEarnings = { open(Tab.EARNINGS) },
+                    onOpenHealth = { navController.navigate(ROUTE_HEALTH) { launchSingleTop = true } },
                     onOpenReports = { p -> openReports(ReportsNavigation.forStats(p)) }
                 )
             }
@@ -262,7 +266,19 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                 IntelligenceScreen(onNavigateBack = null)
             }
             composable(Tab.SETTINGS.route) {
-                SettingsScreen(onNavigateBack = null, onOpenReports = { openReports(null) })
+                SettingsScreen(
+                    onNavigateBack = null,
+                    onOpenReports = { openReports(null) },
+                    onOpenHealth = { navController.navigate(ROUTE_HEALTH) { launchSingleTop = true } },
+                    onOpenLab = { navController.navigate(ROUTE_LAB) { launchSingleTop = true } }
+                )
+            }
+            // 1.39.0: not tabs; opened from Ajustes (and Salud from Inicio's status bar)
+            composable(ROUTE_HEALTH) {
+                com.ubers.observador.ui.health.HealthScreen(onBack = { navController.popBackStack() })
+            }
+            composable(ROUTE_LAB) {
+                com.ubers.observador.ui.lab.LabScreen(onBack = { navController.popBackStack() })
             }
         }
     }

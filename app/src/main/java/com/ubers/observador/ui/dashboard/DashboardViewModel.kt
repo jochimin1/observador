@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.dashboard
 
+import com.ubers.observador.domain.TestData
 import android.app.Application
 import android.net.Uri
 import android.util.Log
@@ -160,8 +161,9 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Fase 8H: every offer seen since [since], each with the trip it became (if any). */
     private fun ledgerSince(since: Long?): Flow<OfferLedger> =
-        combine(repository.observeSince(since ?: 0L), tripRepository.observeCreatedSince(since ?: 0L)) { offers, trips ->
-            OfferLedger.of(offers, trips)
+        combine(repository.observeSince(since ?: 0L), tripRepository.observeCreatedSince(since ?: 0L), settings.showTestData) { offers, trips, test ->
+            // 1.39.0: TEST- rows only when Laboratorio asks for them
+            OfferLedger.of(TestData.filter(offers, test) { it.offerHash }, TestData.filter(trips, test) { it.id })
         }
 
     /** The offers the driver took, for "Mejores horas para salir". */

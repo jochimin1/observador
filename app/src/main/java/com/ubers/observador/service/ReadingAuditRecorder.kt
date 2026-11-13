@@ -42,6 +42,10 @@ object ReadingAuditRecorder {
         val id = UUID.randomUUID().toString()
         val parsed = OfferCardParser.diagnoseAll(snapshot.texts)
         val classification = classifier.classify(snapshot)
+        // 1.39.0: each new screen is evidence that the reading works (or does not)
+        // («Estás conectado/desconectado» counts too: the home map is not a ride screen, but it is understood)
+        HealthMonitor.onReading(snapshot.timestampMs, classification.isRecognized ||
+            snapshot.normalizedTexts.any { com.ubers.observador.domain.online.OnlineSignatures.evidenceOf(it) != null })
         val reasons = parsed.problems.map { it.name }.toMutableList()
         if (!classification.isRecognized) reasons += "SCREEN_${classification.type}"
         if (classification.provisional) reasons += "PROVISIONAL_SIGNATURE"

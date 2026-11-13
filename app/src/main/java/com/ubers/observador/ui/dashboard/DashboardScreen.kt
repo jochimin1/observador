@@ -70,6 +70,7 @@ import java.time.format.DateTimeFormatter
 fun DashboardScreen(
     accessibilityEnabled: Boolean,
     onOpenEarnings: (() -> Unit)? = null,
+    onOpenHealth: (() -> Unit)? = null,
     onOpenReports: ((com.ubers.observador.domain.StatsPeriod) -> Unit)? = null,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -243,9 +244,13 @@ fun DashboardScreen(
         ) {
             // Fixed above the list: whether Observador is reading Uber is the first thing to know
             val observing by viewModel.observerEnabled.collectAsState()
+            // 1.39.0: «Leyendo ofertas» needs evidence, not only the permission
+            val health by remember(context) { com.ubers.observador.service.HealthMonitor.reports(context) }.collectAsState(initial = null)
             ServiceStatusBar(
                 enabled = accessibilityEnabled,
                 paused = !observing,
+                problem = health?.worst?.takeIf { accessibilityEnabled && observing },
+                onOpenHealth = onOpenHealth,
                 lastOfferAt = state.lastRealOfferAt,
                 nowMillis = state.nowMillis,
                 loading = state.loading,
@@ -388,6 +393,8 @@ fun DashboardScreen(
 private fun ServiceStatusBar(
     enabled: Boolean,
     paused: Boolean,
+    problem: com.ubers.observador.domain.health.HealthCheck?,
+    onOpenHealth: (() -> Unit)?,
     lastOfferAt: Long?,
     nowMillis: Long,
     loading: Boolean,
@@ -397,23 +404,29 @@ private fun ServiceStatusBar(
     onClose: () -> Unit
 ) {
     val reading = enabled && !paused
+    val failing = reading && problem?.level == com.ubers.observador.domain.health.HealthLevel.FAIL
+    val warning = reading && problem != null && !failing
     val scheme = MaterialTheme.colorScheme
     val container = when {
-        !enabled -> scheme.errorContainer
-        paused -> scheme.tertiaryContainer
+        !enabled || failing -> scheme.errorContainer
+        paused || warning -> scheme.tertiaryContainer
         else -> scheme.secondaryContainer
     }
     val content = when {
-        !enabled -> scheme.onErrorContainer
-        paused -> scheme.onTertiaryContainer
+        !enabled || failing -> scheme.onErrorContainer
+        paused || warning -> scheme.onTertiaryContainer
         else -> scheme.onSecondaryContainer
     }
     val (badge, badgeColor) = when {
-        !enabled -> R.drawable.ic_sensors_off to scheme.error
+        !enabled || failing -> R.drawable.ic_sensors_off to scheme.error
         paused -> R.drawable.ic_pause_circle to scheme.tertiary
+        warning -> R.drawable.ic_warning to scheme.tertiary
         else -> R.drawable.ic_sensors to scheme.primary
     }
-    Surface(color = container, contentColor = content, modifier = Modifier.fillMaxWidth()) {
+    val clickable = if ((failing || warning) && onOpenHealth != null) {
+        Modifier.clickable(onClickLabel = "Ver salud", onClick = onOpenHealth)
+    } else Modifier
+    Surface(color = container, contentColor = content, modifier = Modifier.fillMaxWidth().then(clickable)) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -430,6 +443,7 @@ private fun ServiceStatusBar(
                     text = when {
                         !enabled -> "Inactivo"
                         paused -> "En pausa"
+                        failing || warning -> problem!!.title
                         else -> "Leyendo ofertas"
                     },
                     style = MaterialTheme.typography.titleSmall,
@@ -438,6 +452,7 @@ private fun ServiceStatusBar(
                 val detail = when {
                     !enabled -> "Observador no está leyendo Uber."
                     paused -> "No se leen ofertas ni viajes hasta que reanudes."
+                    failing || warning -> "${problem!!.area.label} · toca para ver qué hacer."
                     loading -> null
                     lastOfferAt == null -> "Aún no ha llegado ninguna oferta."
                     else -> "Última oferta ${TimeAgo.format(nowMillis, lastOfferAt)}"

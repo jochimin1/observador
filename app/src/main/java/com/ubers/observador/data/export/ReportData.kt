@@ -58,24 +58,24 @@ class ReportData(private val db: AppDatabase) {
     private val distances = DistanceRepository(db)
     private val routes = RouteRepository(db)
 
-    /** Fase 8J: test rows (ids and hashes starting with TEST-) are left out unless asked for. */
-    private fun keep(id: String, includeTest: Boolean) = includeTest || !id.startsWith(TEST_PREFIX)
+    /** Fase 8J / 1.39.0: test rows are left out unless asked for (one rule: [com.ubers.observador.domain.TestData]). */
+    private fun keep(id: String, includeTest: Boolean) = com.ubers.observador.domain.TestData.keep(id, includeTest)
 
-    suspend fun report(window: EarningsWindow, clock: WorkdayClock, includeTest: Boolean = true): EarningsReport {
+    suspend fun report(window: EarningsWindow, clock: WorkdayClock, includeTest: Boolean = false): EarningsReport {
         val inputs = money.earningsInputs(window.startMs, window.endMs)
         val completed = inputs.completedTrips.filter { keep(it.id, includeTest) }
         val unassigned = inputs.unassigned.filter { keep(it.observationId, includeTest) }
         return EarningsReports.build(window, clock, completed, inputs.summaries, unassigned)
     }
 
-    suspend fun online(window: EarningsWindow, nowMs: Long, includeTest: Boolean = true): OnlineSummary =
+    suspend fun online(window: EarningsWindow, nowMs: Long, includeTest: Boolean = false): OnlineSummary =
         online.summarize(
             online.getBetween(window.startMs, window.endMs).filter { keep(it.id, includeTest) },
             window.startMs, window.endMs, nowMs
         )
 
     /** Fill-ups, expenses and fixed costs, without test rows unless asked for. */
-    suspend fun expenseData(includeTest: Boolean = true): ExpenseData {
+    suspend fun expenseData(includeTest: Boolean = false): ExpenseData {
         val all = expenses.getAll()
         return if (includeTest) all else all.copy(
             fuel = all.fuel.filter { keep(it.id, includeTest) },
@@ -155,8 +155,10 @@ class ReportData(private val db: AppDatabase) {
     }
 
     /** The weekly summary of [window], compared with the week before. */
-    suspend fun weekly(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, weeklyGoalMinor: Long, workSharePct: Int): WeeklyReport {
-        val current = report(window, clock)
+    suspend fun weekly(
+        window: EarningsWindow, clock: WorkdayClock, nowMs: Long, weeklyGoalMinor: Long, workSharePct: Int, includeTest: Boolean = false
+    ): WeeklyReport {
+        val current = report(window, clock, includeTest)
         val previousWindow = window.copy(
             offset = window.offset - 1,
             firstDay = window.firstDay.minusDays(7),
@@ -164,9 +166,9 @@ class ReportData(private val db: AppDatabase) {
             startMs = clock.startOf(window.firstDay.minusDays(7)),
             endMs = window.startMs
         )
-        val previous = report(previousWindow, clock)
-        val o = online(window, nowMs)
-        val data = expenses.getAll()
+        val previous = report(previousWindow, clock, includeTest)
+        val o = online(window, nowMs, includeTest)
+        val data = expenseData(includeTest)
         val spent = ExpenseRules.summarize(window.firstDay, window.lastDay, clock, data.fuel, data.expenses, data.recurring, workSharePct)
         return WeeklyReports.build(
             current, previous,
@@ -184,7 +186,7 @@ class ReportData(private val db: AppDatabase) {
         clock: WorkdayClock,
         nowMs: Long,
         workSharePct: Int,
-        includeTest: Boolean = true,
+        includeTest: Boolean = false,
         extraPdfSections: List<com.ubers.observador.domain.reports.PeriodTotalsText.Section> = emptyList()
     ): ReportOutput {
         val name = ExportNames.of(file.kind, window.firstDay, window.lastDay, file.extension)
@@ -227,7 +229,7 @@ class ReportData(private val db: AppDatabase) {
         }
     }
 
-    suspend fun periodSummary(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, workSharePct: Int, includeTest: Boolean = true): PeriodSummary {
+    suspend fun periodSummary(window: EarningsWindow, clock: WorkdayClock, nowMs: Long, workSharePct: Int, includeTest: Boolean = false): PeriodSummary {
         val report = report(window, clock, includeTest)
         val o = online(window, nowMs, includeTest)
         val data = expenseData(includeTest)
@@ -252,7 +254,7 @@ class ReportData(private val db: AppDatabase) {
         ExpenseRules.summarize(day, day, clock, data.fuel, data.expenses, data.recurring, workSharePct).workMinor
 
     companion object {
-        const val TEST_PREFIX = "TEST-"
+        const val TEST_PREFIX = com.ubers.observador.domain.TestData.PREFIX
 
         /** The week that just ended, for the Monday notification. */
         fun lastWeek(nowMs: Long, clock: WorkdayClock, weekStart: java.time.DayOfWeek): EarningsWindow =

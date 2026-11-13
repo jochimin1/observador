@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.earnings
 
+import com.ubers.observador.domain.TestData
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -145,7 +146,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
 
     private data class Changes(val trips: Any?, val money: Any?, val manual: List<FinancialObservation>, val sessions: Any?)
     private data class Extra(val expenses: ExpenseData, val segments: List<DistanceSegment>, val daySnap: PlatformEarningsSnapshot?, val weekSnap: PlatformEarningsSnapshot?)
-    private data class Config(val hour: Int, val goals: GoalSettings, val workShare: Int)
+    private data class Config(val hour: Int, val goals: GoalSettings, val workShare: Int, val includeTest: Boolean)
 
     private val changes = combine(
         trips.observeCounts(), money.observeRecentObservations(1), money.observeManual(), online.observeRecent(1)
@@ -156,7 +157,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
         money.observeLatestPlatformSnapshot(PlatformPeriodType.DAY), money.observeLatestPlatformSnapshot(PlatformPeriodType.WEEK)
     ) { e, d, ds, ws -> Extra(e, d, ds, ws) }
 
-    private val config = combine(settings.workdayStartHour, settings.goals, settings.workSharePct) { h, g, w -> Config(h, g, w) }
+    private val config = combine(settings.workdayStartHour, settings.goals, settings.workSharePct, settings.showTestData) { h, g, w, t -> Config(h, g, w, t) }
 
     val state: StateFlow<EarningsUiState> = combine(changes, extra, config, selection, minuteTicker) { c, e, cfg, sel, now ->
         Inputs(c, e, cfg, sel.first, sel.second, now)
@@ -172,15 +173,24 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
         val now = i.now
         return try {
             val window = EarningsWindows.of(i.range, i.offset, now, clock, i.config.goals.weekStart)
+            // 1.39.0: the same TEST- rule as Inicio and the reports
+            val test = i.config.includeTest
             val inputs = money.earningsInputs(window.startMs, window.endMs)
-            val report = EarningsReports.build(window, clock, inputs.completedTrips, inputs.summaries, inputs.unassigned)
-            val sessions = online.getBetween(window.startMs, window.endMs)
+            val report = EarningsReports.build(
+                window, clock, TestData.filter(inputs.completedTrips, test) { it.id }, inputs.summaries,
+                TestData.filter(inputs.unassigned, test) { it.observationId }
+            )
+            val sessions = TestData.filter(online.getBetween(window.startMs, window.endMs), test) { it.id }
+            val fuel = TestData.filter(i.extra.expenses.fuel, test) { it.id }
+            val spending = TestData.filter(i.extra.expenses.expenses, test) { it.id }
+            val recurring = TestData.filter(i.extra.expenses.recurring, test) { it.id }
+            val segments = TestData.filter(i.extra.segments, test) { it.id }
             val onlineSummary = online.summarize(sessions, window.startMs, window.endMs, now)
             val expenseSummary = ExpenseRules.summarize(
-                window.firstDay, window.lastDay, clock, i.extra.expenses.fuel, i.extra.expenses.expenses, i.extra.expenses.recurring, i.config.workShare
+                window.firstDay, window.lastDay, clock, fuel, spending, recurring, i.config.workShare
             )
             val net = if (i.range == EarningsRange.DAY) null else ExpenseRules.net(report.summary, expenseSummary)
-            val km = if (i.extra.segments.isEmpty()) null else com.ubers.observador.domain.distance.DistanceTotals.kmBetween(i.extra.segments, window.startMs, window.endMs, now)
+            val km = if (segments.isEmpty()) null else com.ubers.observador.domain.distance.DistanceTotals.kmBetween(segments, window.startMs, window.endMs, now)
             val snapshot = when (i.range) {
                 EarningsRange.DAY -> i.extra.daySnap
                 EarningsRange.WEEK -> i.extra.weekSnap
@@ -189,7 +199,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
             val reconciliation = snapshot?.let { Reconciler.reconcile(report.summary, window.startMs, window.endMs, it) }
             val tripIds = report.trips.map { it.tripId }.toSet()
             val weekly = if (i.range != EarningsRange.WEEK) null else try {
-                reports.weekly(window, clock, now, i.config.goals.weeklyMinor, i.config.workShare)
+                reports.weekly(window, clock, now, i.config.goals.weeklyMinor, i.config.workShare, test)
             } catch (e: Exception) {
                 Log.e(TAG, "Weekly summary failed", e)
                 null
@@ -258,7 +268,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun output(file: com.ubers.observador.data.export.ReportFile): com.ubers.observador.data.export.ReportOutput {
         val st = state.value
         val window = st.report?.window ?: error("No period loaded")
-        return reports.build(file, window, st.clock, System.currentTimeMillis(), settings.workSharePct.first())
+        return reports.build(file, window, st.clock, System.currentTimeMillis(), settings.workSharePct.first(), settings.showTestData.first())
     }
 
     fun saveFile(file: com.ubers.observador.data.export.ReportFile) = exporter.save { output(file) }

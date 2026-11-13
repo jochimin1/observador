@@ -104,6 +104,7 @@ class ObservadorForegroundService : Service() {
                 val fix = LocationFix(loc.time, loc.latitude, loc.longitude, if (loc.hasAccuracy()) loc.accuracy else Float.NaN)
                 DistanceMonitor.onFix(fix)
                 RouteMonitor.onFix(fix)
+                HealthMonitor.onFix(System.currentTimeMillis())
             }
         }
     }
@@ -127,6 +128,8 @@ class ObservadorForegroundService : Service() {
         startForegroundTyped(first)
         DistanceMonitor.start(applicationContext)
         RouteMonitor.start(applicationContext)
+        // 1.39.0: health is evaluated here too, so incidents are kept while the app is closed
+        scope.launch { HealthMonitor.reports(applicationContext).collect { } }
 
         scope.launch {
             settings.workdayStartHour.collect { DistanceMonitor.setClock(WorkdayClock(it, ZoneId.systemDefault())) }
@@ -229,15 +232,19 @@ class ObservadorForegroundService : Service() {
                 else -> startForeground(NOTIFICATION_ID, n)
             }
             DistanceMonitor.setBackgroundLimited(false)
+            HealthMonitor.onBackgroundLimited(false)
         } catch (e: RuntimeException) {
             Log.w(TAG, "Location type refused; running without it", e)
             if (special != 0) startForeground(NOTIFICATION_ID, n, special) else startForeground(NOTIFICATION_ID, n)
             DistanceMonitor.setBackgroundLimited(located)
+            HealthMonitor.onBackgroundLimited(located)
         }
     }
 
     /** The GPS is on only while measuring. */
     private fun setGps(on: Boolean) {
+        // A refused request (below) stays visible in Salud until measuring stops
+        if (!on) HealthMonitor.onGpsRequested(null)
         if (on == gpsOn) return
         if (on) {
             try {
@@ -246,8 +253,10 @@ class ObservadorForegroundService : Service() {
                     .build()
                 locationClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
                 gpsOn = true
+                HealthMonitor.onGpsRequested(System.currentTimeMillis())
             } catch (e: SecurityException) {
                 Log.w(TAG, "No location permission", e)
+                HealthMonitor.onGpsRequested(System.currentTimeMillis())
             }
         } else {
             locationClient.removeLocationUpdates(callback)

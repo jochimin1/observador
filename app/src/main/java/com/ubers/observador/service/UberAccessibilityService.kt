@@ -100,6 +100,9 @@ class UberAccessibilityService : AccessibilityService() {
         overlayManager.onTap = { sectorCloser.cancelAll() }
         notifier = OfferNotifier(applicationContext)
         instance = this
+        // 1.39.0: the service itself says it is running; the permission alone proves nothing
+        HealthMonitor.init(applicationContext)
+        HealthMonitor.onServiceConnected(System.currentTimeMillis())
         RideLifecycleMonitor.start(applicationContext)
         // The on/off switch decides when the lifecycle counts as connected (first value comes at once)
         scope.launch {
@@ -141,6 +144,7 @@ class UberAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!observing) return
         if (event.packageName != UBER_DRIVER_PACKAGE) return
+        HealthMonitor.onUberEvent(System.currentTimeMillis())
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) return
@@ -191,6 +195,7 @@ class UberAccessibilityService : AccessibilityService() {
         }
         // Submit the offer write BEFORE lifecycle events can create the trip that copies it.
         if (offer != null) {
+            HealthMonitor.onOffer(snapshot.timestampMs)
             cancelAbsenceCheck()
             val hash = offer.offerHash()
             if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
@@ -208,6 +213,7 @@ class UberAccessibilityService : AccessibilityService() {
                 val key = snapshot.texts.hashCode()
                 if (reading.problems.isNotEmpty() && unreadableKey != key) {
                     unreadableKey = key
+                    HealthMonitor.onUnreadable(snapshot.timestampMs, reading.problems.joinToString(". ") { it.label })
                     overlayManager.dismiss()
                     notifier.cancel()
                     val generation = readingGeneration
@@ -494,7 +500,10 @@ class UberAccessibilityService : AccessibilityService() {
         resetState()
         if (observing) RideLifecycleMonitor.onServiceLost()
         observing = false
-        if (instance === this) instance = null
+        if (instance === this) {
+            instance = null
+            HealthMonitor.onServiceDisconnected()
+        }
         job.cancel()
     }
 }

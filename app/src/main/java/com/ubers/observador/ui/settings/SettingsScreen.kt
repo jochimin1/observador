@@ -76,6 +76,8 @@ private val ExampleOffer = UberOffer(price = 75.50, pickupKm = 1.8, pickupMin = 
 fun SettingsScreen(
     onNavigateBack: (() -> Unit)?,
     onOpenReports: (() -> Unit)? = null,
+    onOpenHealth: (() -> Unit)? = null,
+    onOpenLab: (() -> Unit)? = null,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -114,6 +116,11 @@ fun SettingsScreen(
             OutlinedButton(onClick = { closing = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(painterResource(R.drawable.ic_power), contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Apagar Observador", modifier = Modifier.padding(start = 8.dp))
+            }
+            // 1.39.0: is it really observing and saving?
+            onOpenHealth?.let {
+                NavigationCard(R.drawable.ic_monitor_heart, "Salud de Observador",
+                    "Accesibilidad, lectura de Uber, ofertas, GPS y guardado, con lo que conviene hacer si algo falla.", it)
             }
 
             val profiles by viewModel.profiles.collectAsState()
@@ -474,8 +481,6 @@ fun SettingsScreen(
                 onTest = { viewModel.showTestOverlay() },
                 onTestNotification = { viewModel.showTestNotification() }
             )
-            OfferDebugCard()
-            ReadingAuditSection()
 
             SectionHeader("Detección", R.drawable.ic_filter_alt)
             IntSettingCard(
@@ -501,20 +506,10 @@ fun SettingsScreen(
             // 1.35.0: sectors the driver wants to be warned about
             SectorsSection()
 
-            if (BuildConfig.DEBUG) {
-                val testMessage by viewModel.testDataMessage.collectAsState()
-                SectionHeader("Herramientas de prueba", R.drawable.ic_science)
-                TestDataCard(
-                    message = testMessage,
-                    onLoad = { viewModel.loadTestOffers() },
-                    onClear = { viewModel.clearTestOffers() }
-                )
-                LifecycleDebugCard()
-                OnlineDebugCard()
-                DistanceDebugCard()
-                ExpenseDebugCard()
-                TripsDebugCard()
-                FinanceDebugCard()
+            // 1.39.0: captures, reading register and development tools live in Laboratorio
+            onOpenLab?.let {
+                NavigationCard(R.drawable.ic_science, "Laboratorio",
+                    "Capturas de pantalla de Uber, registro de lecturas" + (if (BuildConfig.DEBUG) " y herramientas de desarrollo." else "."), it)
             }
 
             // 1.31.0: backup of everything the app keeps (restore and reset follow)
@@ -566,39 +561,25 @@ private fun OverlayPreviewCard(message: String?, onTest: () -> Unit, onTestNotif
     }
 }
 
-/** Debug builds only: loads or removes the known set of fake offers. */
+/** A row that opens another screen (Reportes, Salud, Laboratorio). */
 @Composable
-private fun TestDataCard(message: String?, onLoad: () -> Unit, onClear: () -> Unit) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
+private fun NavigationCard(@DrawableRes icon: Int, title: String, description: String, onClick: () -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Abrir", onClick = onClick)) {
+        Row(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Ofertas de prueba",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "Solo aparece en la versión de desarrollo. Carga 160 ofertas: 60 en hoy, ayer y " +
-                    "hace 6 días para comprobar el resumen y la lista, y 100 en otros 6 días con un " +
-                    "patrón conocido para Mejores horas. Van marcadas como prueba: al borrarlas, tus " +
-                    "ofertas reales no se tocan.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onLoad) { Text("Cargar") }
-                OutlinedButton(onClick = onClear) { Text("Borrar") }
+            Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (message != null) {
-                Text(text = message, style = MaterialTheme.typography.bodySmall)
-            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-/** 16, 0 -> "4:00 pm". */
 private fun clock12(hour: Int, minute: Int): String {
     val h = if (hour % 12 == 0) 12 else hour % 12
     return "%d:%02d %s".format(h, minute, if (hour < 12) "am" else "pm")

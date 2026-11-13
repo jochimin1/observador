@@ -100,7 +100,7 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
             if (st.period == ExpensePeriod.THIS_MONTH) 0 else -1,
             now, st.clock
         )
-        return reports.build(file, window, st.clock, now, settings.workSharePct.first())
+        return reports.build(file, window, st.clock, now, settings.workSharePct.first(), settings.showTestData.first())
     }
 
     private val period = MutableStateFlow(ExpensePeriod.THIS_MONTH)
@@ -121,9 +121,19 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         val pricePerGallon: Double
     )
 
+    // 1.39.0: TEST- rows only when Laboratorio asks for them (same rule as Inicio and Ganancias)
+    private val realData = combine(repository.observeAll(), distances.observeAll(), settings.showTestData) { data, segments, test ->
+        val keep = com.ubers.observador.domain.TestData
+        data.copy(
+            fuel = keep.filter(data.fuel, test) { it.id },
+            expenses = keep.filter(data.expenses, test) { it.id },
+            recurring = keep.filter(data.recurring, test) { it.id }
+        ) to keep.filter(segments, test) { it.id }
+    }
+
     val state: StateFlow<ExpensesUiState> = combine(
-        repository.observeAll(), distances.observeAll(), config, period, filter
-    ) { data, segments, cfg, p, f -> Inputs(data, segments, cfg, p, f) }
+        realData, config, period, filter
+    ) { (data, segments), cfg, p, f -> Inputs(data, segments, cfg, p, f) }
         .mapLatest { compute(it) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExpensesUiState())

@@ -44,7 +44,9 @@ class ReportExportTest {
         ExpenseRepository(db).saveFuel(FuelEntry("TEST-f1", now - 3_600_000L, 1_250, 37_500, fullTank = true, createdAt = now, updatedAt = now))
         val window = EarningsWindows.of(EarningsRange.MONTH, 0, now, clock)
         val data = ReportData(db)
-        val csv = data.build(ReportFile.EXPENSES_CSV, window, clock, now, 100)
+        // 1.39.0: TEST- rows are left out unless asked for
+        assertEquals(0, data.build(ReportFile.EXPENSES_CSV, window, clock, now, 100).rows)
+        val csv = data.build(ReportFile.EXPENSES_CSV, window, clock, now, 100, includeTest = true)
         val text = csv.bytes.toString(Charsets.UTF_8)
         assertTrue(text.startsWith("﻿"))
         assertTrue(text.contains(",FUEL,FUEL,375.00,DOP,1.250,si,"))
