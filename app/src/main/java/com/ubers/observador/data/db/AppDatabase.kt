@@ -31,9 +31,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfitModelVersionEntity::class, ShadowEvaluationEntity::class, CalibrationRunEntity::class,
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
-        TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class
+        TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
+        TripCorrectionEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,6 +61,15 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile private var INSTANCE: AppDatabase? = null
 
         /** 1.38.0: additive audit metadata; old offers remain usable and explicitly have no trace. */
+        /** 1.40.0: the trip correction log (Centro de Viajes). Only a new table: no row changes. */
+        internal val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS trip_corrections (`id` TEXT NOT NULL, `trip_id` TEXT NOT NULL, " +
+                    "`at` INTEGER NOT NULL, `field` TEXT NOT NULL, `old_value` TEXT, `new_value` TEXT, `origin` TEXT NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_trip_corrections_trip_id ON trip_corrections (trip_id)")
+            }
+        }
+
         internal val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 listOf("parser_version", "classifier_version", "uber_version", "reading_id").forEach {
@@ -409,7 +419,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .build()
     }
 }

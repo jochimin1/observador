@@ -43,6 +43,7 @@ class AppSettings(private val context: Context) {
         private val KEY_MODE = stringPreferencesKey("operating_mode")
         private val KEY_SHOW_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("show_overlay")
         private val KEY_SHOW_TEST_DATA = androidx.datastore.preferences.core.booleanPreferencesKey("show_test_data")
+        private val KEY_HIDE_RIDER_NAMES = androidx.datastore.preferences.core.booleanPreferencesKey("hide_rider_names")
         private val KEY_OFFER_ALERTS = stringPreferencesKey("offer_alerts")
         private val KEY_EXPORT_HISTORY = stringPreferencesKey("export_history")
         private val KEY_GRACE_WINDOW = intPreferencesKey("grace_window_seconds")
@@ -453,6 +454,11 @@ class AppSettings(private val context: Context) {
     val showTestData: Flow<Boolean> = context.dataStore.data.map { it[KEY_SHOW_TEST_DATA] ?: false }
 
     suspend fun updateShowTestData(value: Boolean) = editSettings { it[KEY_SHOW_TEST_DATA] = value }
+
+    /** 1.40.0, Centro de Viajes: riders' names hidden in the list and the detail, and not searchable. */
+    val hideRiderNames: Flow<Boolean> = context.dataStore.data.map { it[KEY_HIDE_RIDER_NAMES] ?: false }
+
+    suspend fun updateHideRiderNames(value: Boolean) = editSettings { it[KEY_HIDE_RIDER_NAMES] = value }
 
     val graceWindowSeconds: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[KEY_GRACE_WINDOW] ?: 60

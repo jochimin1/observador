@@ -179,6 +179,8 @@ class MainActivity : ComponentActivity() {
 
 private const val ROUTE_HEALTH = "health"
 private const val ROUTE_LAB = "lab"
+private const val ROUTE_TRIPS = "trips"
+private const val ROUTE_TRIP = "trip"
 
 /** The main destinations, one per tab of the bottom bar (decision 7: five tabs at the bottom). */
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
@@ -204,6 +206,7 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         ReportsNavigation.preset.value = preset
         navController.navigate(ReportsNavigation.ROUTE) { launchSingleTop = true }
     }
+    fun openTrips() = navController.navigate(ROUTE_TRIPS) { launchSingleTop = true }
     // A notification asked for a screen: switch tab; the screen itself consumes the request
     val pendingOpen by com.ubers.observador.ui.AppNavigation.pending.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pendingOpen) {
@@ -214,7 +217,7 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         // 1.27.0, Violeta: the + in the middle opens the quick actions
         floatingActionButton = {
             if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
-                QuickActionsButton(onExpenses = { open(Tab.EXPENSES) }, onReports = { openReports(null) })
+                QuickActionsButton(onExpenses = { open(Tab.EXPENSES) }, onReports = { openReports(null) }, onTrips = { openTrips() })
             }
         },
         floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
@@ -243,12 +246,14 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                     accessibilityEnabled = accessibilityEnabled,
                     onOpenEarnings = { open(Tab.EARNINGS) },
                     onOpenHealth = { navController.navigate(ROUTE_HEALTH) { launchSingleTop = true } },
+                    onOpenTrips = { openTrips() },
                     onOpenReports = { p -> openReports(ReportsNavigation.forStats(p)) }
                 )
             }
             composable(Tab.EARNINGS.route) {
                 com.ubers.observador.ui.earnings.EarningsScreen(
-                    onOpenReports = { w -> openReports(w?.let(ReportsNavigation::forWindow)) }
+                    onOpenReports = { w -> openReports(w?.let(ReportsNavigation::forWindow)) },
+                    onOpenTrips = { openTrips() }
                 )
             }
             composable(Tab.EXPENSES.route) {
@@ -277,6 +282,17 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             composable(ROUTE_HEALTH) {
                 com.ubers.observador.ui.health.HealthScreen(onBack = { navController.popBackStack() })
             }
+            // 1.40.0: Centro de Viajes (list) and one trip (its detail is loaded only when opened)
+            composable(ROUTE_TRIPS) {
+                com.ubers.observador.ui.trips.TripCenterScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTrip = { id -> navController.navigate("$ROUTE_TRIP/${android.net.Uri.encode(id)}") }
+                )
+            }
+            composable("$ROUTE_TRIP/{id}") { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                com.ubers.observador.ui.trips.TripDetailScreen(tripId = id, onBack = { navController.popBackStack() })
+            }
             composable(ROUTE_LAB) {
                 com.ubers.observador.ui.lab.LabScreen(onBack = { navController.popBackStack() })
             }
@@ -289,7 +305,7 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
  * an expense (Gastos), or open «Reportes y exportación».
  */
 @Composable
-private fun QuickActionsButton(onExpenses: () -> Unit, onReports: () -> Unit) {
+private fun QuickActionsButton(onExpenses: () -> Unit, onReports: () -> Unit, onTrips: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val settings = androidx.compose.runtime.remember { com.ubers.observador.data.AppSettings(context.applicationContext) }
     val manual by settings.distanceManual.collectAsState(initial = false)
@@ -317,6 +333,11 @@ private fun QuickActionsButton(onExpenses: () -> Unit, onReports: () -> Unit) {
                 text = { Text("Cargar combustible o gasto") },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_local_gas_station), contentDescription = null) },
                 onClick = { open = false; onExpenses() }
+            )
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Centro de Viajes") },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_two_wheeler), contentDescription = null) },
+                onClick = { open = false; onTrips() }
             )
             androidx.compose.material3.DropdownMenuItem(
                 text = { Text("Reportes y exportación") },

@@ -6,7 +6,11 @@ import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.data.db.toDomain
 import com.ubers.observador.data.db.toEntity
 import com.ubers.observador.data.db.toTripOfferSnapshot
+import com.ubers.observador.domain.trips.CorrectionField
+import com.ubers.observador.domain.trips.CorrectionOrigin
 import com.ubers.observador.domain.trips.Trip
+import com.ubers.observador.domain.trips.TripCorrection
+import com.ubers.observador.domain.trips.TripCorrections
 import com.ubers.observador.domain.trips.TripAggregator
 import com.ubers.observador.domain.trips.TripDecisionSnapshot
 import com.ubers.observador.domain.trips.TripEvent
@@ -82,9 +86,12 @@ class TripRepository(private val db: AppDatabase) {
         }
     }
 
-    /** Debug only: deletes the TEST trips and, through the foreign key, their events. */
+    /** Debug only: deletes the TEST trips and, through the foreign key, their events (and their corrections). */
     suspend fun deleteTestTrips(prefix: String): Int = MaintenanceGate.shared.access {
-        trips.deleteTripsByIdPrefix(prefix)
+        db.withTransaction {
+            trips.deleteCorrectionsByTripIdPrefix(prefix)
+            trips.deleteTripsByIdPrefix(prefix)
+        }
     }
 
     fun observeActiveTrip(): Flow<Trip?> = trips.observeActiveTrip(OPEN_STATUSES).map { it?.toDomain() }
@@ -113,10 +120,69 @@ class TripRepository(private val db: AppDatabase) {
     fun observeCounts(): Flow<Pair<Int, Int>> =
         combine(trips.observeTripCount(), trips.observeEventCount()) { t, e -> t to e }
 
-    /** Fase 8F: stores the rider's name on the trip of [sessionId]; false when there is none or it was already stored. */
-    suspend fun setRiderName(sessionId: String, name: String): Boolean = MaintenanceGate.shared.access {
-        trips.setRiderName(sessionId, name) > 0
+    /**
+     * Fase 8F: stores the rider's name read on Uber's screen; false when there is no trip, it was
+     * already stored or the driver corrected it (the driver's value wins). 1.40.0: every change is
+     * recorded with its origin and the previous value.
+     */
+    suspend fun setRiderName(sessionId: String, name: String, nowMs: Long = System.currentTimeMillis()): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getByLifecycleSessionId(sessionId) ?: return@withTransaction false
+            if (trip.riderName == name) return@withTransaction false
+            if (trips.correctedByDriver(trip.id, CorrectionField.RIDER_NAME.storageKey)) return@withTransaction false
+            if (trips.setRiderName(sessionId, name) == 0) return@withTransaction false
+            trips.insertCorrection(TripCorrection(newId(), trip.id, nowMs, CorrectionField.RIDER_NAME, trip.riderName, name, CorrectionOrigin.UBER_SCREEN).toEntity())
+            true
+        }
     }
+
+    // ---- 1.40.0: corrections by the driver (Centro de Viajes) ----
+
+    /** The driver's name for the rider (null or blank removes it). False when nothing changes. */
+    suspend fun correctRiderName(tripId: String, name: String?, nowMs: Long): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getById(tripId)?.toDomain() ?: return@withTransaction false
+            val clean = TripCorrections.cleanName(name)
+            if (clean == trip.riderName) return@withTransaction false
+            trips.updateTrip(trip.copy(riderName = clean, updatedAt = nowMs).toEntity())
+            trips.insertCorrection(TripCorrection(newId(), tripId, nowMs, CorrectionField.RIDER_NAME, trip.riderName, clean, CorrectionOrigin.DRIVER).toEntity())
+            true
+        }
+    }
+
+    /** Relabels a closed trip (see TripCorrections.correctStatus). False when not allowed. */
+    suspend fun correctStatus(tripId: String, to: TripStatus, nowMs: Long, routeEndAt: Long? = null): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getById(tripId)?.toDomain() ?: return@withTransaction false
+            if (!TripCorrections.canCorrectStatus(trip, to)) return@withTransaction false
+            val fixed = TripCorrections.correctStatus(trip, to, nowMs, routeEndAt)
+            trips.updateTrip(fixed.toEntity())
+            trips.insertCorrection(TripCorrection(newId(), tripId, nowMs, CorrectionField.STATUS,
+                TripCorrections.encodeStatus(trip), TripCorrections.encodeStatus(fixed), CorrectionOrigin.DRIVER).toEntity())
+            true
+        }
+    }
+
+    /** Undoes the latest status correction, if it is the trip's current state. */
+    suspend fun undoStatusCorrection(tripId: String, nowMs: Long): Boolean = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val trip = trips.getById(tripId)?.toDomain() ?: return@withTransaction false
+            val last = trips.latestCorrection(tripId, CorrectionField.STATUS.storageKey)?.toDomain() ?: return@withTransaction false
+            if (last.origin != CorrectionOrigin.DRIVER || last.newValue != TripCorrections.encodeStatus(trip)) return@withTransaction false
+            val old = TripCorrections.decodeStatus(last.oldValue) ?: return@withTransaction false
+            val restored = TripCorrections.restoreStatus(trip, old, nowMs)
+            trips.updateTrip(restored.toEntity())
+            trips.insertCorrection(TripCorrection(newId(), tripId, nowMs, CorrectionField.STATUS,
+                last.newValue, TripCorrections.encodeStatus(restored), CorrectionOrigin.DRIVER_UNDO).toEntity())
+            true
+        }
+    }
+
+    fun observeCorrections(tripId: String): Flow<List<TripCorrection>> =
+        trips.observeCorrections(tripId).map { l -> l.mapNotNull { it.toDomain() } }
+
+    /** Trips the driver changed by hand (Uber's own name readings do not count). */
+    fun observeCorrectedTripIds(): Flow<Set<String>> = trips.observeCorrectedTripIds().map { it.toSet() }
 
     suspend fun getTripByLifecycleSessionId(sessionId: String): Trip? = MaintenanceGate.shared.access {
         trips.getByLifecycleSessionId(sessionId)?.toDomain()

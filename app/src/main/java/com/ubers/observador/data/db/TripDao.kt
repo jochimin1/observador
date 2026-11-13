@@ -124,4 +124,24 @@ interface TripDao {
     /** Every trip created from [from] on, for the "tomados" mark of the home list (Fase 8H). */
     @Query("SELECT * FROM trips WHERE created_at >= :from ORDER BY created_at DESC")
     fun observeCreatedSince(from: Long): Flow<List<TripEntity>>
+
+    // ---- 1.40.0: corrections ----
+
+    @Insert
+    suspend fun insertCorrection(row: TripCorrectionEntity)
+
+    @Query("SELECT * FROM trip_corrections WHERE trip_id = :tripId ORDER BY at, id")
+    fun observeCorrections(tripId: String): Flow<List<TripCorrectionEntity>>
+
+    @Query("SELECT DISTINCT trip_id FROM trip_corrections WHERE origin != 'UBER_SCREEN'")
+    fun observeCorrectedTripIds(): Flow<List<String>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM trip_corrections WHERE trip_id = :tripId AND field = :field AND origin != 'UBER_SCREEN')")
+    suspend fun correctedByDriver(tripId: String, field: String): Boolean
+
+    @Query("SELECT * FROM trip_corrections WHERE trip_id = :tripId AND field = :field ORDER BY at DESC, id DESC LIMIT 1")
+    suspend fun latestCorrection(tripId: String, field: String): TripCorrectionEntity?
+
+    @Query("DELETE FROM trip_corrections WHERE trip_id LIKE :prefix || '%'")
+    suspend fun deleteCorrectionsByTripIdPrefix(prefix: String): Int
 }

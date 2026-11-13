@@ -16,6 +16,21 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.40.0] - 2026-11-13
+
+Centro de Viajes. Notas: [docs/releases/1.40.0.md](docs/releases/1.40.0.md).
+
+### Añadido
+- **Centro de Viajes** (botón + de la barra inferior, menú de Inicio y barra superior de Ganancias): todos los viajes en una lista, con su estado (en curso, completado, cancelado, interrumpido o cerrado sin confirmar), incluso los recuperados y los que no tienen la oferta inicial.
+- Filtros por periodo, estado, recuperados, sin oferta, dinero pendiente, modalidad y sector de cuidado. Búsqueda local por dirección, modalidad o pasajero, con «Ocultar nombres de pasajeros», que también los excluye de la búsqueda.
+- Ficha completa al abrir un viaje: dinero (el mismo resumen que Ganancias) y movimientos vistos, mapa, lugares y comparación ofertado/real, distancia medida, espera en el punto, línea de tiempo, eventos guardados y anomalías. La lista solo carga resúmenes.
+- Puntaje al detectar y puntaje recalculado hoy, uno junto al otro, con los ajustes de cada momento.
+- Viajes cancelados: tiempo perdido, km medidos y cargo por cancelación si se confirmó.
+- Correcciones auditadas: corregir el nombre del pasajero y el estado de un viaje cerrado (completado, cancelado o interrumpido), con deshacer. Cada cambio guarda fecha, origen (pantalla de Uber, tú o deshacer) y el valor anterior; el nombre leído de Uber también queda registrado y no reemplaza uno corregido por ti.
+
+### Datos
+- Room **16**, migración aditiva 15 → 16: tabla `trip_corrections`. No cambia ninguna fila existente.
+
 ## [1.39.0] - 2026-11-13
 
 Salud de Observador y calidad de datos. Notas: [docs/releases/1.39.0.md](docs/releases/1.39.0.md).

@@ -71,6 +71,7 @@ fun DashboardScreen(
     accessibilityEnabled: Boolean,
     onOpenEarnings: (() -> Unit)? = null,
     onOpenHealth: (() -> Unit)? = null,
+    onOpenTrips: (() -> Unit)? = null,
     onOpenReports: ((com.ubers.observador.domain.StatsPeriod) -> Unit)? = null,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -204,6 +205,10 @@ fun DashboardScreen(
                             Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "Más opciones")
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            if (onOpenTrips != null) DropdownMenuItem(
+                                text = { Text("Centro de Viajes") },
+                                onClick = { showMenu = false; onOpenTrips() }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Exportar ofertas") },
                                 onClick = {

@@ -111,6 +111,7 @@ private fun dayTime(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDef
 @Composable
 fun EarningsScreen(
     onOpenReports: ((com.ubers.observador.domain.earnings.EarningsWindow?) -> Unit)? = null,
+    onOpenTrips: (() -> Unit)? = null,
     viewModel: EarningsViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -189,6 +190,10 @@ fun EarningsScreen(
                 colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Ganancias") },
                 actions = {
+                    // 1.40.0: every trip, cancelled and interrupted ones too
+                    if (onOpenTrips != null) IconButton(onClick = onOpenTrips) {
+                        Icon(painterResource(R.drawable.ic_two_wheeler), contentDescription = "Centro de Viajes")
+                    }
                     IconButton(
                         onClick = { if (onOpenReports != null) onOpenReports(state.report?.window) else exporting = true },
                         enabled = state.report != null
