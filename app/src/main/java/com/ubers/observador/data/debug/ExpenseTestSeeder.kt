@@ -35,7 +35,7 @@ object ExpenseTestSeeder {
                 fill(5, 3, 3_000, 82_500, 12_790, true)
             ),
             expenses = listOf(
-                ExpenseEntry("${PREFIX}oil", ago(18), ExpenseType.OIL, 45_000, odometerKm = 11_050, createdAt = ago(18), updatedAt = ago(18)),
+                ExpenseEntry("${PREFIX}oil", ago(22), ExpenseType.OIL, 45_000, odometerKm = 11_050, createdAt = ago(22), updatedAt = ago(22)),
                 ExpenseEntry("${PREFIX}wash", ago(6), ExpenseType.WASH, 15_000, createdAt = ago(6), updatedAt = ago(6)),
                 ExpenseEntry("${PREFIX}toll", ago(2), ExpenseType.PARKING_TOLL, 5_000, createdAt = ago(2), updatedAt = ago(2))
             ),

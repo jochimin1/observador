@@ -30,6 +30,9 @@ interface DistanceDao {
     @Query("SELECT * FROM distance_segments ORDER BY started_at")
     suspend fun getAllSegments(): List<DistanceSegmentEntity>
 
+    @Query("SELECT * FROM distance_segments WHERE started_at >= :from ORDER BY started_at")
+    suspend fun getSegmentsSince(from: Long): List<DistanceSegmentEntity>
+
     @Query("SELECT * FROM distance_segments ORDER BY started_at")
     fun observeAllSegments(): Flow<List<DistanceSegmentEntity>>
 

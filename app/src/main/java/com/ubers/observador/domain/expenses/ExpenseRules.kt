@@ -68,9 +68,15 @@ data class FuelEfficiency(
     val medianKmPerGallonTenths: Long? = null,
     val medianCostPerKmMinor: Long? = null,
     /** Median price per gallon of the fills in those stretches. */
-    val medianPricePerGallonMinor: Long? = null
+    val medianPricePerGallonMinor: Long? = null,
+    val excludedReasons: List<String> = emptyList()
 ) {
     val sample: Int get() = minOf(stretches.size, FuelRules.MEDIAN_OF)
+    val confidence: String get() = when {
+        sample < 3 -> "Muestra inicial"
+        stretches.takeLast(FuelRules.MEDIAN_OF).any { it.source == DistanceSource.GPS } -> "Moderada: incluye GPS"
+        else -> "Mayor evidencia: odómetro en al menos 3 intervalos"
+    }
 }
 
 object FuelRules {
@@ -82,14 +88,15 @@ object FuelRules {
     /**
      * Full-tank method: between two fills marked full, km = odometer at the second − odometer at
      * the first, gallons and money = what was bought after the first up to the second, included.
-     * Never across an odometer reset. Without both odometers, the GPS km of 8E between the two
-     * fills are used when there are some ([gpsKmBetween]); otherwise the stretch is skipped.
+     * Never across an odometer reset. Without both odometers, the GPS evidence must cover the entire
+     * tank interval, including personal use; resets and inconsistent odometers are rejected.
      */
     fun efficiency(
         fuel: List<FuelEntry>,
         timeline: List<OdometerPoint>,
-        gpsKmBetween: (Long, Long) -> Long? = { _, _ -> null }
+        gpsKmBetween: (Long, Long) -> FuelGpsEvidence = { _, _ -> FuelGpsEvidence(null, 0, "Falta odómetro o cobertura GPS verificable") }
     ): FuelEfficiency {
+        val reasons = mutableListOf<String>()
         val fills = fuel.sortedBy { it.atMs }
         val fullIdx = fills.indices.filter { fills[it].fullTank }
         val stretches = fullIdx.zipWithNext().mapNotNull { (a, b) ->
@@ -101,14 +108,24 @@ object FuelRules {
             val o1 = first.odometerKm
             val o2 = second.odometerKm
             val sameEpoch = Odometer.epochAt(first.atMs, timeline) == Odometer.epochAt(second.atMs, timeline)
+            val coherent = timeline.filter { it.atMs in first.atMs..second.atMs }.zipWithNext().all { (x,y) -> y.km >= x.km }
             when {
-                o1 != null && o2 != null && sameEpoch && o2 > o1 ->
-                    FuelStretch(first.atMs, second.atMs, o2 - o1, gallons, money, DistanceSource.ODOMETER)
-                else -> gpsKmBetween(first.atMs, second.atMs)?.takeIf { it > 0 }
-                    ?.let { FuelStretch(first.atMs, second.atMs, it, gallons, money, DistanceSource.GPS) }
+                first.vehicleId != second.vehicleId || bought.any { it.vehicleId != first.vehicleId } -> {
+                    reasons += "Intervalo entre motos distintas"; null
+                }
+                !sameEpoch -> { reasons += "Reinicio de odómetro entre tanqueos"; null }
+                !coherent || (o1 != null && o2 != null && o2 <= o1) -> {
+                    reasons += "Odómetro sin avance o incoherente"; null
+                }
+                o1 != null && o2 != null -> FuelStretch(first.atMs, second.atMs, o2 - o1, gallons, money, DistanceSource.ODOMETER)
+                else -> {
+                    val gps = gpsKmBetween(first.atMs, second.atMs)
+                    if (gps.usable) FuelStretch(first.atMs, second.atMs, gps.km!!, gallons, money, DistanceSource.GPS)
+                    else { reasons += gps.problem ?: "Cobertura GPS insuficiente"; null }
+                }
             }
         }.filter { it.gallonsMilli > 0 }
-        if (stretches.isEmpty()) return FuelEfficiency()
+        if (stretches.isEmpty()) return FuelEfficiency(excludedReasons = reasons.distinct())
         val recent = stretches.takeLast(MEDIAN_OF)
         val usedFills = fills.filter { f -> recent.any { f.atMs > it.fromAt && f.atMs <= it.toAt } }
         return FuelEfficiency(
@@ -116,7 +133,8 @@ object FuelRules {
             last = stretches.last(),
             medianKmPerGallonTenths = median(recent.map { it.kmPerGallonTenths }),
             medianCostPerKmMinor = median(recent.map { it.costPerKmMinor }),
-            medianPricePerGallonMinor = median(usedFills.map { it.pricePerGallonMinor })
+            medianPricePerGallonMinor = median(usedFills.map { it.pricePerGallonMinor }),
+            excludedReasons = reasons.distinct()
         )
     }
 
@@ -312,7 +330,7 @@ object SettingsSuggestions {
         val realKmpg = kmpg / 10.0
         val realPrice = price / 100.0
         return if (differs(realKmpg, settingsKmPerGallon) || differs(realPrice, settingsPricePerGallon)) {
-            SettingsSuggestion(kmpg, price, efficiency.stretches.size)
+            SettingsSuggestion(kmpg, price, efficiency.sample)
         } else {
             null
         }

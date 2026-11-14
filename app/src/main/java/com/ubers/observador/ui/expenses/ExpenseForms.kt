@@ -178,7 +178,8 @@ fun FuelDialog(initial: FuelEntry?, timeline: List<OdometerPoint>, onDismiss: ()
             odometerKm = odoR.value(),
             fullTank = full,
             createdAt = initial?.createdAt ?: now,
-            updatedAt = now
+            updatedAt = now,
+            vehicleId = initial?.vehicleId ?: com.ubers.observador.domain.expenses.INITIAL_VEHICLE
         )
         onSave(entry, if (check is OdometerCheck.Lower && reset) entry.odometerKm else null)
     }) {
@@ -211,12 +212,15 @@ fun ExpenseDialog(initial: ExpenseEntry?, timeline: List<OdometerPoint>, onDismi
     var odometer by rememberSaveable { mutableStateOf(initial?.odometerKm?.toString() ?: "") }
     var reset by rememberSaveable { mutableStateOf(false) }
 
+    var lifeKm by rememberSaveable { mutableStateOf(initial?.expectedLifeKm?.toString() ?: "") }
+    var lifeDays by rememberSaveable { mutableStateOf(initial?.expectedLifeDays?.toString() ?: "") }
+    val lifeOk = (lifeKm.isBlank() || lifeKm.toLongOrNull() in 1..100_000L) && (lifeDays.isBlank() || lifeDays.toIntOrNull() in 1..3650)
     val amountR = ExpenseInput.amount(amount)
     val maintenance = type.group == ExpenseGroup.MAINTENANCE
     val odoR = if (maintenance) ExpenseInput.odometer(odometer, required = false) else FieldResult.Ok(null)
     val at = atOf(date, initial?.atMs)
     val check = odoR.value()?.let { Odometer.check(it, at, timeline, excludeId = initial?.id) } ?: OdometerCheck.Ok
-    val ok = amountR.value() != null && odoR !is FieldResult.Error && (check == OdometerCheck.Ok || reset)
+    val ok = (!maintenance || lifeOk) && amountR.value() != null && odoR !is FieldResult.Error && (check == OdometerCheck.Ok || reset)
 
     FormDialog(if (initial == null) "Gasto" else "Editar gasto", ok, onDismiss, {
         val now = System.currentTimeMillis()
@@ -227,7 +231,10 @@ fun ExpenseDialog(initial: ExpenseEntry?, timeline: List<OdometerPoint>, onDismi
             amountMinor = amountR.value()!!,
             odometerKm = odoR.value(),
             createdAt = initial?.createdAt ?: now,
-            updatedAt = now
+            updatedAt = now,
+            vehicleId = initial?.vehicleId ?: com.ubers.observador.domain.expenses.INITIAL_VEHICLE,
+            expectedLifeKm = if (maintenance) lifeKm.toLongOrNull() else null,
+            expectedLifeDays = if (maintenance) lifeDays.toIntOrNull() else null
         )
         onSave(entry, if (check is OdometerCheck.Lower && reset) entry.odometerKm else null)
     }) {
@@ -242,7 +249,10 @@ fun ExpenseDialog(initial: ExpenseEntry?, timeline: List<OdometerPoint>, onDismi
         NumberField("Importe", amount, { amount = it }, amountR.error(), "RD$")
         if (maintenance) {
             NumberField("Odómetro", odometer, { odometer = it; reset = false }, odoR.error(), "km", decimal = false,
-                supporting = "Sin odómetro no hay recordatorio")
+                supporting = "El odómetro permite calcular la vida del componente")
+            NumberField("Vida esperada (opcional)", lifeKm, { lifeKm = it }, if (lifeOk) null else "Revisa los intervalos", "km", decimal = false)
+            NumberField("Plazo esperado (opcional)", lifeDays, { lifeDays = it }, null, "días", decimal = false)
+            Text("En blanco usa el intervalo de la ficha. Si lo escribes, se conserva con este cambio.", style = MaterialTheme.typography.bodySmall)
             ResetQuestion(check, reset) { reset = it }
         }
         DateField("Fecha", date) { date = it }
@@ -316,7 +326,7 @@ fun OdometerDialog(initial: OdometerReading?, timeline: List<OdometerPoint>, onD
     val ok = kmR.value() != null && (check == OdometerCheck.Ok || reset)
     FormDialog(if (initial == null) "Odómetro" else "Editar odómetro", ok, onDismiss, {
         val now = System.currentTimeMillis()
-        onSave(OdometerReading(initial?.id ?: UUID.randomUUID().toString(), at, kmR.value()!!, reset, initial?.createdAt ?: now, now))
+        onSave(OdometerReading(initial?.id ?: UUID.randomUUID().toString(), at, kmR.value()!!, reset, initial?.createdAt ?: now, now, initial?.vehicleId ?: com.ubers.observador.domain.expenses.INITIAL_VEHICLE))
     }) {
         NumberField("Odómetro", km, { km = it }, kmR.error(), "km", decimal = false)
         if (check is OdometerCheck.Lower) {

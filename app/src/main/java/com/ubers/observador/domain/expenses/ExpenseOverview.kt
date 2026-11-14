@@ -25,11 +25,11 @@ object ExpenseOverviews {
         settingsPricePerGallon: Double,
         nowMs: Long
     ): ExpenseOverview {
-        val timeline = Odometer.timeline(fuel, expenses, readings)
+        val timeline = Odometer.timeline(fuel.filter { it.atMs <= nowMs }, expenses.filter { it.atMs <= nowMs }, readings.filter { it.atMs <= nowMs })
         val gpsBetween: (Long, Long) -> Long? = { a, b ->
             if (segments.isEmpty()) null else DistanceTotals.kmBetween(segments, a, b, nowMs).takeIf { it > 0 }
         }
-        val efficiency = FuelRules.efficiency(fuel, timeline, gpsBetween)
+        val efficiency = FuelRules.efficiency(fuel.filter { it.atMs <= nowMs }, timeline) { a, b -> FuelGpsCoverage.between(segments, a, b) }
         return ExpenseOverview(
             timeline = timeline,
             efficiency = efficiency,

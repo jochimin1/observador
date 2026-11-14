@@ -180,7 +180,9 @@ class DistanceTracker(
             out = out + DistanceUpdate(segments = listOf(segment))
             lastSavedAt = fix.timeMs
         }
+        val usedBefore = segment.fixesUsed
         segment = step(segment, fix)
+        if (segment.fixesUsed > usedBefore) segment = segment.copy(firstFixAt = segment.firstFixAt ?: fix.timeMs, lastFixAt = fix.timeMs)
         open = segment
         return out + checkpoint(fix.timeMs)
     }

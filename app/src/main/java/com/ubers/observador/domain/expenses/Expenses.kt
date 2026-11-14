@@ -68,7 +68,8 @@ data class FuelEntry(
     val odometerKm: Long? = null,
     val fullTank: Boolean,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val vehicleId: String = INITIAL_VEHICLE
 ) {
     /** Price of one gallon in minor units, half up. */
     val pricePerGallonMinor: Long get() = ExpenseMath.divHalfUp(amountMinor * 1000, gallonsMilli)
@@ -82,7 +83,10 @@ data class ExpenseEntry(
     val currencyCode: String = Currencies.DOP,
     val odometerKm: Long? = null,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val vehicleId: String = INITIAL_VEHICLE,
+    val expectedLifeKm: Long? = null,
+    val expectedLifeDays: Int? = null
 )
 
 data class RecurringCost(
@@ -104,7 +108,8 @@ data class OdometerReading(
     val km: Long,
     val isReset: Boolean = false,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val vehicleId: String = INITIAL_VEHICLE
 )
 
 /** Everything the driver wrote in Gastos. */

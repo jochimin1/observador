@@ -50,6 +50,8 @@ object DistanceMonitor {
 
     private val tracker = DistanceTracker()
     private var repository: DistanceRepository? = null
+    private var appContext: Context? = null
+    private var lastMaintenanceCheckElapsed = 0L
     private var restored = false
     private var clock = WorkdayClock(4, ZoneId.systemDefault())
     private var ride = RideContext()
@@ -66,6 +68,7 @@ object DistanceMonitor {
         if (repository != null) return
         val repo = DistanceRepository(AppDatabase.getInstance(context.applicationContext))
         repository = repo
+        appContext = context.applicationContext
         PersistenceQueue.shared().enqueue {
             val open = try {
                 repo.getOpenSegments()
@@ -139,6 +142,11 @@ object DistanceMonitor {
             repeat(3) { attempt ->
                 try {
                     repo.save(update)
+                    val elapsed = android.os.SystemClock.elapsedRealtime()
+                    if (elapsed - lastMaintenanceCheckElapsed >= 5 * 60_000L) {
+                        lastMaintenanceCheckElapsed = elapsed
+                        appContext?.let { MaintenanceNotifier.check(it) }
+                    }
                     return@enqueue
                 } catch (e: CancellationException) {
                     throw e

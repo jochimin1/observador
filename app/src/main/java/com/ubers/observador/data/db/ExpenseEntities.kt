@@ -29,7 +29,8 @@ data class FuelEntryEntity(
     @ColumnInfo(name = "odometer_km") val odometerKm: Long?,
     @ColumnInfo(name = "full_tank") val fullTank: Boolean,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "vehicle_id", defaultValue = "'vehicle-initial'") val vehicleId: String = "vehicle-initial"
 )
 
 @Entity(tableName = "expense_entries", indices = [Index(value = ["at"]), Index(value = ["type"])])
@@ -41,7 +42,10 @@ data class ExpenseEntryEntity(
     @ColumnInfo(name = "currency_code") val currencyCode: String,
     @ColumnInfo(name = "odometer_km") val odometerKm: Long?,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "vehicle_id", defaultValue = "'vehicle-initial'") val vehicleId: String = "vehicle-initial",
+    @ColumnInfo(name = "expected_life_km") val expectedLifeKm: Long? = null,
+    @ColumnInfo(name = "expected_life_days") val expectedLifeDays: Int? = null
 )
 
 @Entity(tableName = "recurring_costs")
@@ -65,14 +69,15 @@ data class OdometerReadingEntity(
     @ColumnInfo(name = "km") val km: Long,
     @ColumnInfo(name = "is_reset") val isReset: Boolean,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "vehicle_id", defaultValue = "'vehicle-initial'") val vehicleId: String = "vehicle-initial"
 )
 
-fun FuelEntry.toEntity() = FuelEntryEntity(id, atMs, gallonsMilli, amountMinor, currencyCode, odometerKm, fullTank, createdAt, updatedAt)
-fun FuelEntryEntity.toDomain() = FuelEntry(id, at, gallonsMilli, amountMinor, currencyCode, odometerKm, fullTank, createdAt, updatedAt)
+fun FuelEntry.toEntity() = FuelEntryEntity(id, atMs, gallonsMilli, amountMinor, currencyCode, odometerKm, fullTank, createdAt, updatedAt, vehicleId)
+fun FuelEntryEntity.toDomain() = FuelEntry(id, at, gallonsMilli, amountMinor, currencyCode, odometerKm, fullTank, createdAt, updatedAt, vehicleId)
 
-fun ExpenseEntry.toEntity() = ExpenseEntryEntity(id, atMs, type.storageKey, amountMinor, currencyCode, odometerKm, createdAt, updatedAt)
-fun ExpenseEntryEntity.toDomain() = ExpenseEntry(id, at, ExpenseType.fromStorage(type), amountMinor, currencyCode, odometerKm, createdAt, updatedAt)
+fun ExpenseEntry.toEntity() = ExpenseEntryEntity(id, atMs, type.storageKey, amountMinor, currencyCode, odometerKm, createdAt, updatedAt, vehicleId, expectedLifeKm, expectedLifeDays)
+fun ExpenseEntryEntity.toDomain() = ExpenseEntry(id, at, ExpenseType.fromStorage(type), amountMinor, currencyCode, odometerKm, createdAt, updatedAt, vehicleId, expectedLifeKm, expectedLifeDays)
 
 fun RecurringCost.toEntity() = RecurringCostEntity(
     id, type.storageKey, amountMinor, currencyCode, frequency.storageKey, startsOn.toString(), endsOn?.toString(), createdAt, updatedAt
@@ -82,5 +87,5 @@ fun RecurringCostEntity.toDomain() = RecurringCost(
     LocalDate.parse(startsOn), endsOn?.let(LocalDate::parse), createdAt, updatedAt
 )
 
-fun OdometerReading.toEntity() = OdometerReadingEntity(id, atMs, km, isReset, createdAt, updatedAt)
-fun OdometerReadingEntity.toDomain() = OdometerReading(id, at, km, isReset, createdAt, updatedAt)
+fun OdometerReading.toEntity() = OdometerReadingEntity(id, atMs, km, isReset, createdAt, updatedAt, vehicleId)
+fun OdometerReadingEntity.toDomain() = OdometerReading(id, at, km, isReset, createdAt, updatedAt, vehicleId)

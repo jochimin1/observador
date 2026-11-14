@@ -32,9 +32,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
-        TripCorrectionEntity::class, OperatingCostModelEntity::class
+        TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,9 +57,26 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun routeDao(): RouteDao
     abstract fun operatingCostDao(): OperatingCostDao
+    abstract fun vehicleDao(): VehicleDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.43.0: vehicle identity and component plans; legacy records retain their values. */
+        internal val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS vehicle_profiles (id TEXT NOT NULL, name TEXT NOT NULL, workSharePct INTEGER NOT NULL, startedAt INTEGER NOT NULL, retiredAt INTEGER, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("INSERT INTO vehicle_profiles VALUES ('vehicle-initial','Mi moto',100,0,NULL,0)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS component_plans (vehicleId TEXT NOT NULL, type TEXT NOT NULL, intervalKm INTEGER NOT NULL, intervalDays INTEGER NOT NULL, PRIMARY KEY(vehicleId,type))")
+                listOf("fuel_entries", "expense_entries", "odometer_readings").forEach { table ->
+                    db.execSQL("ALTER TABLE $table ADD COLUMN vehicle_id TEXT NOT NULL DEFAULT 'vehicle-initial'")
+                }
+                db.execSQL("ALTER TABLE expense_entries ADD COLUMN expected_life_km INTEGER")
+                db.execSQL("ALTER TABLE expense_entries ADD COLUMN expected_life_days INTEGER")
+                db.execSQL("ALTER TABLE distance_segments ADD COLUMN first_fix_at INTEGER")
+                db.execSQL("ALTER TABLE distance_segments ADD COLUMN last_fix_at INTEGER")
+            }
+        }
 
         /** 1.42.0: immutable operating cost parameters. Existing money, trips and expenses stay intact. */
         internal val MIGRATION_16_17 = object : Migration(16, 17) {
@@ -433,7 +450,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .build()
     }
 }

@@ -11,6 +11,10 @@ import com.ubers.observador.data.ExpenseRepository
 import com.ubers.observador.data.FinancialRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.WorkdayClock
+import com.ubers.observador.domain.expenses.*
+import com.ubers.observador.domain.operating.*
+import com.ubers.observador.data.VehicleRepository
+import com.ubers.observador.data.OperatingRepository
 import com.ubers.observador.domain.expenses.ExpenseData
 import com.ubers.observador.domain.expenses.ExpenseEntry
 import com.ubers.observador.domain.expenses.ExpenseGroup
@@ -57,6 +61,11 @@ sealed interface ExpenseItem {
 
 data class ExpensesUiState(
     val loading: Boolean = true,
+    val care: VehicleCareData = VehicleCareData(),
+    val components: List<ComponentStatus> = emptyList(),
+    val plans: List<ComponentPlan> = emptyList(),
+    val models: List<OperatingCostModel> = emptyList(),
+    val entryTimelines: Map<String, List<OdometerPoint>> = emptyMap(),
     val period: ExpensePeriod = ExpensePeriod.THIS_MONTH,
     val from: LocalDate? = null,
     val to: LocalDate? = null,
@@ -80,6 +89,8 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.getInstance(app)
     private val repository = ExpenseRepository(db)
     private val distances = DistanceRepository(db)
+    private val vehicles = VehicleRepository(db)
+    private val operating = OperatingRepository(db)
     private val money = FinancialRepository(db)
     private val settings = AppSettings(app)
 
@@ -108,6 +119,8 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _deleted = MutableSharedFlow<DeletedExpense>(extraBufferCapacity = 1)
     val deletedEvents: SharedFlow<DeletedExpense> = _deleted.asSharedFlow()
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val errors: SharedFlow<String> = _errors.asSharedFlow()
 
     private val config = combine(
         settings.workdayStartHour, settings.workSharePct, settings.maintenanceIntervals, settings.engineSettings
@@ -127,13 +140,15 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         data.copy(
             fuel = keep.filter(data.fuel, test) { it.id },
             expenses = keep.filter(data.expenses, test) { it.id },
-            recurring = keep.filter(data.recurring, test) { it.id }
+            recurring = keep.filter(data.recurring, test) { it.id },
+            readings = keep.filter(data.readings, test) { it.id }
         ) to keep.filter(segments, test) { it.id }
     }
 
+    private val vehicleConfig = combine(config, vehicles.observe(), operating.observeModels()) { cfg, care, models -> Triple(cfg, care, models) }
     val state: StateFlow<ExpensesUiState> = combine(
-        realData, config, period, filter
-    ) { (data, segments), cfg, p, f -> Inputs(data, segments, cfg, p, f) }
+        realData, vehicleConfig, period, filter
+    ) { (data, segments), vehicle, p, f -> Inputs(data, segments, vehicle.first, p, f, vehicle.second, vehicle.third) }
         .mapLatest { compute(it) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExpensesUiState())
@@ -143,7 +158,9 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         val segments: List<com.ubers.observador.domain.distance.DistanceSegment>,
         val cfg: Config,
         val period: ExpensePeriod,
-        val filter: ExpenseFilter
+        val filter: ExpenseFilter,
+        val care: VehicleCareData,
+        val models: List<OperatingCostModel>
     )
 
     private suspend fun compute(i: Inputs): ExpensesUiState {
@@ -160,8 +177,11 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
             Log.e(TAG, "Income for the period failed", e)
             null
         }
+        val active = VehicleCare.scope(i.data, i.care.active)
+        val segments = i.segments.filter { it.startedAt >= i.care.active.startedAt }
+        val plans = VehicleCare.plansFor(i.care, i.cfg.intervals)
         val overview = ExpenseOverviews.build(
-            i.data.fuel, i.data.expenses, i.data.readings, i.segments, i.cfg.intervals, i.cfg.kmPerGallon, i.cfg.pricePerGallon, now
+            active.fuel, active.expenses, active.readings, segments, plans.associate { it.type to it.intervalKm }, i.cfg.kmPerGallon, i.cfg.pricePerGallon, now
         )
         val all = i.data.fuel.map { ExpenseItem.Fuel(it) } + i.data.expenses.map { ExpenseItem.Expense(it) } +
             i.data.readings.map { ExpenseItem.Odometer(it) }
@@ -176,6 +196,11 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         }.sortedByDescending { it.atMs }
         return ExpensesUiState(
             loading = false,
+            care = i.care, plans = plans, models = i.models,
+            entryTimelines = (i.care.vehicles.map { it.id } + INITIAL_VEHICLE).distinct().associateWith { id ->
+                Odometer.timeline(i.data.fuel.filter { it.vehicleId == id }, i.data.expenses.filter { it.vehicleId == id }, i.data.readings.filter { it.vehicleId == id })
+            },
+            components = VehicleCare.components(active, plans, segments, now, clock.zone),
             period = i.period,
             from = from,
             to = to,
@@ -192,6 +217,18 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectPeriod(p: ExpensePeriod) { period.value = p }
     fun selectFilter(f: ExpenseFilter) { filter.value = f }
+
+    suspend fun saveVehicle(name: String, share: Int, replace: Boolean): String? {
+        val problem = vehicles.save(name, share, replace, System.currentTimeMillis())
+        if (problem == null) MaintenanceNotifier.check(getApplication())
+        return problem
+    }
+    suspend fun savePlan(plan: ComponentPlan): String? {
+        val problem = vehicles.savePlan(plan)
+        if (problem == null) MaintenanceNotifier.check(getApplication())
+        return problem
+    }
+    suspend fun saveModel(input: OperatingCostInput) = operating.save(input, state.value.clock, System.currentTimeMillis())
 
     fun saveFuel(entry: FuelEntry, resetAtKm: Long?) = write { repository.saveFuel(entry, resetAtKm) }
     fun saveExpense(entry: ExpenseEntry, resetAtKm: Long?) = write { repository.saveExpense(entry, resetAtKm) }
@@ -217,6 +254,7 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
             MaintenanceNotifier.check(getApplication())
         } catch (e: Exception) {
             Log.e(TAG, "Writing an expense failed", e)
+            _errors.emit(e.message ?: "No se pudo guardar. Revisa los datos e inténtalo otra vez.")
         }
     }
 

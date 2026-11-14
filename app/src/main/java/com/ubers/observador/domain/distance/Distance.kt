@@ -123,7 +123,9 @@ data class DistanceSegment(
     val fixesUsed: Int = 0,
     val fixesDiscarded: Int = 0,
     val secondsWithoutSignal: Long = 0,
-    val createdAt: Long
+    val createdAt: Long,
+    val firstFixAt: Long? = null,
+    val lastFixAt: Long? = null
 ) {
     val isOpen: Boolean get() = endedAt == null
 

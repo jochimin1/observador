@@ -16,6 +16,25 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.43.0] - 2026-11-13
+
+Vehículo, combustible y mantenimiento. Notas: [docs/releases/1.43.0.md](docs/releases/1.43.0.md).
+
+### Añadido
+- Ficha de moto activa con nombre/modelo, odómetro y porcentaje de uso laboral de referencia. Cambiar de moto conserva el historial anterior y separa tanqueos, mantenimientos y lecturas; se impide hacerlo con un viaje abierto.
+- Historial de aceite, gomas, cadena y frenos con fecha, costo, odómetro y vida/plazo esperado opcional conservado en cada cambio. Intervalos por moto en km y días; aviso por el primer límite alcanzado.
+- Recordatorios deduplicados al abrir, guardar y durante la persistencia GPS, con comprobación como máximo cada cinco minutos. El GPS parcial se presenta como mínimo conocido, no como odómetro completo.
+- Muestra y evidencia de consumo visibles. Revisión de precio/rendimiento sugeridos en un nuevo modelo de costos, conservando su confirmación y vigencia; no se modifica automáticamente ningún modelo anterior.
+
+### Corregido
+- Los valores precargados del formulario de costos se muestran sin ceros finales («100» km/gal, no «100.000», que se leía como cien mil).
+- El método lleno a lleno rechaza mezclas de motos, reinicios y odómetros incoherentes. Sin odómetro exige evidencia GPS del intervalo completo, incluido uso personal: cobertura temporal mínima del 95 %, límites de posiciones conocidos y ausencia de huecos, solapamientos o recortes temporales.
+- Las notificaciones excluyen los datos de laboratorio y se cancelan cuando el componente deja de requerir aviso. Los registros de motos anteriores conservan su identidad en la lista y al editar.
+
+### Datos
+- Room **18**, migración aditiva 17 → 18: perfiles de moto, planes por componente, identidad en registros y vida esperada del mantenimiento. Fechas de primera/última posición válida en segmentos nuevos, sin coordenadas adicionales. Los registros históricos conservan importes y distancias; no se inventa evidencia GPS anterior.
+- Los nuevos datos están incluidos en las copias SQLite y su validación al reabrir.
+
 ## [1.42.0] - 2026-11-13
 
 Rentabilidad operativa real. Notas: [docs/releases/1.42.0.md](docs/releases/1.42.0.md).

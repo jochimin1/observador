@@ -48,6 +48,10 @@ class DistanceRepository(private val db: AppDatabase) {
         dao.getAllSegments().map { it.toDomain() }
     }
 
+    suspend fun getSince(from: Long): List<DistanceSegment> = MaintenanceGate.shared.access {
+        dao.getSegmentsSince(from).map { it.toDomain() }
+    }
+
     fun observeAll(): Flow<List<DistanceSegment>> = dao.observeAllSegments().map { l -> l.map { it.toDomain() } }
 
     fun observeRecent(limit: Int): Flow<List<DistanceSegment>> = dao.observeRecent(limit).map { l -> l.map { it.toDomain() } }

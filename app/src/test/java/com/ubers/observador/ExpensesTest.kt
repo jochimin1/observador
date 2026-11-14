@@ -7,6 +7,7 @@ import com.ubers.observador.domain.WorkdayClock
 import com.ubers.observador.domain.distance.DistanceSegment
 import com.ubers.observador.domain.distance.DistanceTotals
 import com.ubers.observador.domain.distance.SegmentOrigin
+import com.ubers.observador.domain.expenses.FuelGpsEvidence
 import com.ubers.observador.domain.expenses.ExpenseOverviews
 import com.ubers.observador.domain.expenses.DistanceSource
 import com.ubers.observador.domain.expenses.ExpenseEntry
@@ -113,9 +114,9 @@ class ExpensesTest {
         val readings = listOf(OdometerReading("r", at(oct1.plusDays(1)), 0, isReset = true, createdAt = 0, updatedAt = 0))
         val timeline = Odometer.timeline(fuel, emptyList(), readings)
         assertTrue(FuelRules.efficiency(fuel, timeline).stretches.isEmpty())
-        val withGps = FuelRules.efficiency(fuel, timeline) { _, _ -> 190L }
-        assertEquals(DistanceSource.GPS, withGps.last!!.source)
-        assertEquals(190L, withGps.last!!.km)
+        val withGps = FuelRules.efficiency(fuel, timeline) { _, _ -> FuelGpsEvidence(190L, 100) }
+        assertNull(withGps.last)
+        assertTrue(withGps.excludedReasons.any { it.contains("Reinicio") })
     }
 
     @Test fun oneFullTankAloneGivesNothing() {

@@ -24,7 +24,8 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 private fun rd(n: Long) = MoneyFormat.format(MoneyAmount(n, "DOP"))
-private fun decimal(n: Long, places: Int = 2) = BigDecimal.valueOf(n, places).toPlainString()
+// No trailing zeros: "100.000" km/gal would read as a thousands separator in a form that forbids them
+private fun decimal(n: Long, places: Int = 2) = BigDecimal.valueOf(n, places).stripTrailingZeros().toPlainString()
 
 @Composable
 fun OperatingPanel(report: OperatingReport?, models: List<OperatingCostModel>, clock: WorkdayClock,
@@ -52,7 +53,7 @@ fun OperatingPanel(report: OperatingReport?, models: List<OperatingCostModel>, c
         Text("Los fijos se reparten por duración de los viajes cerrados y el resto del tiempo confirmado. Se conservan aparte los costos sin viaje. Combustible, mantenimiento pagado y recurrentes de Gastos no se descuentan otra vez aquí; los gastos sueltos sí, con el porcentaje laboral de su versión de costos.", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = { editing = true }) { Text("Modelo de costos") }
     }
-    if (editing) OperatingModelDialog(models, clock, onSave) { editing = false }
+    if (editing) OperatingModelDialog(models, clock, onSave, onDismiss = { editing = false })
 }
 
 @Composable
@@ -78,15 +79,16 @@ private fun OperatingBreakdown(p: OperatingCostParts) {
 
 @Composable
 internal fun OperatingModelDialog(models: List<OperatingCostModel>, clock: WorkdayClock,
-    onSave: suspend (OperatingCostInput) -> String?, onDismiss: () -> Unit) {
+    onSave: suspend (OperatingCostInput) -> String?, onDismiss: () -> Unit,
+    suggestedFuel: Pair<Long?, Long?>? = null, suggestedShare: Int? = null) {
     val last = models.maxByOrNull { it.effectiveAtMs }
-    var price by remember { mutableStateOf(last?.fuelPriceMinor?.let { decimal(it) }.orEmpty()) }
-    var efficiency by remember { mutableStateOf(last?.kmPerGallonMilli?.let { decimal(it, 3) }.orEmpty()) }
+    var price by remember { mutableStateOf((suggestedFuel?.first ?: last?.fuelPriceMinor)?.let { decimal(it) }.orEmpty()) }
+    var efficiency by remember { mutableStateOf((suggestedFuel?.second ?: last?.kmPerGallonMilli)?.let { decimal(it, 3) }.orEmpty()) }
     var wear by remember { mutableStateOf(decimal(last?.maintenancePerKmMinor ?: 0)) }
     var depreciation by remember { mutableStateOf(decimal(last?.depreciationPerKmMinor ?: 0)) }
     var fixed by remember { mutableStateOf(decimal(last?.fixedMinor ?: 0)) }
     var basis by remember { mutableStateOf(last?.fixedBasis ?: FixedCostBasis.WORKDAY) }
-    var share by remember { mutableStateOf((last?.looseWorkSharePct ?: 100).toString()) }
+    var share by remember { mutableStateOf((suggestedShare ?: last?.looseWorkSharePct ?: 100).toString()) }
     val today = clock.workdayOf(System.currentTimeMillis())
     var date by remember { mutableStateOf(if (last == null) today.toString() else maxOf(today.plusDays(1), runCatching { LocalDate.parse(last.effectiveDay).plusDays(1) }.getOrDefault(today.plusDays(1))).toString()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -100,7 +102,7 @@ internal fun OperatingModelDialog(models: List<OperatingCostModel>, clock: Workd
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(dismissOnBackPress = !busy, dismissOnClickOutside = !busy),
         title = { Text("Modelo de costos") },
         text = { Column(Modifier.verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Sin separadores de miles. Estos parámetros son estimaciones introducidas por ti; no se aplican valores sugeridos automáticamente.")
+            Text(if (suggestedFuel != null) "Combustible y uso laboral precargados desde la ficha de moto. Revisa los valores y la vigencia; solo Guardar crea la nueva versión. Los demás costos conservan el último modelo." else "Sin separadores de miles. Estos parámetros son estimaciones introducidas por ti; no se aplican valores sugeridos automáticamente.")
             OutlinedTextField(price, { price = it }, enabled = !busy, label = { Text("Precio RD$/galón") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             OutlinedTextField(efficiency, { efficiency = it }, enabled = !busy, label = { Text("Rendimiento km/galón") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             OutlinedTextField(wear, { wear = it }, enabled = !busy, label = { Text("Reserva mantenimiento RD$/km") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))

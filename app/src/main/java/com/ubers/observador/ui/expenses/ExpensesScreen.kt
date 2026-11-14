@@ -59,10 +59,8 @@ import com.ubers.observador.domain.expenses.ExpenseGroup
 import com.ubers.observador.domain.expenses.ExpenseSummary
 import com.ubers.observador.domain.expenses.FuelEfficiency
 import com.ubers.observador.domain.expenses.DistanceSource
-import com.ubers.observador.domain.expenses.MaintenanceReminder
 import com.ubers.observador.domain.expenses.NetResult
 import com.ubers.observador.domain.expenses.RecurringCost
-import com.ubers.observador.domain.expenses.ReminderLevel
 import com.ubers.observador.domain.expenses.SettingsSuggestion
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.money.MoneyFormat
@@ -133,12 +131,15 @@ fun ExpensesScreen(
         }
     }
 
+    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    val activeVehicle = state.care.active.id
+    fun timelineFor(id: String?) = id?.let { state.entryTimelines[it] } ?: timeline
     when (val f = form) {
         null -> Unit
-        is Form.Fuel -> FuelDialog(f.item?.entry, timeline, { form = null }) { e, reset -> viewModel.saveFuel(e, reset); form = null }
-        is Form.Expense -> ExpenseDialog(f.item?.entry, timeline, { form = null }) { e, reset -> viewModel.saveExpense(e, reset); form = null }
+        is Form.Fuel -> FuelDialog(f.item?.entry, timelineFor(f.item?.entry?.vehicleId), { form = null }) { e, reset -> viewModel.saveFuel(if (f.item == null) e.copy(vehicleId = activeVehicle) else e, reset); form = null }
+        is Form.Expense -> ExpenseDialog(f.item?.entry, timelineFor(f.item?.entry?.vehicleId), { form = null }) { e, reset -> viewModel.saveExpense(if (f.item == null) e.copy(vehicleId = activeVehicle) else e, reset); form = null }
         is Form.Recurring -> RecurringDialog(f.item, { form = null }) { viewModel.saveRecurring(it); form = null }
-        is Form.Odometer -> OdometerDialog(f.item?.entry, timeline, { form = null }) { viewModel.saveOdometer(it); form = null }
+        is Form.Odometer -> OdometerDialog(f.item?.entry, timelineFor(f.item?.entry?.vehicleId), { form = null }) { viewModel.saveOdometer(if (f.item == null) it.copy(vehicleId = activeVehicle) else it); form = null }
     }
 
     confirmSuggestion?.let { s ->
@@ -207,15 +208,9 @@ fun ExpensesScreen(
                     }
                 }
             }
+            if (!state.loading) item { VehiclePanel(state, viewModel::saveVehicle, viewModel::savePlan, viewModel::saveModel) }
             state.summary?.let { s -> item { SummaryCard(s, state.net, state.from?.format(MONTH) ?: "") } }
             item { EfficiencyCard(state.overview.efficiency, state.overview.suggestion) { confirmSuggestion = it } }
-            item {
-                RemindersCard(
-                    state.overview.reminders,
-                    state.hasIntervals,
-                    state.overview.currentOdometer?.let { "${ExpenseFormat.km(it.km)} km · ${day(it.atMs)}" }
-                )
-            }
             item { RecurringCard(state.recurring, onEdit = { form = Form.Recurring(it) }, onDelete = { viewModel.delete(DeletedExpense.Recurring(it)) }) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -246,11 +241,19 @@ fun ExpensesScreen(
                         }
                     )
                 }) {
-                    EntryRow(item) {
-                        form = when (item) {
-                            is ExpenseItem.Fuel -> Form.Fuel(item)
-                            is ExpenseItem.Expense -> Form.Expense(item)
-                            is ExpenseItem.Odometer -> Form.Odometer(item)
+                    Column {
+                        val vehicleId = when (item) {
+                            is ExpenseItem.Fuel -> item.entry.vehicleId
+                            is ExpenseItem.Expense -> item.entry.vehicleId
+                            is ExpenseItem.Odometer -> item.entry.vehicleId
+                        }
+                        Text(state.care.vehicles.firstOrNull { it.id == vehicleId }?.name ?: "Mi moto", style = MaterialTheme.typography.labelSmall)
+                        EntryRow(item) {
+                            form = when (item) {
+                                is ExpenseItem.Fuel -> Form.Fuel(item)
+                                is ExpenseItem.Expense -> Form.Expense(item)
+                                is ExpenseItem.Odometer -> Form.Odometer(item)
+                            }
                         }
                     }
                 }
@@ -318,10 +321,12 @@ private fun EfficiencyCard(e: FuelEfficiency, suggestion: SettingsSuggestion?, o
         badgeContainer = MaterialTheme.colorScheme.tertiaryContainer,
         badgeContent = MaterialTheme.colorScheme.onTertiaryContainer
     ) {
+        e.excludedReasons.forEach { Text("Intervalo descartado: $it", style = MaterialTheme.typography.bodySmall) }
+        Text("${e.sample} intervalos usados · ${e.confidence}", style = MaterialTheme.typography.bodySmall)
         val last = e.last
         if (last == null) {
             Text(
-                "Hacen falta dos tanqueos con «tanque lleno» y odómetro (o con km del GPS entre ellos).",
+                "Hacen falta dos tanqueos con «tanque lleno» y odómetro, o GPS verificable del intervalo completo, incluido el uso personal.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -333,8 +338,9 @@ private fun EfficiencyCard(e: FuelEfficiency, suggestion: SettingsSuggestion?, o
                     StatTile(R.drawable.ic_route, "Combustible por km", e.medianCostPerKmMinor?.let(::rd) ?: "—", Modifier.weight(1f),
                         detail = "último ${rd(last.costPerKmMinor)}", accent = MaterialTheme.colorScheme.tertiary)
                 }
+                Text("Último intervalo válido: ${day(last.fromAt)} a ${day(last.toAt)}", style = MaterialTheme.typography.bodySmall)
                 if (e.stretches.any { it.source == DistanceSource.GPS }) {
-                    InfoLine(R.drawable.ic_route, "Algunos tramos usan km del GPS (aprox.) porque faltaba el odómetro.")
+                    InfoLine(R.drawable.ic_route, "Algunos intervalos usan GPS con cobertura verificada de al menos el 95 % del tiempo, sin huecos de señal registrados. El rendimiento sigue siendo una estimación.")
                 }
                 suggestion?.let { s ->
                     InfoLine(
@@ -345,66 +351,6 @@ private fun EfficiencyCard(e: FuelEfficiency, suggestion: SettingsSuggestion?, o
                     FilledTonalButton(onClick = { onUse(s) }) { Text("Usar en Ajustes") }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RemindersCard(reminders: List<MaintenanceReminder>, hasIntervals: Boolean, odometer: String?) {
-    SectionCard(
-        title = "Mantenimiento",
-        icon = R.drawable.ic_notifications_active,
-        subtitle = odometer?.let { "Odómetro: $it" } ?: "Sin odómetro todavía",
-        badgeContainer = MaterialTheme.colorScheme.secondaryContainer,
-        badgeContent = MaterialTheme.colorScheme.onSecondaryContainer
-    ) {
-        if (!hasIntervals) {
-            InfoLine(R.drawable.ic_tune, "Pon el intervalo del cambio de aceite en Ajustes → Gastos y mantenimiento para recibir el aviso.")
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                reminders.forEach { r -> ReminderRow(r) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReminderRow(r: MaintenanceReminder) {
-    val scheme = MaterialTheme.colorScheme
-    val color = when (r.level) {
-        ReminderLevel.OVERDUE -> scheme.error
-        ReminderLevel.SOON -> scheme.tertiary
-        else -> scheme.primary
-    }
-    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(r.type.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(
-                when (r.level) {
-                    ReminderLevel.NO_DATA -> "Sin datos"
-                    ReminderLevel.OVERDUE -> "Te pasaste ${ExpenseFormat.km(-(r.remainingKm ?: 0))} km"
-                    else -> "Faltan ${ExpenseFormat.km(r.remainingKm ?: 0)} km"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (r.level == ReminderLevel.NO_DATA) scheme.onSurfaceVariant else color,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        if (r.level == ReminderLevel.NO_DATA) {
-            Text(
-                if (r.lastChangeKm == null) "Anota el último cambio con su odómetro." else "Cambiaste de odómetro después del último cambio: anótalo de nuevo.",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
-        } else {
-            val used = (r.intervalKm - (r.remainingKm ?: 0)).coerceIn(0, r.intervalKm)
-            SplitBar(first = used.toFloat() / r.intervalKm, description = "${r.type.label}: usado ${ExpenseFormat.km(used)} de ${ExpenseFormat.km(r.intervalKm)} km", firstColor = color)
-            Text(
-                "Cada ${ExpenseFormat.km(r.intervalKm)} km · " +
-                    if (r.estimated) "odómetro estimado con GPS" else "según tu último odómetro${r.currentAt?.let { " (${day(it)})" } ?: ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
         }
     }
 }

@@ -44,14 +44,18 @@ class ExpenseRepository(private val db: AppDatabase) {
     /** [resetAtKm]: the driver confirmed "cambié de odómetro o de motor" for this lower odometer. */
     suspend fun saveFuel(entry: FuelEntry, resetAtKm: Long? = null) = MaintenanceGate.shared.access {
         db.withTransaction {
-            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
+            validateVehicle(entry.vehicleId, entry.atMs)
+            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).copy(vehicleId = entry.vehicleId).toEntity()) }
             dao.upsertFuel(entry.toEntity())
         }
     }
 
     suspend fun saveExpense(entry: ExpenseEntry, resetAtKm: Long? = null) = MaintenanceGate.shared.access {
         db.withTransaction {
-            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).toEntity()) }
+            validateVehicle(entry.vehicleId, entry.atMs)
+            resetAtKm?.let { dao.upsertOdometer(reset(entry.atMs, it).copy(vehicleId = entry.vehicleId).toEntity()) }
+            require(entry.expectedLifeKm == null || entry.expectedLifeKm in 1..100_000)
+            require(entry.expectedLifeDays == null || entry.expectedLifeDays in 1..3650)
             dao.upsertExpense(entry.toEntity())
         }
     }
@@ -61,7 +65,10 @@ class ExpenseRepository(private val db: AppDatabase) {
     }
 
     suspend fun saveOdometer(entry: OdometerReading) = MaintenanceGate.shared.access {
-        dao.upsertOdometer(entry.toEntity())
+        db.withTransaction {
+            validateVehicle(entry.vehicleId, entry.atMs)
+            dao.upsertOdometer(entry.toEntity())
+        }
     }
 
     suspend fun delete(item: DeletedExpense): Unit = MaintenanceGate.shared.access {
@@ -95,6 +102,12 @@ class ExpenseRepository(private val db: AppDatabase) {
 
     suspend fun deleteTestData(prefix: String): Int = MaintenanceGate.shared.access {
         dao.deleteTest(prefix)
+    }
+
+    private suspend fun validateVehicle(vehicleId: String, at: Long) {
+        val vehicles = db.vehicleDao().vehicles().map { it.toDomain() }
+        val vehicle = vehicles.firstOrNull { it.id == vehicleId } ?: if (vehicleId == com.ubers.observador.domain.expenses.INITIAL_VEHICLE && vehicles.isEmpty()) com.ubers.observador.domain.expenses.VehicleProfile() else null
+        require(vehicle != null && vehicle.contains(at)) { "La fecha no pertenece al periodo de esta moto. Revisa la fecha o consulta el historial de la moto anterior." }
     }
 
     private fun reset(atMs: Long, km: Long) =

@@ -39,7 +39,9 @@ data class DistanceSegmentEntity(
     @ColumnInfo(name = "fixes_used") val fixesUsed: Int,
     @ColumnInfo(name = "fixes_discarded") val fixesDiscarded: Int,
     @ColumnInfo(name = "seconds_without_signal") val secondsWithoutSignal: Long,
-    @ColumnInfo(name = "created_at") val createdAt: Long
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "first_fix_at") val firstFixAt: Long? = null,
+    @ColumnInfo(name = "last_fix_at") val lastFixAt: Long? = null
 )
 
 /** Real kilometres of one trip (1:1, deleted with it). Totals only, no positions. */
@@ -80,7 +82,9 @@ fun DistanceSegment.toEntity() = DistanceSegmentEntity(
     fixesUsed = fixesUsed,
     fixesDiscarded = fixesDiscarded,
     secondsWithoutSignal = secondsWithoutSignal,
-    createdAt = createdAt
+    createdAt = createdAt,
+    firstFixAt = firstFixAt,
+    lastFixAt = lastFixAt
 )
 
 fun DistanceSegmentEntity.toDomain() = DistanceSegment(
@@ -100,7 +104,9 @@ fun DistanceSegmentEntity.toDomain() = DistanceSegment(
     fixesUsed = fixesUsed,
     fixesDiscarded = fixesDiscarded,
     secondsWithoutSignal = secondsWithoutSignal,
-    createdAt = createdAt
+    createdAt = createdAt,
+    firstFixAt = firstFixAt,
+    lastFixAt = lastFixAt
 )
 
 fun TripDistance.toEntity(tripId: String) = TripDistanceEntity(
