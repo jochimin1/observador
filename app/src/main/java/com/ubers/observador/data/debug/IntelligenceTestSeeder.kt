@@ -156,9 +156,9 @@ object IntelligenceTestSeeder {
      * they appeared (debug only: real shadow scores only new offers).
      */
     fun shadow(seed: Seed, active: ProfitModelVersion, candidate: ProfitModelVersion): List<ShadowEvaluation> =
-        seed.features.map { (hash, f) ->
-            val e = ShadowScoring.evaluate(hash, f, active, candidate, f.detectedAtMs)
-            e.copy(evaluationId = TripTestSeeder.PREFIX + e.evaluationId)
+        seed.features.mapNotNull { (hash, f) ->
+            ShadowScoring.evaluate(hash, f, active, candidate, f.detectedAtMs)
+                ?.let { e -> e.copy(evaluationId = TripTestSeeder.PREFIX + e.evaluationId) }
         }
 
     private fun round1(v: Double) = (v * 10).roundToInt() / 10.0

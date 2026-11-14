@@ -181,6 +181,7 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                     }
                     Decisions(report)
                     Recommendation(report, state.shadowCandidate != null, onShadow = { viewModel.startShadow() })
+                    ScoreV2Card(state, onStart = { viewModel.startV2Shadow() })
                     state.shadowCandidate?.let { candidate ->
                         Shadow(
                             report.shadow, candidate, state.active,
@@ -225,6 +226,7 @@ private val CARD_ICONS = mapOf(
     "Ofertas y decisiones" to R.drawable.ic_swap_horiz,
     "Recomendación" to R.drawable.ic_lightbulb,
     "Modelo en sombra" to R.drawable.ic_contrast,
+    "Puntaje V2 (en prueba)" to R.drawable.ic_payments,
     "Historial de modelos" to R.drawable.ic_history,
     "Datos de prueba (solo desarrollo)" to R.drawable.ic_science
 )
@@ -487,6 +489,36 @@ private fun Recommendation(r: IntelligenceReport, shadowRunning: Boolean, onShad
     }
 }
 
+/**
+ * 1.44.0: what V2 is, what it needs and the button to test it in shadow. It never changes the
+ * visible score in this version.
+ */
+@Composable
+private fun ScoreV2Card(state: IntelligenceUiState, onStart: () -> Unit) {
+    val running = state.shadowCandidate
+    val v2Running = running?.algorithmVersion == com.ubers.observador.domain.scoring.ProfitEngineV2.ALGORITHM_VERSION
+    Card("Puntaje V2 (en prueba)") {
+        Body(
+            "V2 usa las mismas partes y pesos que tu puntaje actual, pero juzga el pago por km y por hora con lo que te " +
+                "queda después del costo por km de toda la distancia (recogida incluida): combustible, mantenimiento y depreciación " +
+                "de tu modelo de costos. Los costos fijos no entran: no dependen de aceptar la oferta."
+        )
+        Muted(
+            state.v2PickupWait?.let { w ->
+                "Espera habitual en la recogida: ${minutes(w.lowMs)}–${minutes(w.highMs)} min (${w.samples} viajes): se suma al tiempo y da un rango."
+            } ?: "Aún no hay ${com.ubers.observador.domain.scoring.WaitEstimate.MIN_SAMPLES} esperas en la recogida en 30 días: V2 no suma espera."
+        )
+        when {
+            v2Running -> Muted("V2 está en sombra. Compáralo en «Modelo en sombra»; en esta versión no se puede aplicar.")
+            !state.v2CostModelInForce -> Muted("Para probarlo, guarda un modelo de costos en Ganancias → Rentabilidad operativa.")
+            running != null -> Muted("Hay otra prueba en sombra. Detenla para probar V2.")
+            else -> Button(onClick = onStart) { Text("Probar puntaje V2 en sombra") }
+        }
+    }
+}
+
+private fun minutes(ms: Long) = ((ms + 30_000) / 60_000).toString()
+
 @Composable
 private fun Shadow(
     s: ShadowReport?,
@@ -497,7 +529,8 @@ private fun Shadow(
     onSimulate: (() -> Unit)?
 ) {
     Card("Modelo en sombra") {
-        Body("Candidato v${candidate.number} frente a actual v${active?.number ?: "—"}. Tu score visible no cambia.")
+        val formula = com.ubers.observador.domain.scoring.ScoringAlgorithms.label(candidate.algorithmVersion)
+        Body("Candidato v${candidate.number} ($formula) frente a actual v${active?.number ?: "—"} (V1). Tu score visible no cambia.")
         if (s != null) {
             s.firstEvaluatedAtMs?.let { Muted("En sombra desde ${date(it)}") }
             Body("Ofertas evaluadas: ${s.offersEvaluated} · viajes con resultado: ${s.withOutcome}")

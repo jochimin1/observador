@@ -167,8 +167,14 @@ fun DashboardScreen(
     }
 
     if (selectedOffer != null) {
+        // 1.44.0: V2 next to V1, loaded once per opened offer
+        val v2Context by androidx.compose.runtime.produceState<Pair<com.ubers.observador.domain.scoring.ScoreV2Inputs, com.ubers.observador.domain.scoring.WaitEstimate?>?>(null, selectedOffer.id) {
+            value = viewModel.scoreV2Context()
+        }
         OfferDetailSheet(
             detail = OfferDetails.of(selectedOffer, state.engineSettings, state.thresholds),
+            v2 = v2Context?.let { (inputs, _) -> OfferDetails.scoreV2(selectedOffer, state.engineSettings, state.thresholds, inputs) },
+            afterTripWait = v2Context?.second,
             onDismiss = { selectedOfferId = null },
             onToggleExcluded = if (selectedOffer.id > 0) ({ viewModel.setOfferExcluded(selectedOffer.id, !selectedOffer.excludedFromAnalysis) }) else null,
             trip = state.trips[selectedOffer.id],
@@ -270,6 +276,16 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
+                // 1.44.0: the profile in use and, if another fits this moment, a suggestion to confirm
+                item {
+                    val inUse by viewModel.profileInUse.collectAsState()
+                    val suggestion by viewModel.profileSuggestion.collectAsState()
+                    ProfileSuggestionCard(
+                        inUse = inUse, suggestion = suggestion,
+                        onUse = { viewModel.applySuggestedProfile(it) }, onDismiss = { viewModel.dismissProfileSuggestion(it) },
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
                 item {
                     // Fase 8C: today's goal, only when the driver set one
                     if (violet) {

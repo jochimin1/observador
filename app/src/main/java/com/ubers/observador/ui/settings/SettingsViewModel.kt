@@ -46,7 +46,11 @@ data class SettingsUiState(
 data class ProfilesUiState(
     val profiles: List<SettingsProfile> = emptyList(),
     val activeId: String? = null,
-    val current: ProfileValues? = null
+    val current: ProfileValues? = null,
+    /** 1.44.0: for «Cuándo sugerirlo»: the bike in use and the modalities seen in real offers. */
+    val activeVehicle: com.ubers.observador.domain.expenses.VehicleProfile? = null,
+    val vehicleNames: Map<String, String> = emptyMap(),
+    val products: List<String> = emptyList()
 ) {
     /** The profile whose values are exactly the ones in use. */
     val inUse: SettingsProfile? get() = current?.let { SettingsProfiles.matching(profiles, it, activeId) }
@@ -223,8 +227,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val profiles: StateFlow<ProfilesUiState> = combine(
         appSettings.profiles,
         appSettings.activeProfileId,
-        appSettings.profileValues
-    ) { list, activeId, current -> ProfilesUiState(list, activeId, current) }
+        appSettings.profileValues,
+        com.ubers.observador.data.VehicleRepository(AppDatabase.getInstance(app)).observe(),
+        AppDatabase.getInstance(app).offerDao().observeProductsExcluding(com.ubers.observador.domain.TestData.PREFIX)
+    ) { list, activeId, current, vehicles, products ->
+        ProfilesUiState(list, activeId, current, vehicles.active, vehicles.vehicles.associate { it.id to it.name }, products)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfilesUiState())
 
     private val _profileMessage = MutableStateFlow<String?>(null)
@@ -265,6 +273,18 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             is SettingsProfiles.Result.Ok -> {
                 appSettings.saveProfiles(r.profiles, appSettings.activeProfileId.first())
                 "Ahora se llama \"${r.profile.name}\"."
+            }
+            is SettingsProfiles.Result.Error -> r.message
+        }
+    }
+
+    /** 1.44.0: when Inicio should suggest this profile; the profile's values do not change. */
+    fun setProfileContext(id: String, context: com.ubers.observador.domain.ProfileContext) = viewModelScope.launch {
+        val list = appSettings.profiles.first()
+        _profileMessage.value = when (val r = SettingsProfiles.setContext(list, id, context)) {
+            is SettingsProfiles.Result.Ok -> {
+                appSettings.saveProfiles(r.profiles, appSettings.activeProfileId.first())
+                if (r.profile.context.isEmpty) "«${r.profile.name}» ya no se sugiere solo." else "Inicio sugerirá «${r.profile.name}» cuando encaje."
             }
             is SettingsProfiles.Result.Error -> r.message
         }

@@ -16,6 +16,21 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 
 ## [Sin publicar]
 
+## [1.44.0] - 2026-11-13
+
+Puntaje económico V2 y perfiles por contexto. Notas: [docs/releases/1.44.0.md](docs/releases/1.44.0.md).
+
+### Añadido
+- Puntaje V2 (`PROFIT_ENGINE_V2`): mismas cuatro partes y pesos que V1, pero el pago por km y por hora se juzga con lo que queda después del costo variable de toda la distancia (combustible, mantenimiento y depreciación del modelo de costos vigente el día de la oferta). Los costos fijos no entran porque no dependen de aceptar la oferta.
+- Espera en la recogida sumada al tiempo solo con 10 esperas reales o más en 30 días; entonces V2 da un rango de puntaje, no una cifra única.
+- Razones en lenguaje directo: «No cubre lo que te cuesta hacerlo», «Paga por debajo de tu objetivo por hora/por km», «Recogida larga», «Costo elevado», «Sueles esperar bastante en la recogida».
+- Sección «Puntaje V2 (en prueba)» en el detalle de cada oferta, junto al puntaje V1 de la tarjeta. Muestra también la espera habitual hasta el siguiente viaje, solo como información.
+- «Probar puntaje V2 en sombra» en Análisis: V2 se calcula en silencio con cada oferta nueva y se compara con V1 con las mismas métricas de la prueba en sombra.
+- Perfiles por contexto: «Cuándo sugerirlo» (turno de día o de noche, modalidad leída en tus ofertas, moto). Inicio muestra el perfil en uso y sugiere el que encaja; solo cambia si pulsas «Usar».
+
+### Sin cambios
+- La tarjeta, los avisos y los puntajes guardados siguen usando V1. V2 no se puede aplicar en esta versión (bloqueo `SHADOW_ONLY`). Sin cambios de base de datos: Room sigue en 18.
+
 ## [1.43.0] - 2026-11-13
 
 Vehículo, combustible y mantenimiento. Notas: [docs/releases/1.43.0.md](docs/releases/1.43.0.md).

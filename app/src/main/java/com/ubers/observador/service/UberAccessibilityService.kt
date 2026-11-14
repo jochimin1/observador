@@ -92,7 +92,10 @@ class UberAccessibilityService : AccessibilityService() {
         settings = AppSettings(applicationContext)
         ReadingAuditRecorder.init(applicationContext)
         repository = OfferRepository(AppDatabase.getInstance(applicationContext))
-        shadowScorer = ShadowScorer(settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)))
+        shadowScorer = ShadowScorer(
+            settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)),
+            com.ubers.observador.data.ScoreInputsRepository(AppDatabase.getInstance(applicationContext))
+        )
         // Use `this` so TYPE_ACCESSIBILITY_OVERLAY is backed by the service context
         overlayManager = OverlayManager(this)
         // 1.37.0: «Automático» closes cards of «Cerrar» sectors; a tap on the floating card stops it

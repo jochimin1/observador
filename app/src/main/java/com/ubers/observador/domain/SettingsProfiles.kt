@@ -51,8 +51,48 @@ data class ProfileValues(
     }
 }
 
+/** 1.44.0: the part of the day a profile is meant for. */
+enum class ShiftContext(val storageKey: String, val label: String) {
+    ANY("any", "Cualquier hora"),
+    DAY("day", "De día (6:00 a 18:59)"),
+    NIGHT("night", "De noche (19:00 a 5:59)");
+
+    fun matches(hour: Int): Boolean = when (this) {
+        ANY -> true
+        DAY -> hour in NIGHT_END until NIGHT_START
+        NIGHT -> hour >= NIGHT_START || hour < NIGHT_END
+    }
+
+    companion object {
+        const val NIGHT_START = 19
+        const val NIGHT_END = 6
+        fun fromStorage(key: String?) = entries.firstOrNull { it.storageKey == key } ?: ANY
+    }
+}
+
+/**
+ * 1.44.0: when a profile fits. Every condition set must hold; an empty context never suggests
+ * anything. It only SUGGESTS: the driver confirms before anything changes.
+ */
+data class ProfileContext(
+    val shift: ShiftContext = ShiftContext.ANY,
+    /** Uber's modality as read on the card («Moto», «Moto Flash»); null = any. */
+    val product: String? = null,
+    /** The vehicle (1.43.0) the profile belongs to; null = any. */
+    val vehicleId: String? = null
+) {
+    val isEmpty: Boolean get() = shift == ShiftContext.ANY && product == null && vehicleId == null
+    val conditions: Int get() = listOf(shift != ShiftContext.ANY, product != null, vehicleId != null).count { it }
+}
+
 /** A named set of [values]. [id] never changes, so renaming keeps it the same profile. */
-data class SettingsProfile(val id: String, val name: String, val values: ProfileValues)
+data class SettingsProfile(
+    val id: String,
+    val name: String,
+    val values: ProfileValues,
+    /** 1.44.0: when to suggest it; not part of [values], so matching "in use" ignores it. */
+    val context: ProfileContext = ProfileContext()
+)
 
 /**
  * Text format for profiles, stored in DataStore. One line per profile:
@@ -73,9 +113,19 @@ object SettingsProfileCodec {
             "wkm" to v.weights.kmPct, "wh" to v.weights.hourPct, "wpkm" to v.weights.pickupKmPct, "wpmin" to v.weights.pickupMinPct,
             "ov" to v.showOverlay, "ovs" to v.overlaySeconds, "grace" to v.graceSeconds, "mode" to v.mode
         ).joinToString(",") { (k, value) -> "$k=$value" }
-        val name = Base64.getUrlEncoder().withoutPadding().encodeToString(p.name.toByteArray(Charsets.UTF_8))
-        "$VERSION|${p.id}|$name|$fields"
+        val name = b64(p.name)
+        // 1.44.0: context keys; an older app ignores them (unknown keys are skipped)
+        val c = p.context
+        val context = listOfNotNull(
+            "cshift=${c.shift.storageKey}".takeIf { c.shift != ShiftContext.ANY },
+            c.product?.let { "cprod=${b64(it)}" },
+            c.vehicleId?.let { "cveh=${b64(it)}" }
+        ).joinToString("") { ",$it" }
+        "$VERSION|${p.id}|$name|$fields$context"
     }
+
+    private fun b64(text: String) = Base64.getUrlEncoder().withoutPadding().encodeToString(text.toByteArray(Charsets.UTF_8))
+    private fun unb64(text: String) = String(Base64.getUrlDecoder().decode(text), Charsets.UTF_8)
 
     fun decode(text: String?): List<SettingsProfile> {
         if (text.isNullOrBlank()) return emptyList()
@@ -109,7 +159,12 @@ object SettingsProfileCodec {
             graceSeconds = int("grace", d.graceSeconds),
             mode = map["mode"] ?: d.mode
         )
-        return SettingsProfile(parts[1], name, values)
+        val context = ProfileContext(
+            shift = ShiftContext.fromStorage(map["cshift"]),
+            product = map["cprod"]?.let { runCatching { unb64(it) }.getOrNull() }?.takeIf { it.isNotBlank() },
+            vehicleId = map["cveh"]?.let { runCatching { unb64(it) }.getOrNull() }?.takeIf { it.isNotBlank() }
+        )
+        return SettingsProfile(parts[1], name, values, context)
     }
 }
 
@@ -163,7 +218,61 @@ object SettingsProfiles {
 
     fun delete(existing: List<SettingsProfile>, id: String): List<SettingsProfile> = existing.filterNot { it.id == id }
 
+    /** 1.44.0: sets when a profile should be suggested; the values themselves do not change. */
+    fun setContext(existing: List<SettingsProfile>, id: String, context: ProfileContext): Result {
+        val old = existing.firstOrNull { it.id == id } ?: return Result.Error("Ese perfil ya no existe")
+        val clean = context.copy(product = context.product?.trim()?.takeIf { it.isNotEmpty() }?.take(NAME_MAX))
+        val updated = old.copy(context = clean)
+        return Result.Ok(existing.map { if (it.id == id) updated else it }, updated)
+    }
+
     /** The profile whose values are exactly the ones in use, if any (preferring [preferredId]). */
     fun matching(existing: List<SettingsProfile>, current: ProfileValues, preferredId: String?): SettingsProfile? =
         existing.firstOrNull { it.id == preferredId && it.values == current } ?: existing.firstOrNull { it.values == current }
+}
+
+/** 1.44.0: what the app knows about the moment, to suggest a profile. */
+data class ContextNow(
+    val hour: Int,
+    /** Modality of the latest real offer, only if it is recent (see [ContextProfiles.PRODUCT_RECENT_MS]). */
+    val product: String?,
+    val vehicleId: String?
+)
+
+data class ProfileSuggestion(val profile: SettingsProfile, val reason: String)
+
+/**
+ * 1.44.0: suggests the profile made for this moment. Never applies anything: the driver confirms.
+ * No suggestion when the profile in use already fits, or when nothing fits.
+ */
+object ContextProfiles {
+
+    /** A modality only counts while offers of it keep arriving. */
+    const val PRODUCT_RECENT_MS = 30 * 60_000L
+
+    fun fits(context: ProfileContext, now: ContextNow): Boolean =
+        !context.isEmpty && context.shift.matches(now.hour) &&
+            (context.product == null || context.product.equals(now.product, ignoreCase = true)) &&
+            (context.vehicleId == null || context.vehicleId == now.vehicleId)
+
+    fun suggest(profiles: List<SettingsProfile>, inUseId: String?, now: ContextNow): ProfileSuggestion? {
+        val inUse = profiles.firstOrNull { it.id == inUseId }
+        if (inUse != null && fits(inUse.context, now)) return null
+        // The most specific fitting profile; on a tie, the first one in the list
+        val best = profiles.filter { fits(it.context, now) }.maxByOrNull { it.context.conditions } ?: return null
+        if (best.id == inUseId) return null
+        return ProfileSuggestion(best, reason(best.context))
+    }
+
+    fun reason(c: ProfileContext): String = listOfNotNull(
+        when (c.shift) { ShiftContext.DAY -> "es de día"; ShiftContext.NIGHT -> "es de noche"; ShiftContext.ANY -> null },
+        c.product?.let { "te están llegando ofertas $it" },
+        c.vehicleId?.let { "es para la moto que usas" }
+    ).joinToString(" y ").replaceFirstChar { it.uppercase() }
+
+    fun describe(c: ProfileContext, vehicleName: String?): String? = if (c.isEmpty) null else listOfNotNull(
+        c.shift.label.takeIf { c.shift != ShiftContext.ANY },
+        c.product?.let { "Modalidad $it" },
+        c.vehicleId?.let { "Moto: ${vehicleName ?: "otra moto"}" }
+    ).joinToString(" · ")
 }

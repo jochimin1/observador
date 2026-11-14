@@ -45,11 +45,14 @@ fun OfferDetailSheet(
     trip: com.ubers.observador.domain.trips.Trip? = null,
     /** 1.36.0: the care sector line («⚠ Destino: Cristo Rey»), or null. */
     sectorLine: String? = null,
-    onToggleExcluded: (() -> Unit)? = null
+    onToggleExcluded: (() -> Unit)? = null,
+    /** 1.44.0: the same offer judged by V2 (in shadow), or null while it loads. */
+    v2: com.ubers.observador.domain.scoring.ScoreV2Result? = null,
+    afterTripWait: com.ubers.observador.domain.scoring.WaitEstimate? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(containerColor = com.ubers.observador.ui.theme.sheetContainerColor(), onDismissRequest = onDismiss, sheetState = sheetState) {
-        OfferDetailContent(detail, onDelete, trip, sectorLine, onToggleExcluded)
+        OfferDetailContent(detail, onDelete, trip, sectorLine, onToggleExcluded, v2, afterTripWait)
     }
 }
 
@@ -59,7 +62,9 @@ private fun OfferDetailContent(
     onDelete: (() -> Unit)?,
     trip: com.ubers.observador.domain.trips.Trip?,
     sectorLine: String? = null,
-    onToggleExcluded: (() -> Unit)? = null
+    onToggleExcluded: (() -> Unit)? = null,
+    v2: com.ubers.observador.domain.scoring.ScoreV2Result? = null,
+    afterTripWait: com.ubers.observador.domain.scoring.WaitEstimate? = null
 ) {
     val o = detail.offer
     val quality = detail.quality
@@ -147,6 +152,8 @@ private fun OfferDetailContent(
             DetailLine("Score final", "${o.score} · ${quality.label}", strong = true)
         }
 
+        v2?.let { ScoreV2Section(it, o.score, afterTripWait) }
+
         Text(
             text = "Lo que prometía la oferta de este viaje, calculado con tus ajustes actuales. " +
                 "El dinero real llega con la pantalla Ganancias.",
@@ -214,3 +221,55 @@ private fun ScorePart(label: String, weightPct: Int, points: Double) {
         com.ubers.observador.ui.components.AppProgressBar((points / 100.0).toFloat())
     }
 }
+
+/**
+ * 1.44.0: V2 next to V1, in plain words. It is a test: the card and the list keep V1's score.
+ * A range comes from the driver's own wait history; without a cost model V2 says it used V1.
+ */
+@Composable
+internal fun ScoreV2Section(
+    v2: com.ubers.observador.domain.scoring.ScoreV2Result,
+    v1Score: Int,
+    afterTripWait: com.ubers.observador.domain.scoring.WaitEstimate?
+) {
+    DetailSection("Puntaje V2 (en prueba)") {
+        val value = if (v2.isRange) "${v2.low}–${v2.high} · ${v2.category.label}" else "${v2.score} · ${v2.category.label}"
+        DetailLine(if (v2.usedV1) "Puntaje (V1, sin costos)" else "Puntaje V2", value, strong = true)
+        DetailLine("Puntaje V1 (el de tu tarjeta)", "$v1Score")
+        v2.cost?.let { c ->
+            DetailLine("Costo variable (recogida + viaje)", "− " + rd(c.total))
+            v2.netMinor?.let { DetailLine("Te queda", rd(it)) }
+            v2.netPerHour?.let { DetailLine("Te queda por hora", "RD$%.0f".format(it)) }
+            v2.netPerKm?.let { DetailLine("Te queda por km", "RD$%.2f".format(it)) }
+        }
+        if (v2.factors.isEmpty()) {
+            Text("Sin observaciones: cubre tus objetivos con su costo.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            v2.factors.forEach { f ->
+                com.ubers.observador.ui.components.InfoLine(com.ubers.observador.R.drawable.ic_info, f.label)
+            }
+        }
+        v2.coverage.forEach { c ->
+            Text(c.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        v2.costRevision?.let {
+            Text(
+                "Modelo de costos #$it (el vigente ese día). Sin costos fijos: no dependen de aceptar la oferta." +
+                    (v2.waitTypicalMs?.let { w -> " Incluye tu espera habitual en la recogida (${(w + 30_000) / 60_000} min)." } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        afterTripWait?.let { w ->
+            Text(
+                "Después de un viaje sueles esperar ${(w.lowMs + 30_000) / 60_000}–${(w.highMs + 30_000) / 60_000} min hasta el siguiente " +
+                    "(${w.samples} esperas en 30 días). No entra en el puntaje: no depende de esta oferta.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun rd(minor: Long): String =
+    (if (minor < 0) "−" else "") + "RD$" + java.math.BigDecimal.valueOf(kotlin.math.abs(minor), 2).toPlainString()

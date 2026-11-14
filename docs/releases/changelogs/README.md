@@ -6,6 +6,7 @@ La única etiqueta original sin un changelog propio es 1.0.0: el archivo se intr
 
 ## Entregas documentadas
 
+- [1.44.0](1.44.0.md) — código 55
 - [1.43.0](1.43.0.md) — código 54
 - [1.42.0](1.42.0.md) — código 53
 - [1.41.0](1.41.0.md) — código 52

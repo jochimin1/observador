@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ubers.observador.R
@@ -62,6 +66,7 @@ private sealed interface ProfileDialog {
     data class Apply(val profile: SettingsProfile) : ProfileDialog
     data class Overwrite(val profile: SettingsProfile) : ProfileDialog
     data class Delete(val profile: SettingsProfile) : ProfileDialog
+    data class Context(val profile: SettingsProfile) : ProfileDialog
 }
 
 /**
@@ -78,7 +83,8 @@ fun ProfilesCard(
     onApply: (String) -> Unit,
     onOverwrite: (String) -> Unit,
     onRename: (String, String) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onContext: (String, com.ubers.observador.domain.ProfileContext) -> Unit = { _, _ -> }
 ) {
     var dialog by remember { mutableStateOf<ProfileDialog?>(null) }
     val focus = LocalFocusManager.current
@@ -121,6 +127,13 @@ fun ProfilesCard(
             onConfirm = { onDelete(d.profile.id); dialog = null },
             onDismiss = { dialog = null }
         )
+        is ProfileDialog.Context -> ContextDialog(
+            profile = d.profile,
+            activeVehicle = state.activeVehicle,
+            products = state.products,
+            onConfirm = { onContext(d.profile.id, it); dialog = null },
+            onDismiss = { dialog = null }
+        )
     }
 
     SectionCard(
@@ -151,6 +164,8 @@ fun ProfilesCard(
                 ProfileRow(
                     profile = p,
                     inUse = p.id == inUse?.id,
+                    contextLine = com.ubers.observador.domain.ContextProfiles.describe(p.context, p.context.vehicleId?.let { state.vehicleNames[it] }),
+                    onContext = { dialog = ProfileDialog.Context(p) },
                     onApply = {
                         // Without a profile holding today's values, applying would lose them: ask first
                         if (inUse == null) {
@@ -183,6 +198,8 @@ fun ProfilesCard(
 private fun ProfileRow(
     profile: SettingsProfile,
     inUse: Boolean,
+    contextLine: String?,
+    onContext: () -> Unit,
     onApply: () -> Unit,
     onOverwrite: () -> Unit,
     onRename: () -> Unit,
@@ -202,12 +219,16 @@ private fun ProfileRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            contextLine?.let {
+                Text("Se sugiere: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
         }
         if (!inUse) TextButton(onClick = onApply) { Text("Aplicar") }
         Box {
             TextButton(onClick = { menu = true }) { Text("⋮") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Actualizar con valores actuales") }, onClick = { menu = false; onOverwrite() })
+                DropdownMenuItem(text = { Text("Cuándo sugerirlo") }, onClick = { menu = false; onContext() })
                 DropdownMenuItem(text = { Text("Renombrar") }, onClick = { menu = false; onRename() })
                 DropdownMenuItem(text = { Text("Borrar") }, onClick = { menu = false; onDelete() })
             }
@@ -255,4 +276,74 @@ private fun Confirm(title: String, text: String, confirm: String, onConfirm: () 
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+/**
+ * 1.44.0: when Inicio should suggest a profile. Only a suggestion: the driver still taps «Usar».
+ * Modalities are the ones Uber has shown in real offers; nothing selected means "always".
+ */
+@Composable
+private fun ContextDialog(
+    profile: SettingsProfile,
+    activeVehicle: com.ubers.observador.domain.expenses.VehicleProfile?,
+    products: List<String>,
+    onConfirm: (com.ubers.observador.domain.ProfileContext) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var shift by remember { mutableStateOf(profile.context.shift) }
+    var product by remember { mutableStateOf(profile.context.product) }
+    var forVehicle by remember { mutableStateOf(profile.context.vehicleId != null) }
+    // A saved product no longer seen still shows, so it can be removed
+    val options = (products + listOfNotNull(profile.context.product)).distinct()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Cuándo sugerir «${profile.name}»") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Inicio te lo propondrá cuando se cumpla todo lo marcado. Nunca se aplica solo.", style = MaterialTheme.typography.bodySmall)
+                Text("Turno", style = MaterialTheme.typography.titleSmall)
+                com.ubers.observador.domain.ShiftContext.entries.forEach { option ->
+                    ChoiceRow(option.label, shift == option) { shift = option }
+                }
+                Text("Modalidad", style = MaterialTheme.typography.titleSmall)
+                ChoiceRow("Cualquiera", product == null) { product = null }
+                if (options.isEmpty()) {
+                    Text("Aún no se ha leído la modalidad en ninguna oferta.", style = MaterialTheme.typography.bodySmall)
+                }
+                options.forEach { name -> ChoiceRow(name, product == name) { product = name } }
+                if (activeVehicle != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(checked = forVehicle, onCheckedChange = { forVehicle = it })
+                        Text("Solo con ${activeVehicle.name}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(
+                    com.ubers.observador.domain.ProfileContext(
+                        shift, product,
+                        if (forVehicle) activeVehicle?.id ?: profile.context.vehicleId else null
+                    )
+                )
+            }) { Text("Guardar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+@Composable
+private fun ChoiceRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.RadioButton(selected = selected, onClick = null)
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+    }
 }

@@ -515,7 +515,7 @@ class IntelligenceTest {
         val f = OfferDecisionFeatures(dop(15_000), 2.0, 6, 8.0, 18, 0)
         val active = ProfitModelVersion("v1", 1, 0, ModelVersionSource.INITIAL, defaults)
         val candidate = ProfitModelVersion("c1", 2, 0, ModelVersionSource.CALIBRATION_RECOMMENDATION, defaults.copy(weights = ScoreWeights(20, 30, 20, 30)))
-        val e = ShadowScoring.evaluate("h1", f, active, candidate, 5)
+        val e = ShadowScoring.evaluate("h1", f, active, candidate, 5)!!
         assertEquals(ProfitEngine().analyze(f.toOffer(), defaults.toEngineSettings()).score, e.activeScore)
         assertEquals(ProfitModelBacktester.score(f, candidate.settings), e.candidateScore)
         assertEquals(ShadowScoring.evaluationId("h1", "c1"), e.evaluationId)

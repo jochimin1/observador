@@ -133,7 +133,8 @@ fun SettingsScreen(
                 onApply = { viewModel.applyProfile(it) },
                 onOverwrite = { viewModel.overwriteProfile(it) },
                 onRename = { id, name -> viewModel.renameProfile(id, name) },
-                onDelete = { viewModel.deleteProfile(it) }
+                onDelete = { viewModel.deleteProfile(it) },
+                onContext = { id, c -> viewModel.setProfileContext(id, c) }
             )
 
             // Fase 8J: every export in one place

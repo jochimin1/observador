@@ -41,4 +41,21 @@ object OfferDetails {
             breakdown = engine.breakdown(analysis, settings)
         )
     }
+
+    /**
+     * 1.44.0: the same offer judged by V2 with the driver's current settings and the cost model
+     * in force on the offer's day. Null when the stored price cannot be read as money.
+     */
+    fun scoreV2(
+        offer: OfferEntity,
+        settings: EngineSettings,
+        cuts: QualityThresholds,
+        inputs: com.ubers.observador.domain.scoring.ScoreV2Inputs
+    ): com.ubers.observador.domain.scoring.ScoreV2Result? {
+        val amount = com.ubers.observador.domain.money.MoneyAmount.fromLegacyDouble(
+            offer.price, com.ubers.observador.domain.money.Currencies.DOP
+        ) ?: return null
+        val features = OfferDecisionFeatures(amount, offer.pickupKm, offer.pickupMin, offer.tripKm, offer.tripMin, offer.detectedAt)
+        return com.ubers.observador.domain.scoring.ProfitEngineV2.evaluate(features, ProfitSettingsSnapshot.of(settings, cuts), inputs)
+    }
 }

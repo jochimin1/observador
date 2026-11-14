@@ -55,6 +55,10 @@ data class IntelligenceUiState(
     val usesTestData: Boolean = false,
     /** Time between trips in the period (from a trip's end to accepting the next). */
     val waits: com.ubers.observador.domain.online.WaitSummary? = null,
+    /** 1.44.0: V2 needs an operating cost model in force today. */
+    val v2CostModelInForce: Boolean = false,
+    /** 1.44.0: the pickup wait history V2 would use (null below the minimum). */
+    val v2PickupWait: com.ubers.observador.domain.scoring.WaitEstimate? = null,
     val failed: Boolean = false
 )
 
@@ -72,6 +76,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
     private val trips = TripRepository(db)
     private val money = FinancialRepository(db)
     private val settings = AppSettings(app)
+    private val scoreInputs = com.ubers.observador.data.ScoreInputsRepository(db)
     private val period = MutableStateFlow(IntelligencePeriod.D90)
     private val includeUnconfirmed = MutableStateFlow(true)
     private val _message = MutableStateFlow<String?>(null)
@@ -118,6 +123,7 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         val offers = repo.offersSince(from)
         val candidate = shadowId?.let { repo.version(it) }
         val evaluations = candidate?.let { repo.shadowEvaluations(it.id) } ?: emptyList()
+        val v2 = scoreInputs.inputs(now)
         val usesTest = dataset.samples.any { it.tripId.startsWith(TripTestSeeder.PREFIX) }
         val periodTrips = com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
             db.tripDao().getTripsTouching(from, now + 1).map { it.toDomain() }
@@ -169,7 +175,9 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
             shadowCandidate = candidate,
             targetHourly = profit.minRdpPerHour,
             usesTestData = usesTest,
-            waits = waits
+            waits = waits,
+            v2CostModelInForce = com.ubers.observador.domain.operating.OperatingCosts.modelAt(v2.costModels, now) != null,
+            v2PickupWait = v2.pickupWait
         )
     } catch (e: Exception) {
         Log.e(TAG, "Analysis failed", e)
@@ -190,6 +198,31 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             Log.e(TAG, "Start shadow failed", e)
             "No se pudo iniciar la prueba en sombra."
+        }
+    }
+
+    /**
+     * 1.44.0: «Probar puntaje V2»: V2 with the settings in use runs in shadow next to V1. The card,
+     * notifications and stored scores keep coming from V1; V2 cannot be applied in this version.
+     */
+    fun startV2Shadow() = viewModelScope.launch {
+        val s = state.value
+        _message.value = try {
+            if (!s.v2CostModelInForce) {
+                "Primero guarda un modelo de costos en Ganancias: V2 mide lo que te queda después del costo por km."
+            } else {
+                val now = System.currentTimeMillis()
+                val active = repo.ensureCurrent(settings.profitSettings.first(), now)
+                val versions = repo.versions()
+                val prefix = if (s.usesTestData) TripTestSeeder.PREFIX else ""
+                val candidate = ModelVersionRules.v2Candidate(versions, active.settings, now) { prefix + "v2-" + UUID.randomUUID() }
+                if (versions.none { it.id == candidate.id }) repo.insertVersion(candidate)
+                settings.updateShadowModel(candidate.id)
+                "Puntaje V2 en sombra. Tu tarjeta sigue con V1; V2 se calcula en silencio con cada oferta nueva."
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Start V2 shadow failed", e)
+            "No se pudo iniciar la prueba de V2."
         }
     }
 
@@ -268,9 +301,9 @@ class IntelligenceViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             val dataset = repo.loadDataset(0, now + 1)
             val evaluations = dataset.samples.filter { it.tripId.startsWith(TripTestSeeder.PREFIX) && it.features != null && it.offerHash != null }
-                .map { x ->
-                    val e = ShadowScoring.evaluate(x.offerHash!!, x.features!!, active, candidate, x.features.detectedAtMs)
-                    e.copy(evaluationId = TripTestSeeder.PREFIX + e.evaluationId)
+                .mapNotNull { x ->
+                    ShadowScoring.evaluate(x.offerHash!!, x.features!!, active, candidate, x.features.detectedAtMs, scoreInputs.inputs(now))
+                        ?.let { e -> e.copy(evaluationId = TripTestSeeder.PREFIX + e.evaluationId) }
                 }
             repo.saveShadowBatch(evaluations)
             "${evaluations.size} ofertas de prueba puntuadas en sombra."

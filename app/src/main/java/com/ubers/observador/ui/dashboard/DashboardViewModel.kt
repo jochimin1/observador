@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -153,6 +154,20 @@ sealed interface ExportEvent {
 class DashboardViewModel(app: Application) : AndroidViewModel(app) {
 
     private val db = AppDatabase.getInstance(app)
+    private val scoreInputs = com.ubers.observador.data.ScoreInputsRepository(db)
+
+    /**
+     * 1.44.0: what the detail panel needs for V2, loaded when an offer is opened (never per row):
+     * cost models and pickup waits, plus the usual time to the next trip (information only).
+     */
+    suspend fun scoreV2Context(): Pair<com.ubers.observador.domain.scoring.ScoreV2Inputs, com.ubers.observador.domain.scoring.WaitEstimate?> =
+        withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val inputs = runCatching { scoreInputs.inputs(now) }
+                .onFailure { android.util.Log.e("Dashboard", "V2 inputs not loaded", it) }
+                .getOrDefault(com.ubers.observador.domain.scoring.ScoreV2Inputs.NONE)
+            inputs to runCatching { scoreInputs.afterTripWait(now) }.getOrNull()
+        }
     private val repository = OfferRepository(db)
     private val settings = AppSettings(app)
     private val onlineRepository = OnlineRepository(db)
@@ -277,6 +292,46 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     // Equal windows are dropped, so the minute tick only re-queries when a working day starts
+    // ---- 1.44.0: profiles by context ----
+
+    /** The suggestion the driver closed, so it does not come back until the moment changes. */
+    private val dismissedSuggestion = MutableStateFlow<String?>(null)
+
+    private val profileState = combine(settings.profiles, settings.activeProfileId, settings.profileValues) { list, activeId, values ->
+        list to com.ubers.observador.domain.SettingsProfiles.matching(list, values, activeId)
+    }
+
+    /** The profile in use (exact values), for «Perfil: Noche» on Inicio; null if none matches. */
+    val profileInUse: StateFlow<com.ubers.observador.domain.SettingsProfile?> = profileState.map { it.second }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val profileSuggestion: StateFlow<com.ubers.observador.domain.ProfileSuggestion?> = combine(
+        profileState,
+        com.ubers.observador.data.VehicleRepository(db).observe(),
+        db.offerDao().observeLatestProductExcluding(com.ubers.observador.domain.TestData.PREFIX),
+        clockNow,
+        dismissedSuggestion
+    ) { (list, inUse), vehicles, latest, (_, now), dismissed ->
+        val product = latest?.takeIf { now - it.detectedAt in 0..com.ubers.observador.domain.ContextProfiles.PRODUCT_RECENT_MS }?.product
+        val hour = java.time.Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).hour
+        com.ubers.observador.domain.ContextProfiles.suggest(
+            list, inUse?.id, com.ubers.observador.domain.ContextNow(hour, product, vehicles.active.id)
+        )?.takeIf { it.profile.id != dismissed }
+    }
+        .catch { e -> android.util.Log.e("Dashboard", "Profile suggestion failed", e); emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Only after the driver taps «Usar»: the whole profile in one edit, as in Ajustes. */
+    fun applySuggestedProfile(id: String) = viewModelScope.launch {
+        val profile = settings.profiles.first().firstOrNull { it.id == id } ?: return@launch
+        if (!profile.values.isValid) return@launch
+        com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
+        settings.applyProfile(profile)
+        dismissedSuggestion.value = null
+    }
+
+    fun dismissProfileSuggestion(id: String) { dismissedSuggestion.value = id }
+
     private val window: Flow<Window> = combine(period, clockNow) { p, (clock, now) ->
         Window(p, clock, clock.periodStart(p, now), clock.workdayOf(now))
     }.distinctUntilChanged()

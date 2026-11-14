@@ -30,18 +30,22 @@ object ShadowScoring {
     fun evaluationId(offerHash: String, candidateVersionId: String) = "shadow-$candidateVersionId-$offerHash"
 
     /**
-     * Scores [features] with both models through the same engine. The active score here is
-     * recomputed with the active settings, so it equals what the overlay showed.
+     * Scores [features] with both models, each with the formula its version names (1.44.0: V1 or
+     * V2). The active score here is recomputed with the active settings, so it equals what the
+     * overlay showed. Null when either model cannot be scored honestly (V2 without a cost model in
+     * force, or an unknown formula): nothing is stored rather than a score under the wrong name.
      */
     fun evaluate(
         offerHash: String,
         features: OfferDecisionFeatures,
         active: ProfitModelVersion,
         candidate: ProfitModelVersion,
-        nowMs: Long
-    ): ShadowEvaluation {
-        val a = ProfitModelBacktester.score(features, active.settings)
-        val c = ProfitModelBacktester.score(features, candidate.settings)
+        nowMs: Long,
+        inputs: com.ubers.observador.domain.scoring.ScoreV2Inputs = com.ubers.observador.domain.scoring.ScoreV2Inputs.NONE
+    ): ShadowEvaluation? {
+        val algorithms = com.ubers.observador.domain.scoring.ScoringAlgorithms
+        val a = algorithms.score(active.algorithmVersion, features, active.settings, inputs) ?: return null
+        val c = algorithms.score(candidate.algorithmVersion, features, candidate.settings, inputs) ?: return null
         return ShadowEvaluation(
             evaluationId = evaluationId(offerHash, candidate.id),
             offerHash = offerHash,
@@ -63,7 +67,8 @@ data class DisagreementOutcome(
     val medianHourly: Double?
 )
 
-enum class ShadowGateReason { TOO_FEW_RESULTS, LOW_COVERAGE, NOT_BETTER, CRITICAL_REGRESSION }
+/** [SHADOW_ONLY] (1.44.0): the candidate's formula is not yet allowed to drive the visible score. */
+enum class ShadowGateReason { TOO_FEW_RESULTS, LOW_COVERAGE, NOT_BETTER, CRITICAL_REGRESSION, SHADOW_ONLY }
 
 data class ShadowReport(
     val candidateVersionId: String,
@@ -96,7 +101,9 @@ object ShadowAnalyzer {
         candidateVersionId: String,
         evaluations: List<ShadowEvaluation>,
         samples: List<IntelligenceSample>,
-        targetHourly: Double?
+        targetHourly: Double?,
+        /** 1.44.0: a V2 candidate is compared but can never be applied in this version. */
+        candidateAlgorithm: String = com.ubers.observador.domain.ProfitEngine.ALGORITHM_VERSION
     ): ShadowReport {
         val mine = evaluations.filter { it.candidateVersionId == candidateVersionId }
             .groupBy { it.offerHash }.map { (_, list) -> list.minBy { it.evaluatedAtMs } }
@@ -142,6 +149,7 @@ object ShadowAnalyzer {
         if (activeBelow != null && candidateBelow != null && candidateBelow - activeBelow > IntelligencePolicy.CRITICAL_REGRESSION_RATE) {
             blockers += ShadowGateReason.CRITICAL_REGRESSION
         }
+        if (candidateAlgorithm != com.ubers.observador.domain.ProfitEngine.ALGORITHM_VERSION) blockers += ShadowGateReason.SHADOW_ONLY
         val disagreementOutcomes = joined.filter { it.first.disagrees }
             .groupBy { it.first.activeCategory to it.first.candidateCategory }
             .map { (pair, list) -> DisagreementOutcome(pair.first, pair.second, list.size, Stats.median(list.map { it.second.realizedGrossPerEngagedHour!! })) }
@@ -229,6 +237,9 @@ object ModelVersionRules {
         newId: () -> String
     ): PromotionResult = when {
         !userConfirmed -> PromotionResult.NotConfirmed
+        // 1.44.0: the live path only runs V1; promoting V2 would silently become a V1 version
+        candidate.algorithmVersion != com.ubers.observador.domain.ProfitEngine.ALGORITHM_VERSION ->
+            PromotionResult.Refused(setOf(ShadowGateReason.SHADOW_ONLY))
         shadow.candidateVersionId != candidate.id || !shadow.readyForReview -> PromotionResult.Refused(shadow.blockers.ifEmpty { setOf(ShadowGateReason.NOT_BETTER) })
         else -> PromotionResult.Promoted(
             ProfitModelVersion(newId(), nextNumber(versions), nowMs, ModelVersionSource.SHADOW_PROMOTED, candidate.settings, note = "FROM:${candidate.id}")
@@ -240,6 +251,21 @@ object ModelVersionRules {
         val previous = previous(versions) ?: return null
         return ProfitModelVersion(newId(), nextNumber(versions), nowMs, ModelVersionSource.ROLLBACK, previous.settings, note = "TO:${previous.id}")
     }
+
+    /**
+     * 1.44.0: V2 under test with the settings in use, as a candidate (never active by itself, and
+     * an older app restoring a backup never treats it as active either). The same V2 candidate
+     * with the same settings is reused instead of numbering a duplicate.
+     */
+    fun v2Candidate(versions: List<ProfitModelVersion>, inUse: ProfitSettingsSnapshot, nowMs: Long, newId: () -> String): ProfitModelVersion =
+        versions.lastOrNull {
+            it.source == ModelVersionSource.CALIBRATION_RECOMMENDATION &&
+                it.algorithmVersion == com.ubers.observador.domain.scoring.ProfitEngineV2.ALGORITHM_VERSION && it.settings == inUse
+        } ?: ProfitModelVersion(
+            id = newId(), number = nextNumber(versions), createdAtMs = nowMs,
+            source = ModelVersionSource.CALIBRATION_RECOMMENDATION, settings = inUse,
+            algorithmVersion = com.ubers.observador.domain.scoring.ProfitEngineV2.ALGORITHM_VERSION, note = "V2"
+        )
 
     private fun nextNumber(versions: List<ProfitModelVersion>) = (versions.maxOfOrNull { it.number } ?: 0) + 1
 }

@@ -75,6 +75,14 @@ interface OfferDao {
     @Query("SELECT MAX(detectedAt) FROM detected_offers WHERE offer_hash NOT LIKE :excludePrefix || '%'")
     fun observeLatestDetectedAtExcluding(excludePrefix: String): Flow<Long?>
 
+    /** 1.44.0: the modalities Uber has shown in real offers, to pick a profile's context. */
+    @Query("SELECT DISTINCT product FROM detected_offers WHERE product IS NOT NULL AND product <> '' AND offer_hash NOT LIKE :excludePrefix || '%' ORDER BY product")
+    fun observeProductsExcluding(excludePrefix: String): Flow<List<String>>
+
+    /** 1.44.0: modality and time of the newest offer whose hash does not start with [excludePrefix]. */
+    @Query("SELECT product, detectedAt FROM detected_offers WHERE offer_hash NOT LIKE :excludePrefix || '%' ORDER BY detectedAt DESC LIMIT 1")
+    fun observeLatestProductExcluding(excludePrefix: String): Flow<LatestOfferProduct?>
+
     @Query("SELECT * FROM detected_offers WHERE detectedAt >= :since ORDER BY detectedAt ASC")
     suspend fun getSince(since: Long): List<OfferEntity>
 
@@ -86,3 +94,9 @@ interface OfferDao {
     @Query("SELECT * FROM detected_offers WHERE offer_hash = :hash AND detectedAt <= :at ORDER BY detectedAt DESC, id DESC LIMIT 1")
     suspend fun getLatestByHashAtOrBefore(hash: String, at: Long): OfferEntity?
 }
+
+/** 1.44.0: a projection of detected_offers for the context profile suggestion. */
+data class LatestOfferProduct(
+    @androidx.room.ColumnInfo(name = "product") val product: String?,
+    @androidx.room.ColumnInfo(name = "detectedAt") val detectedAt: Long
+)

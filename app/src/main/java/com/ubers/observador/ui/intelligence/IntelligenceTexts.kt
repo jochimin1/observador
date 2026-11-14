@@ -138,6 +138,7 @@ object IntelligenceTexts {
         ShadowGateReason.LOW_COVERAGE -> "a muchos viajes evaluados les falta el resultado"
         ShadowGateReason.NOT_BETTER -> "el candidato no ordena claramente mejor"
         ShadowGateReason.CRITICAL_REGRESSION -> "el candidato falla más en viajes 'excelentes'"
+        ShadowGateReason.SHADOW_ONLY -> "el puntaje V2 solo se compara en sombra en esta versión; tu tarjeta sigue con V1"
     }
 
     fun drift(s: DriftStatus): String? = when (s) {

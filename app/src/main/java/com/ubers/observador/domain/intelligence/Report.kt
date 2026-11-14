@@ -116,7 +116,7 @@ object IntelligenceEngine {
         val score = ScorePerformanceAnalyzer.analyze(samples, input.targetHourly)
         val drift = DriftAnalyzer.analyze(samples, input.nowMs)
         val calibration = CalibrationEngine.calibrate(samples, input.activeSettings, input.activeVersion?.id, input.targetHourly, input.nowMs, newId)
-        val shadow = input.shadowCandidate?.let { ShadowAnalyzer.analyze(it.id, input.shadowEvaluations, samples, input.targetHourly) }
+        val shadow = input.shadowCandidate?.let { ShadowAnalyzer.analyze(it.id, input.shadowEvaluations, samples, input.targetHourly, it.algorithmVersion) }
         val reproducible = samples.mapNotNull { ProfitModelBacktester.reproduces(it) }
         val anomalies = anomalies(quality, prediction, score, drift, calibration, shadow)
         val health = health(quality, anomalies, calibration)

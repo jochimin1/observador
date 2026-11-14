@@ -16,7 +16,12 @@ import kotlinx.coroutines.flow.first
  * notifications and stored score all come from the active model. Only hash, scores and version
  * ids are stored.
  */
-class ShadowScorer(private val settings: AppSettings, private val repository: IntelligenceRepository) {
+class ShadowScorer(
+    private val settings: AppSettings,
+    private val repository: IntelligenceRepository,
+    /** 1.44.0: cost models and wait history for a V2 candidate. */
+    private val inputs: com.ubers.observador.data.ScoreInputsRepository? = null
+) {
 
     suspend fun score(offer: UberOffer, offerHash: String, nowMs: Long) {
         val candidateId = settings.shadowModelVersionId.first() ?: return
@@ -24,7 +29,15 @@ class ShadowScorer(private val settings: AppSettings, private val repository: In
         val active = repository.ensureCurrent(settings.profitSettings.first(), nowMs)
         val amount = MoneyAmount.fromLegacyDouble(offer.price, Currencies.DOP) ?: return
         val features = OfferDecisionFeatures(amount, offer.pickupKm, offer.pickupMin, offer.tripKm, offer.tripMin, offer.detectedAt)
-        val stored = repository.saveShadow(ShadowScoring.evaluate(offerHash, features, active, candidate, nowMs))
+        val context = if (candidate.algorithmVersion == com.ubers.observador.domain.scoring.ProfitEngineV2.ALGORITHM_VERSION) {
+            inputs?.inputs(nowMs) ?: com.ubers.observador.domain.scoring.ScoreV2Inputs.NONE
+        } else com.ubers.observador.domain.scoring.ScoreV2Inputs.NONE
+        // Null: V2 without a cost model in force; nothing is stored under its name
+        val evaluation = ShadowScoring.evaluate(offerHash, features, active, candidate, nowMs, context) ?: run {
+            Log.d(TAG, "Shadow skipped: candidate ${candidate.number} cannot score this offer")
+            return
+        }
+        val stored = repository.saveShadow(evaluation)
         if (stored) Log.d(TAG, "Shadow scored an offer for candidate ${candidate.number}")
     }
 
