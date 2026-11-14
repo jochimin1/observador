@@ -76,7 +76,16 @@ data class ExpensesUiState(
     val items: List<ExpenseItem> = emptyList(),
     val filter: ExpenseFilter = ExpenseFilter.ALL,
     val hasIntervals: Boolean = false,
-    val clock: WorkdayClock = WorkdayClock(4, ZoneId.systemDefault())
+    val clock: WorkdayClock = WorkdayClock(4, ZoneId.systemDefault()),
+    /** 1.46.0: shifts of the active motorbike, newest first; the open one (if any) apart. */
+    val shifts: List<WorkShift> = emptyList(),
+    val openShift: WorkShift? = null,
+    /** GPS km since the open shift started, only as a reference beside the odometer. */
+    val openShiftGpsKm: Long? = null,
+    val workShare: WorkShareMeasurement? = null,
+    val manualShare: Int = 100,
+    val shareSuggestion: WorkShareSuggestion? = null,
+    val lastOdometerKm: Long? = null
 )
 
 /**
@@ -91,6 +100,7 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
     private val distances = DistanceRepository(db)
     private val vehicles = VehicleRepository(db)
     private val operating = OperatingRepository(db)
+    private val workShifts = com.ubers.observador.data.WorkShiftRepository(db)
     private val money = FinancialRepository(db)
     private val settings = AppSettings(app)
 
@@ -146,9 +156,10 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val vehicleConfig = combine(config, vehicles.observe(), operating.observeModels()) { cfg, care, models -> Triple(cfg, care, models) }
+    private val shiftInputs = combine(workShifts.observe(), settings.workShareDismissedPct) { s, d -> s to d }
     val state: StateFlow<ExpensesUiState> = combine(
-        realData, vehicleConfig, period, filter
-    ) { (data, segments), vehicle, p, f -> Inputs(data, segments, vehicle.first, p, f, vehicle.second, vehicle.third) }
+        realData, vehicleConfig, period, filter, shiftInputs
+    ) { (data, segments), vehicle, p, f, sh -> Inputs(data, segments, vehicle.first, p, f, vehicle.second, vehicle.third, sh.first, sh.second) }
         .mapLatest { compute(it) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExpensesUiState())
@@ -160,7 +171,9 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         val period: ExpensePeriod,
         val filter: ExpenseFilter,
         val care: VehicleCareData,
-        val models: List<OperatingCostModel>
+        val models: List<OperatingCostModel>,
+        val shifts: List<WorkShift>,
+        val dismissedShare: Int?
     )
 
     private suspend fun compute(i: Inputs): ExpensesUiState {
@@ -183,8 +196,16 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         val overview = ExpenseOverviews.build(
             active.fuel, active.expenses, active.readings, segments, plans.associate { it.type to it.intervalKm }, i.cfg.kmPerGallon, i.cfg.pricePerGallon, now
         )
+        // Shift readings are shown and edited in «Jornadas», not as loose odometer lines
+        val shiftReadings = i.shifts.flatMap { listOfNotNull(it.start.id, it.end?.id) }.toSet()
         val all = i.data.fuel.map { ExpenseItem.Fuel(it) } + i.data.expenses.map { ExpenseItem.Expense(it) } +
-            i.data.readings.map { ExpenseItem.Odometer(it) }
+            i.data.readings.filter { it.id !in shiftReadings }.map { ExpenseItem.Odometer(it) }
+        val activeShifts = i.shifts.filter { it.vehicleId == i.care.active.id }
+        val activeTimeline = Odometer.timeline(active.fuel, active.expenses, active.readings)
+        val (shareFrom, shareTo) = WorkShiftRules.lastPeriod(clock, now)
+        val measurement = WorkShiftRules.measure(activeShifts, activeTimeline, clock, shareFrom, shareTo)
+        val open = activeShifts.lastOrNull { it.isOpen }
+        val openGps = open?.let { o -> com.ubers.observador.domain.distance.DistanceTotals.kmBetween(segments, o.start.atMs, now, now) }
         val items = all.filter { item ->
             when (i.filter) {
                 ExpenseFilter.ALL -> true
@@ -211,7 +232,14 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
             items = items,
             filter = i.filter,
             hasIntervals = i.cfg.intervals.values.any { it > 0 },
-            clock = clock
+            clock = clock,
+            shifts = activeShifts.filter { !it.isOpen }.sortedByDescending { it.start.atMs },
+            openShift = open,
+            openShiftGpsKm = openGps,
+            workShare = measurement,
+            manualShare = i.cfg.workShare,
+            shareSuggestion = WorkShiftRules.suggestion(measurement, i.cfg.workShare, i.dismissedShare),
+            lastOdometerKm = activeTimeline.lastOrNull()?.km
         )
     }
 
@@ -247,6 +275,42 @@ class ExpensesViewModel(app: Application) : AndroidViewModel(app) {
         settings.updateKmPerGallon(s.kmPerGallonTenths / 10.0)
         settings.updateFuelPricePerGallon(s.pricePerGallonMinor / 100.0)
     }
+
+    // --- 1.46.0: work shifts ---
+
+    suspend fun startShift(km: Long, atMs: Long, reset: Boolean): String? {
+        val problem = workShifts.start(km, atMs, reset, System.currentTimeMillis())
+        if (problem == null) MaintenanceNotifier.check(getApplication())
+        return problem
+    }
+
+    suspend fun finishShift(id: String, km: Long, atMs: Long, confirmed: Boolean): ShiftCheck {
+        val result = workShifts.finish(id, km, atMs, System.currentTimeMillis(), confirmed)
+        if (result == ShiftCheck.Ok) MaintenanceNotifier.check(getApplication())
+        return result
+    }
+
+    suspend fun editShiftStart(id: String, km: Long, atMs: Long, reset: Boolean): String? =
+        workShifts.editStart(id, km, atMs, reset, System.currentTimeMillis())
+
+    val shiftReminders: StateFlow<Boolean> = settings.shiftReminders.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    fun setShiftReminders(on: Boolean) = viewModelScope.launch { settings.updateShiftReminders(on) }
+
+    private val _deletedShift = MutableSharedFlow<WorkShift>(extraBufferCapacity = 1)
+    val deletedShifts: SharedFlow<WorkShift> = _deletedShift.asSharedFlow()
+
+    fun deleteShift(id: String) = write { workShifts.delete(id)?.let { _deletedShift.emit(it) } }
+    fun undoShift(shift: WorkShift) = write { workShifts.restore(shift) }
+
+    /** «Usar N %»: one share for Ajustes (Ganancias, reports) and the motorbike. Cost models keep their own versions. */
+    fun acceptShare(s: WorkShareSuggestion) = viewModelScope.launch {
+        settings.updateWorkSharePct(s.measuredPct)
+        vehicles.setActiveShare(s.measuredPct, System.currentTimeMillis())
+        settings.updateWorkShareDismissedPct(null)
+    }
+
+    /** «Ahora no»: comes back when the measured % moves [WorkShiftRules.SUGGEST_AGAIN_POINTS] or more. */
+    fun dismissShare(s: WorkShareSuggestion) = viewModelScope.launch { settings.updateWorkShareDismissedPct(s.measuredPct) }
 
     private fun write(block: suspend () -> Unit) = viewModelScope.launch {
         try {

@@ -77,7 +77,7 @@ private fun <T> FieldResult<T>.value(): T? = (this as? FieldResult.Ok)?.value
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Unit) {
+internal fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
         Icon(painterResource(R.drawable.ic_calendar_month), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -99,7 +99,7 @@ private fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Uni
 }
 
 @Composable
-private fun NumberField(label: String, value: String, onValue: (String) -> Unit, error: String?, suffix: String? = null, decimal: Boolean = true, supporting: String? = null) {
+internal fun NumberField(label: String, value: String, onValue: (String) -> Unit, error: String?, suffix: String? = null, decimal: Boolean = true, supporting: String? = null) {
     val shown = if (value.isNotBlank() && error != null) error else supporting
     OutlinedTextField(
         colors = com.ubers.observador.ui.theme.appFieldColors(),

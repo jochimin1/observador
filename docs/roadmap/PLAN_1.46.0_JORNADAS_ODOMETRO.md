@@ -1,6 +1,6 @@
 # Plan 1.46.0 — Uso laboral medido por odómetro de jornada
 
-Estado: **aprobado para implementar** (decisiones del conductor del 2026-11-14). Se trabaja en una rama creada desde `release/1.45.0`, cuando esa entrega tenga su commit y sus referencias.
+Estado: **entregado en 1.46.0 (2026-11-14); la comprobación física con jornadas reales sigue pendiente** (decisiones del conductor del 2026-11-14). Se trabaja en una rama creada desde `release/1.45.0`, cuando esa entrega tenga su commit y sus referencias.
 
 ## Problema
 
@@ -46,7 +46,7 @@ Las lecturas de odómetro (`odometer_readings`) ya existen, pero no indican si s
 
 ### Sugerencia y confirmación
 
-- En Gastos → Mi moto aparece: «Uso laboral medido este mes: 82 % (de 74 % manual). Basado en 14 jornadas · 1.240 km Uber · 270 km personales». Los botones son **Usar 82 %** y **Ahora no**.
+- En Gastos → Mi moto aparece: «Uso laboral medido (últimos 30 días): 82 % (de 74 % manual). Basado en 14 jornadas · 1.240 km Uber · 270 km personales». Los botones son **Usar 82 %** y **Ahora no**.
 - Al confirmar, el % se guarda en un solo lugar: el % manual de Ajustes y de la ficha de la moto quedan unificados. Para los modelos de costos se propone una versión nueva, y la anterior se conserva con su vigencia.
 - «Ahora no» oculta esa sugerencia hasta que el % medido cambie al menos 3 puntos.
 

@@ -25,6 +25,7 @@ class VehicleRepository(private val db: AppDatabase) {
                 if (now <= current.startedAt) return@withTransaction "La nueva moto debe empezar después de la anterior."
                 val open = db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM trips WHERE status IN ('TO_PICKUP','ARRIVED_OR_WAITING','IN_TRIP','UNKNOWN')").use { it.moveToFirst(); it.getInt(0) }
                 if (open > 0) return@withTransaction "Cierra el viaje activo antes de cambiar de moto."
+                if (db.workShiftDao().open() != null) return@withTransaction "Termina la jornada abierta antes de cambiar de moto."
                 val future = listOf("fuel_entries", "expense_entries", "odometer_readings").sumOf { table ->
                     db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table WHERE vehicle_id = ? AND at >= ?", arrayOf<Any>(current.id, now)).use { it.moveToFirst(); it.getInt(0) }
                 }
@@ -33,6 +34,14 @@ class VehicleRepository(private val db: AppDatabase) {
                 dao.put(VehicleProfile(UUID.randomUUID().toString(), name.trim(), share, now, updatedAt = now).toEntity())
             } else dao.put(current.copy(name = name.trim(), workSharePct = share, updatedAt = now).toEntity())
             null
+        }
+    }
+
+    /** 1.46.0: the measured share the driver confirmed, written on the active motorbike. */
+    suspend fun setActiveShare(share: Int, now: Long): Unit = MaintenanceGate.shared.access {
+        db.withTransaction {
+            val current = dao.vehicles().lastOrNull { it.retiredAt == null }?.toDomain() ?: VehicleProfile()
+            dao.put(current.copy(workSharePct = share.coerceIn(0, 100), updatedAt = now).toEntity())
         }
     }
 

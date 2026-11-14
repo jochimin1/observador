@@ -69,6 +69,11 @@ class AppSettings(private val context: Context) {
         private val KEY_ROUTE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("route_enabled")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
+        // 1.46.0: measured work share the driver answered «Ahora no» to; reminders already sent
+        private val KEY_WORK_SHARE_DISMISSED = intPreferencesKey("work_share_dismissed_pct")
+        private val KEY_SHIFT_REMINDER_START = stringPreferencesKey("shift_reminder_start")
+        private val KEY_SHIFT_REMINDER_END = stringPreferencesKey("shift_reminder_end")
+        private val KEY_SHIFT_REMINDERS = androidx.datastore.preferences.core.booleanPreferencesKey("shift_reminders")
         private val KEY_MAINTENANCE_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("maintenance_notification")
         private fun intervalKey(type: com.ubers.observador.domain.expenses.ExpenseType) =
             androidx.datastore.preferences.core.longPreferencesKey("maintenance_interval_km_${type.storageKey.lowercase()}")
@@ -306,6 +311,26 @@ class AppSettings(private val context: Context) {
 
     suspend fun updateWorkSharePct(value: Int) = editSettings {
         it[KEY_WORK_SHARE] = value.coerceIn(com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MIN, com.ubers.observador.domain.expenses.ExpenseLimits.WORK_SHARE_MAX)
+    }
+
+    /** 1.46.0: the measured % the driver declined; null = never declined. */
+    val workShareDismissedPct: Flow<Int?> = context.dataStore.data.map { it[KEY_WORK_SHARE_DISMISSED] }
+
+    suspend fun updateWorkShareDismissedPct(value: Int?) = editSettings {
+        if (value == null) { it.remove(KEY_WORK_SHARE_DISMISSED) } else { it[KEY_WORK_SHARE_DISMISSED] = value.coerceIn(0, 100) }
+    }
+
+    /** 1.46.0: «Anota el odómetro» reminders (on by default, decision 3 of 14/11). */
+    val shiftReminders: Flow<Boolean> = context.dataStore.data.map { it[KEY_SHIFT_REMINDERS] ?: true }
+
+    suspend fun updateShiftReminders(value: Boolean) = editSettings { it[KEY_SHIFT_REMINDERS] = value }
+
+    /** Key of the last reminder sent of each kind, so each is sent once. */
+    suspend fun shiftReminderSent(kind: com.ubers.observador.domain.expenses.ShiftReminderKind): String? =
+        context.dataStore.data.map { it[if (kind == com.ubers.observador.domain.expenses.ShiftReminderKind.START) KEY_SHIFT_REMINDER_START else KEY_SHIFT_REMINDER_END] }.first()
+
+    suspend fun markShiftReminderSent(kind: com.ubers.observador.domain.expenses.ShiftReminderKind, key: String) = editSettings {
+        it[if (kind == com.ubers.observador.domain.expenses.ShiftReminderKind.START) KEY_SHIFT_REMINDER_START else KEY_SHIFT_REMINDER_END] = key
     }
 
     /** Reminder interval per maintenance kind, in km; 0 = no reminder. None comes preset (it depends on the bike and the oil). */

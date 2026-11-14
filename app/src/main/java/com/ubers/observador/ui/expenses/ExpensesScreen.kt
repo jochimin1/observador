@@ -132,6 +132,15 @@ fun ExpensesScreen(
     }
 
     LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) {
+        viewModel.deletedShifts.collect { deleted ->
+            scope.launch {
+                snackbar.currentSnackbarData?.dismiss()
+                val r = snackbar.showSnackbar("Jornada borrada", actionLabel = "Deshacer", duration = SnackbarDuration.Long)
+                if (r == SnackbarResult.ActionPerformed) viewModel.undoShift(deleted)
+            }
+        }
+    }
     val activeVehicle = state.care.active.id
     fun timelineFor(id: String?) = id?.let { state.entryTimelines[it] } ?: timeline
     when (val f = form) {
@@ -208,6 +217,8 @@ fun ExpensesScreen(
                     }
                 }
             }
+            // 1.46.0: work shifts and the measured work share, above the motorbike card
+            if (!state.loading) item { WorkShiftPanel(state, viewModel) }
             if (!state.loading) item { VehiclePanel(state, viewModel::saveVehicle, viewModel::savePlan, viewModel::saveModel) }
             state.summary?.let { s -> item { SummaryCard(s, state.net, state.from?.format(MONTH) ?: "") } }
             item { EfficiencyCard(state.overview.efficiency, state.overview.suggestion) { confirmSuggestion = it } }

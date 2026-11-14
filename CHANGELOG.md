@@ -14,6 +14,21 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.46.0] — 2026-11-14
+
+Uso laboral medido por odómetro de jornada. Notas: [docs/releases/1.46.0.md](docs/releases/1.46.0.md).
+
+### Añadido
+- «Jornada» en Gastos: odómetro al iniciar y al terminar cada jornada de Uber; varias jornadas por día. Cada lectura es también una lectura normal de odómetro (rendimiento y mantenimiento la usan).
+- Uso laboral medido de los últimos 30 días: km Uber = Σ(fin − inicio); km personales = Σ(inicio − fin anterior), misma moto y sin reinicio entre ambas. Requiere al menos 2 jornadas cerradas y un tramo personal medible; si no, se usa el % manual («no medido»).
+- Sugerencia «Usar N %» / «Ahora no»: nunca se aplica sola. Al confirmar se actualizan el % de Ajustes y de la ficha de la moto; los modelos de costos no cambian. «Ahora no» vuelve solo si el % medido se mueve 3 puntos o más.
+- Recordatorios (activados por defecto, con interruptor): al conectarse a Uber sin jornada abierta, y tras 30 min desconectado con la jornada abierta. Uno por conexión o desconexión; nunca abren ni cierran una jornada.
+- Controles: una sola jornada abierta; fin no menor que el inicio ni anterior a él; horas no futuras ni solapadas; más de 600 km pide confirmación; odómetro menor que el anterior exige marcar reinicio; no se cambia de moto ni se termina la jornada con un viaje abierto.
+- Historial de jornadas con corrección de inicio/final y borrado con «Deshacer». Km GPS desde el inicio como referencia.
+
+### Base de datos
+- Room 20: tabla `work_shifts` (migración aditiva 19 → 20). Respaldos, exportación completa y borrado la incluyen sin cambios de formato.
+
 ## [1.45.0] — 2026-11-14
 
 - Conservación completa e indefinida por defecto, exportación integral JSON y respaldo cifrado opcional con todos los datos.

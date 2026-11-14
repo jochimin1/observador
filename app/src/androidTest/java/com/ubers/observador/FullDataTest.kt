@@ -69,7 +69,7 @@ class FullDataTest {
         com.ubers.observador.domain.backup.EncryptedBackup.decrypt(encrypted.toByteArray().inputStream(), clear, password)
         val restorer = com.ubers.observador.data.backup.BackupRestorer(context)
         try {
-            val prepared = restorer.prepare(clear.toByteArray().inputStream(), 19)
+            val prepared = restorer.prepare(clear.toByteArray().inputStream(), 20)
             assertEquals(original.manifest.rows, prepared.manifest.rows)
             assertEquals(original.manifest.sha256, prepared.manifest.sha256)
         } finally { restorer.discard(); password.fill('\u0000') }

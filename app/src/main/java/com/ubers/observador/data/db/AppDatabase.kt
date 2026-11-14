@@ -32,9 +32,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
-        TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class
+        TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class,
+        WorkShiftEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,9 +61,19 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun operatingCostDao(): OperatingCostDao
     abstract fun vehicleDao(): VehicleDao
+    abstract fun workShiftDao(): WorkShiftDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.46.0: work shifts (odometer at start and end of each Uber shift). Only CREATE TABLE. */
+        internal val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS work_shifts (id TEXT NOT NULL, vehicle_id TEXT NOT NULL, start_reading_id TEXT NOT NULL, end_reading_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_work_shifts_start_reading_id ON work_shifts (start_reading_id)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_work_shifts_end_reading_id ON work_shifts (end_reading_id)")
+            }
+        }
 
         internal val MIGRATION_18_19 = object : Migration(18, 19) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -459,7 +470,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .build()
     }
 }

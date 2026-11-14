@@ -142,6 +142,12 @@ class ObservadorForegroundService : Service() {
                     RouteMonitor.onRide(ride, now)
                 }
         }
+        // 1.46.0: «Anota el odómetro» reminders, from the latest online session (checked at most once a minute)
+        scope.launch {
+            val online = com.ubers.observador.data.OnlineRepository(com.ubers.observador.data.db.AppDatabase.getInstance(applicationContext))
+            combine(online.observeRecent(1), ticker.map { it / 60_000 }.distinctUntilChanged()) { recent, _ -> recent.firstOrNull() }
+                .collect { ShiftReminderNotifier.check(applicationContext, it, System.currentTimeMillis()) }
+        }
         // Fase 8K: «Grabar recorrido» in Ajustes
         scope.launch { settings.routeEnabled.collect { RouteMonitor.setEnabled(it) } }
         // Whether to measure: switch, permission, pause, mode, online, button
