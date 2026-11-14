@@ -148,6 +148,8 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
             Limitations()
             // 1.36.0: offers of the week in the driver's care sectors
             SectorWeekCard()
+            // 1.47.0: zones measured with the GPS of the trips taken
+            ZonesCard()
             val report = state.report
             when {
                 state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

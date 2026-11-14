@@ -67,23 +67,80 @@ object SectorMatcher {
         return false
     }
 
-    /** Every sector of [sectors] found in the pickup and the drop-off, each address checked only where the sector says. */
-    fun match(pickup: String?, dropoff: String?, sectors: List<CareSector>): SectorMatch {
+    /** The name or alias of [sector] found in [address], or null (rule 3, any name counts). */
+    fun nameFound(address: String?, sector: CareSector): String? = sector.names.firstOrNull { matches(address, it) }
+
+    /** The exception of [sector] found anywhere in [address], or null: it cancels the sector (1.47.0). */
+    fun exceptionFound(address: String?, sector: CareSector): String? = sector.exceptions.firstOrNull { matches(address, it) }
+
+    /** Whether [sector] is in [address]: some name found and no exception found. */
+    fun matchesSector(address: String?, sector: CareSector): Boolean =
+        nameFound(address, sector) != null && exceptionFound(address, sector) == null
+
+    /**
+     * Every sector of [sectors] found in the pickup and the drop-off, each address checked only where
+     * the sector says. 1.47.0: disabled sectors never match; with a [context] the schedule and the
+     * modality of each sector apply too.
+     */
+    fun match(pickup: String?, dropoff: String?, sectors: List<CareSector>, context: SectorContext? = null): SectorMatch {
         if (sectors.isEmpty()) return SectorMatch.NONE
         val hits = mutableListOf<SectorHit>()
         sectors.forEach { s ->
-            if (s.where.covers(OfferPlaceKind.PICKUP) && matches(pickup, s.name)) hits += SectorHit(s, OfferPlaceKind.PICKUP)
-            if (s.where.covers(OfferPlaceKind.DROPOFF) && matches(dropoff, s.name)) hits += SectorHit(s, OfferPlaceKind.DROPOFF)
+            if (!s.enabled || !s.appliesTo(context)) return@forEach
+            if (s.where.covers(OfferPlaceKind.PICKUP) && matchesSector(pickup, s)) hits += SectorHit(s, OfferPlaceKind.PICKUP)
+            if (s.where.covers(OfferPlaceKind.DROPOFF) && matchesSector(dropoff, s)) hits += SectorHit(s, OfferPlaceKind.DROPOFF)
         }
         return SectorMatch(hits)
     }
+
+    /** Why one sector did or did not match one address (Ajustes › Probar reglas, 1.47.0). */
+    sealed interface Verdict {
+        data class Matched(val name: String, val part: String) : Verdict
+        data class Excepted(val name: String, val exception: String) : Verdict
+        data object Disabled : Verdict
+        data object OtherPlace : Verdict
+        data class OutOfSchedule(val schedule: SectorSchedule) : Verdict
+        data class OtherProduct(val product: String) : Verdict
+        data object NotFound : Verdict
+    }
+
+    data class Explanation(val sector: CareSector, val verdict: Verdict) {
+        val warns: Boolean get() = verdict is Verdict.Matched
+    }
+
+    /** The part of [address] in which [name] was found, as Uber wrote it. */
+    private fun partOf(address: String?, name: String): String? {
+        val needle = words(name)
+        return displayParts(address).firstOrNull { containsRun(words(it), needle) }
+    }
+
+    /**
+     * Every sector checked against [address] read as [place], with the reason of each result; the
+     * ones that say something (found, cancelled, out of schedule…) first. The order of the checks is
+     * the one [match] uses, so the tester never says «avisa» when the card would not.
+     */
+    fun explain(address: String?, place: OfferPlaceKind, sectors: List<CareSector>, context: SectorContext?): List<Explanation> =
+        sectors.map { s ->
+            val found = nameFound(address, s)
+            val verdict = when {
+                found == null -> Verdict.NotFound
+                !s.where.covers(place) -> Verdict.OtherPlace
+                exceptionFound(address, s) != null -> Verdict.Excepted(found, exceptionFound(address, s)!!)
+                !s.enabled -> Verdict.Disabled
+                context != null && s.schedule != null &&
+                    !s.schedule.isActive(java.time.Instant.ofEpochMilli(context.atMs).atZone(context.zone)) -> Verdict.OutOfSchedule(s.schedule)
+                !s.appliesTo(context) -> Verdict.OtherProduct(s.product.orEmpty())
+                else -> Verdict.Matched(found, partOf(address, found) ?: found)
+            }
+            Explanation(s, verdict)
+        }.sortedBy { if (it.verdict is Verdict.NotFound) 1 else 0 }
 
     /**
      * Sectors seen in past addresses, most frequent first, as Uber wrote them: the suggestions of
      * Ajustes › Sectores de cuidado. Municipalities and sectors both count; streets do not.
      */
     fun suggestions(addresses: List<String?>, already: List<CareSector>, limit: Int = 12): List<String> {
-        val taken = already.map { words(it.name) }.toSet()
+        val taken = already.flatMap { it.names }.map { words(it) }.toSet()
         val counts = LinkedHashMap<List<String>, Pair<String, Int>>()
         addresses.forEach { a ->
             displayParts(a).filterNot { isStreet(it) }.forEach { part ->

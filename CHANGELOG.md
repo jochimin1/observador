@@ -14,6 +14,21 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.47.0] — 2026-11-14
+
+Sectores configurables y zonas de trabajo. Notas: [docs/releases/1.47.0.md](docs/releases/1.47.0.md).
+
+### Añadido
+- Sectores de cuidado con otros nombres, excepciones (en cualquier parte de la dirección), horario por días y horas (puede cruzar la medianoche; cuenta como el día en que empieza), modalidad y activo/apagado. Sin campos nuevos, el formato guardado es idéntico al de 1.35.0.
+- «Probar reglas» en Ajustes › Sectores: partes de la dirección comparadas y, por sector, si avisa ahora y por qué (encontrado, excepción, otro lugar, fuera de horario, otra modalidad, desactivado). Mismas comprobaciones que la tarjeta flotante.
+- «Zonas de trabajo (GPS)» en Análisis: cuadrícula fija de unos 1,5 km. La recogida es el primer punto con pasajero del recorrido; el destino, el último. Por zona: RD$ por hora con dinero confirmado (aceptación a final), recogida, espera, y tras dejar aquí, minutos hasta el siguiente viaje (máximo una hora) y km en línea recta hasta donde se aceptó.
+- Clasificación contra la mediana propia (±15 %) solo con 5 o más viajes con dinero confirmado; menos es «pocos datos». Una zona sin viajes no se muestra. Periodos de 7, 30 y 90 días.
+- Nombres de zona (varias celdas con el mismo nombre se suman) y zonas privadas ocultas del mapa y la lista.
+
+### Sin cambios
+- Room 20. Las zonas se calculan desde `trip_route_points`; no hay migración.
+- El cierre automático sigue en simulación (`CloseTarget.VALIDATED = false`).
+
 ## [1.46.0] — 2026-11-14
 
 Uso laboral medido por odómetro de jornada. Notas: [docs/releases/1.46.0.md](docs/releases/1.46.0.md).

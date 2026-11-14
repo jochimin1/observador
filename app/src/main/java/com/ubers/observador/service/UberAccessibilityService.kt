@@ -402,7 +402,9 @@ class UberAccessibilityService : AccessibilityService() {
         if (!config.sectorsEnabled) return null
         val sectors = config.sectors
         if (sectors.isEmpty()) return null
-        return com.ubers.observador.domain.sectors.SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors)
+        return com.ubers.observador.domain.sectors.SectorMatcher.match(
+            offer.pickupAddress, offer.dropoffAddress, sectors, com.ubers.observador.domain.sectors.SectorContext.of(offer)
+        )
             .takeIf { !it.isEmpty }
     }
 

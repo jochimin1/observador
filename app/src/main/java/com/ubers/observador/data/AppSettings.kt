@@ -173,6 +173,32 @@ class AppSettings(private val context: Context) {
         it[stringPreferencesKey("care_sectors")] = com.ubers.observador.domain.sectors.CareSectorCodec.encode(list)
     }
 
+    /** 1.47.0: names given to cells of the zone grid and the private cells (hidden from Zonas). */
+    val zoneSettings: Flow<com.ubers.observador.domain.zones.ZoneSettings> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.zones.ZoneSettings(
+            com.ubers.observador.domain.zones.ZoneSettingsCodec.decodeNames(prefs[stringPreferencesKey("zone_names")]).orEmpty(),
+            com.ubers.observador.domain.zones.ZoneSettingsCodec.decodePrivate(prefs[stringPreferencesKey("zone_private")]).orEmpty()
+        )
+    }
+
+    /** Names [cells] as [name] (null or blank removes the name). */
+    suspend fun nameZone(cells: List<String>, name: String?) = editSettings {
+        val names = com.ubers.observador.domain.zones.ZoneSettingsCodec.decodeNames(it[stringPreferencesKey("zone_names")]).orEmpty().toMutableMap()
+        val clean = name?.let(com.ubers.observador.domain.zones.ZoneSettingsCodec::cleanName).orEmpty()
+        cells.forEach { id -> if (clean.isEmpty()) names.remove(id) else names[id] = clean }
+        if (names.size <= com.ubers.observador.domain.zones.ZoneSettings.MAX_NAMES) {
+            it[stringPreferencesKey("zone_names")] = com.ubers.observador.domain.zones.ZoneSettingsCodec.encodeNames(names)
+        }
+    }
+
+    suspend fun setZonePrivate(cells: List<String>, hide: Boolean) = editSettings {
+        val set = com.ubers.observador.domain.zones.ZoneSettingsCodec.decodePrivate(it[stringPreferencesKey("zone_private")]).orEmpty().toMutableSet()
+        if (hide) set += cells else set -= cells.toSet()
+        if (set.size <= com.ubers.observador.domain.zones.ZoneSettings.MAX_PRIVATE) {
+            it[stringPreferencesKey("zone_private")] = com.ubers.observador.domain.zones.ZoneSettingsCodec.encodePrivate(set)
+        }
+    }
+
     /** 1.35.0: the general switch «Avisar por sectores» (on by default; nothing happens with an empty list). */
     val careSectorsEnabled: Flow<Boolean> = context.dataStore.data.map { it[androidx.datastore.preferences.core.booleanPreferencesKey("care_sectors_enabled")] ?: true }
 

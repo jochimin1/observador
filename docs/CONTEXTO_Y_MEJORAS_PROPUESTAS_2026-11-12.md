@@ -273,6 +273,8 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 
 ### 1.46.0 — Sectores configurables y zonas de trabajo
 
+> Entregada como **1.47.0** ([plan](roadmap/PLAN_1.47.0_SECTORES_Y_ZONAS.md)).
+
 **Prioridad P2 · esfuerzo mediano/grande · depende de datos de ubicación y privacidad · propósito:** adaptar avisos al contexto y conocer el rendimiento histórico de las zonas.
 
 - Alias de sectores, excepciones, horarios y modalidad; una pantalla de prueba explica qué fragmento de la dirección hizo coincidir una regla.

@@ -15,8 +15,9 @@ data class SectorCount(val name: String, val pickup: Int, val dropoff: Int) {
  */
 object SectorStats {
 
-    fun matchOf(o: OfferEntity, sectors: List<CareSector>): SectorMatch =
-        SectorMatcher.match(o.pickupAddress, o.dropoffAddress, sectors)
+    /** 1.47.0: as the card would have said it, with the moment and modality of the offer. */
+    fun matchOf(o: OfferEntity, sectors: List<CareSector>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): SectorMatch =
+        SectorMatcher.match(o.pickupAddress, o.dropoffAddress, sectors, SectorContext(o.detectedAt, zone, o.product))
 
     fun isFlagged(o: OfferEntity, sectors: List<CareSector>): Boolean =
         sectors.isNotEmpty() && !matchOf(o, sectors).isEmpty
@@ -38,7 +39,10 @@ object SectorStats {
     fun counts(offers: List<OfferEntity>, sectors: List<CareSector>): List<SectorCount> =
         countsOf(offers.filterNot { it.excludedFromAnalysis }.map { it.pickupAddress to it.dropoffAddress }, sectors)
 
-    /** [counts] from (pickup, drop-off) pairs, as read straight from the table. */
+    /**
+     * [counts] from (pickup, drop-off) pairs, as read straight from the table. By address only: the
+     * schedule and modality of each sector are not applied (1.47.0), disabled sectors are left out.
+     */
     fun countsOf(addresses: List<Pair<String?, String?>>, sectors: List<CareSector>): List<SectorCount> {
         if (sectors.isEmpty()) return emptyList()
         val pickup = HashMap<String, Int>()

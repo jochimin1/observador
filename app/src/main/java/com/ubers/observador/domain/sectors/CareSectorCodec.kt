@@ -9,8 +9,34 @@ import com.ubers.observador.domain.backup.MiniJson
  */
 object CareSectorCodec {
 
+    /**
+     * 1.47.0 adds optional keys, written only when used, so a list without them is byte for byte the
+     * 1.35.0 format: `a` aliases, `x` exceptions, `d` ISO days, `f`/`t` minutes, `p` modality and
+     * `e:false` for a disabled sector.
+     */
     fun encode(sectors: List<CareSector>): String =
-        MiniJson.write(sectors.map { mapOf("n" to it.name, "w" to it.where.name, "l" to it.level.name) })
+        MiniJson.write(sectors.map { s ->
+            val m = linkedMapOf<String, Any?>("n" to s.name, "w" to s.where.name, "l" to s.level.name)
+            if (s.aliases.isNotEmpty()) m["a"] = s.aliases
+            if (s.exceptions.isNotEmpty()) m["x"] = s.exceptions
+            s.schedule?.let { m["d"] = it.days.sorted().map { d -> d.toLong() }; m["f"] = it.fromMin.toLong(); m["t"] = it.toMin.toLong() }
+            s.product?.let { m["p"] = it }
+            if (!s.enabled) m["e"] = false
+            m
+        })
+
+    private fun names(v: Any?, max: Int): List<String>? {
+        if (v == null) return emptyList()
+        val list = v as? List<*> ?: return null
+        if (list.size > max) return null
+        return list.map { item ->
+            val n = (item as? String)?.let(::cleanName) ?: return null
+            if (n.isEmpty() || n.length > CareSector.MAX_NAME) return null
+            n
+        }
+    }
+
+    private fun minute(v: Any?): Int? = (v as? Long)?.takeIf { it in 0L..1439L }?.toInt()
 
     fun decode(text: String?): List<CareSector>? {
         if (text.isNullOrBlank()) return emptyList()
@@ -23,10 +49,23 @@ object CareSectorCodec {
             if (name.isEmpty() || name.length > CareSector.MAX_NAME) return null
             val where = (m["w"] as? String)?.let { w -> SectorWhere.entries.firstOrNull { it.name == w } } ?: return null
             val level = (m["l"] as? String)?.let { l -> SectorLevel.entries.firstOrNull { it.name == l } } ?: return null
-            out += CareSector(name, where, level)
+            val aliases = names(m["a"], CareSector.MAX_ALIASES) ?: return null
+            val exceptions = names(m["x"], CareSector.MAX_EXCEPTIONS) ?: return null
+            val schedule = if (m.containsKey("d") || m.containsKey("f") || m.containsKey("t")) {
+                val days = (m["d"] as? List<*>)?.map { d -> (d as? Long)?.takeIf { it in 1L..7L }?.toInt() ?: return null } ?: return null
+                SectorSchedule(days.toSet(), minute(m["f"]) ?: return null, minute(m["t"]) ?: return null)
+            } else null
+            val product = if (m.containsKey("p")) (m["p"] as? String)?.trim()?.takeIf { it.isNotEmpty() && it.length <= 30 } ?: return null else null
+            val enabled = if (m.containsKey("e")) m["e"] as? Boolean ?: return null else true
+            out += CareSector(name, where, level, aliases, exceptions, schedule, product, enabled)
         }
         return out
     }
+
+    /** «Alcarrizos; Los Alcarrizos» → each one tidied, empty and repeated ones dropped. */
+    fun splitNames(text: String, max: Int): List<String> =
+        text.split(';').map(::cleanName).map { it.take(CareSector.MAX_NAME) }.filter { it.isNotEmpty() }
+            .distinctBy { SectorMatcher.words(it) }.take(max)
 
     /** What the driver typed, tidied: single spaces, no commas (they split addresses), no brackets. */
     fun cleanName(raw: String): String =

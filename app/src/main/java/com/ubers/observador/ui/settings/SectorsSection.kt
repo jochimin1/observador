@@ -4,11 +4,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,7 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.R
 import com.ubers.observador.domain.sectors.CareSector
+import com.ubers.observador.domain.sectors.CareSectorCodec
+import com.ubers.observador.domain.sectors.OfferPlaceKind
 import com.ubers.observador.domain.sectors.SectorLevel
+import com.ubers.observador.domain.sectors.SectorMatcher
+import com.ubers.observador.domain.sectors.SectorSchedule
 import com.ubers.observador.domain.sectors.SectorWhere
 import com.ubers.observador.ui.components.AppFilterChip
 import com.ubers.observador.ui.components.IconSectionHeader
@@ -49,12 +57,14 @@ private val AVOID_COLOR = Color(0xFFC62828)
  * 1.35.0: Ajustes › Sectores de cuidado. The driver lists the sectors to watch; each offer's pickup
  * and drop-off are compared with them and the floating card shows an orange («Aviso») or red
  * («Evitar») band. «Cerrar» (1.37.0) closes the card only in the «Automático» mode.
+ * 1.47.0: other names, exceptions, schedule, modality, on/off and «Probar reglas».
  */
 @Composable
 fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     var dialogFor by remember { mutableStateOf<CareSector?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var testing by remember { mutableStateOf(false) }
 
     IconSectionHeader("Sectores de cuidado", R.drawable.ic_warning)
     SectionCard(
@@ -68,7 +78,8 @@ fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
             Text(
                 "Cuando la recogida o el destino de una oferta está en uno de estos sectores, la tarjeta " +
                     "flotante lo dice arriba: naranja para «Aviso», roja y con vibración para «Evitar». " +
-                    "Escribe el sector como lo pone Uber, por ejemplo «Los Alcarrizos» o «Santo Domingo Este».",
+                    "Escribe el sector como lo pone Uber, por ejemplo «Los Alcarrizos» o «Santo Domingo Este». " +
+                    "Cada sector puede tener otros nombres, excepciones, un horario y una modalidad.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -90,6 +101,12 @@ fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
                     Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            if (state.sectors.isNotEmpty()) {
+                OutlinedButton(onClick = { testing = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(painterResource(R.drawable.ic_science), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Probar reglas con una dirección")
+                }
+            }
             OutlinedButton(
                 onClick = { adding = true },
                 enabled = state.sectors.size < CareSector.MAX_SECTORS,
@@ -101,10 +118,15 @@ fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
         }
     }
 
+    if (testing) {
+        SectorTester(state, viewModel, onDismiss = { testing = false })
+    }
+
     if (adding || dialogFor != null) {
         SectorDialog(
             initial = dialogFor,
             suggestions = state.suggestions,
+            products = state.products,
             onSave = { sector ->
                 viewModel.save(sector, replacing = dialogFor)
                 adding = false
@@ -125,12 +147,24 @@ private fun SectorRow(sector: CareSector, onEdit: () -> Unit, onDelete: () -> Un
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(sector.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Text(
-                "${levelLabel(sector.level)} · ${sector.where.label}",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (sector.level == SectorLevel.WARN) WARN_COLOR else AVOID_COLOR
+                sector.name + if (sector.enabled) "" else " (desactivado)",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = if (sector.enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Text(
+                "${sector.level.label} · ${sector.where.label}",
+                style = MaterialTheme.typography.bodySmall,
+                color = when {
+                    !sector.enabled -> MaterialTheme.colorScheme.onSurfaceVariant
+                    sector.level == SectorLevel.WARN -> WARN_COLOR
+                    else -> AVOID_COLOR
+                }
+            )
+            ruleLines(sector).forEach {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         IconButton(onClick = onDelete) {
             Icon(painterResource(R.drawable.ic_delete), contentDescription = "Quitar ${sector.name}")
@@ -138,25 +172,47 @@ private fun SectorRow(sector: CareSector, onEdit: () -> Unit, onDelete: () -> Un
     }
 }
 
-private fun levelLabel(level: SectorLevel): String = level.label
+/** «También: Alcarrizos», «Excepto: Herrera», «L M X · 20:00–05:00», «Solo Moto». */
+private fun ruleLines(s: CareSector): List<String> = listOfNotNull(
+    s.aliases.takeIf { it.isNotEmpty() }?.let { "También: " + it.joinToString(", ") },
+    s.exceptions.takeIf { it.isNotEmpty() }?.let { "Excepto: " + it.joinToString(", ") },
+    s.schedule?.label,
+    s.product?.let { "Solo $it" }
+)
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SectorDialog(
     initial: CareSector?,
     suggestions: List<String>,
+    products: List<String>,
     onSave: (CareSector) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var where by remember { mutableStateOf(initial?.where ?: SectorWhere.BOTH) }
     var level by remember { mutableStateOf(initial?.level ?: SectorLevel.WARN) }
-    val valid = name.isNotBlank()
+    var aliases by remember { mutableStateOf(initial?.aliases?.joinToString("; ") ?: "") }
+    var exceptions by remember { mutableStateOf(initial?.exceptions?.joinToString("; ") ?: "") }
+    var scheduled by remember { mutableStateOf(initial?.schedule != null) }
+    var days by remember { mutableStateOf(initial?.schedule?.days ?: emptySet()) }
+    var from by remember { mutableStateOf(initial?.schedule?.fromMin?.let { SectorSchedule.hhmm(it) } ?: "20:00") }
+    var to by remember { mutableStateOf(initial?.schedule?.toMin?.let { SectorSchedule.hhmm(it) } ?: "05:00") }
+    var product by remember { mutableStateOf(initial?.product) }
+    var enabled by remember { mutableStateOf(initial?.enabled ?: true) }
+    val fromMin = SectorSchedule.parseTime(from)
+    val toMin = SectorSchedule.parseTime(to)
+    val valid = name.isNotBlank() && (!scheduled || (fromMin != null && toMin != null))
+    val productChoices = (listOfNotNull(product) + products).distinctBy { SectorMatcher.words(it) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Añadir sector" else "Editar sector") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(CareSector.MAX_NAME) },
@@ -178,6 +234,26 @@ private fun SectorDialog(
                         }
                     }
                 }
+                OutlinedTextField(
+                    value = aliases,
+                    onValueChange = { aliases = it.take(250) },
+                    label = { Text("Otros nombres (opcional)") },
+                    placeholder = { Text("Ej.: Alcarrizos; Los Alcarrizos") },
+                    supportingText = { Text("Sepáralos con punto y coma. Cualquiera de ellos avisa.") },
+                    colors = appFieldColors(),
+                    shape = appFieldShape(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = exceptions,
+                    onValueChange = { exceptions = it.take(250) },
+                    label = { Text("Excepto (opcional)") },
+                    placeholder = { Text("Ej.: Herrera; Las Caobas") },
+                    supportingText = { Text("Si la dirección también dice uno de estos, no avisa.") },
+                    colors = appFieldColors(),
+                    shape = appFieldShape(),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Text("Dónde mirar", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SectorWhere.entries.forEach { w ->
@@ -200,11 +276,168 @@ private fun SectorDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Solo en un horario", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Switch(checked = scheduled, onCheckedChange = { scheduled = it })
+                }
+                if (scheduled) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SectorSchedule.DAY_LETTERS.forEachIndexed { i, letter ->
+                            val d = i + 1
+                            AppFilterChip(
+                                selected = d in days,
+                                onClick = { days = if (d in days) days - d else days + d },
+                                label = { Text(letter) }
+                            )
+                        }
+                    }
+                    Text(
+                        if (days.isEmpty()) "Sin días marcados: todos los días." else "Solo los días marcados.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = from, onValueChange = { from = it.take(5) }, label = { Text("Desde") },
+                            isError = fromMin == null, singleLine = true, colors = appFieldColors(), shape = appFieldShape(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = to, onValueChange = { to = it.take(5) }, label = { Text("Hasta") },
+                            isError = toMin == null, singleLine = true, colors = appFieldColors(), shape = appFieldShape(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        "Formato 24 h. De 20:00 a 05:00 cruza la medianoche y cuenta como el día en que empieza. " +
+                            "La misma hora en los dos es todo el día.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text("Modalidad", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AppFilterChip(selected = product == null, onClick = { product = null }, label = { Text("Todas") })
+                    productChoices.forEach { p ->
+                        AppFilterChip(selected = product == p, onClick = { product = p }, label = { Text(p) })
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Activo", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "Apagado se conserva en la lista sin avisar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
             }
         },
         confirmButton = {
-            TextButton(enabled = valid, onClick = { onSave(CareSector(name, where, level)) }) { Text("Guardar") }
+            TextButton(enabled = valid, onClick = {
+                onSave(
+                    CareSector(
+                        name = name,
+                        where = where,
+                        level = level,
+                        aliases = CareSectorCodec.splitNames(aliases, CareSector.MAX_ALIASES),
+                        exceptions = CareSectorCodec.splitNames(exceptions, CareSector.MAX_EXCEPTIONS),
+                        schedule = if (scheduled && fromMin != null && toMin != null) SectorSchedule(days, fromMin, toMin) else null,
+                        product = product,
+                        enabled = enabled
+                    )
+                )
+            }) { Text("Guardar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+/**
+ * 1.47.0: Probar reglas. The driver writes or picks a real address; each sector says whether it
+ * would warn now and why, with the same checks as the floating card.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SectorTester(state: SectorsUiState, viewModel: SectorsViewModel, onDismiss: () -> Unit) {
+    var address by remember { mutableStateOf(state.recentAddresses.firstOrNull() ?: "") }
+    var place by remember { mutableStateOf(OfferPlaceKind.DROPOFF) }
+    var product by remember { mutableStateOf(state.products.firstOrNull()) }
+    val parts = SectorMatcher.displayParts(address)
+    val results = remember(address, place, product, state.sectors) { viewModel.explain(address, place, product) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Probar reglas") },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it.take(200) },
+                    label = { Text("Dirección como la escribe Uber") },
+                    colors = appFieldColors(),
+                    shape = appFieldShape(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (state.recentAddresses.isNotEmpty()) {
+                    Text("De tus ofertas recientes", style = MaterialTheme.typography.labelMedium)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.recentAddresses.forEach { a ->
+                            AppFilterChip(selected = address == a, onClick = { address = a }, label = { Text(a.take(40)) })
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OfferPlaceKind.entries.forEach { k ->
+                        AppFilterChip(selected = place == k, onClick = { place = k }, label = { Text("Como ${k.label.lowercase()}") })
+                    }
+                }
+                if (state.products.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.products.forEach { p ->
+                            AppFilterChip(selected = product == p, onClick = { product = p }, label = { Text(p) })
+                        }
+                    }
+                }
+                Text(
+                    "Partes que se comparan: " + if (parts.isEmpty()) "ninguna" else parts.joinToString(" · ") { "«$it»" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("Con la hora de ahora:", style = MaterialTheme.typography.labelMedium)
+                HorizontalDivider()
+                results.forEach { e ->
+                    Column {
+                        Text(
+                            e.sector.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = when {
+                                !e.warns -> MaterialTheme.colorScheme.onSurface
+                                e.sector.level == SectorLevel.WARN -> WARN_COLOR
+                                else -> AVOID_COLOR
+                            }
+                        )
+                        Text(verdictText(e.verdict), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
+    )
+}
+
+private fun verdictText(v: SectorMatcher.Verdict): String = when (v) {
+    is SectorMatcher.Verdict.Matched -> "Avisa: «${v.name}» está en la parte «${v.part}»."
+    is SectorMatcher.Verdict.Excepted -> "No avisa: «${v.name}» está, pero la excepción «${v.exception}» también."
+    SectorMatcher.Verdict.Disabled -> "No avisa: está desactivado."
+    SectorMatcher.Verdict.OtherPlace -> "No avisa: este sector se mira solo en la otra dirección."
+    is SectorMatcher.Verdict.OutOfSchedule -> "No avisa ahora: su horario es ${v.schedule.label}."
+    is SectorMatcher.Verdict.OtherProduct -> "No avisa: es solo para ${v.product}."
+    SectorMatcher.Verdict.NotFound -> "No está en esta dirección."
 }

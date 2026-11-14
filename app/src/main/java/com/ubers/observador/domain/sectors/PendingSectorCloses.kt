@@ -12,7 +12,7 @@ data class CloseConfiguration(
 ) {
     fun level(offer: UberOffer): SectorLevel? =
         if (!observing || !automatic || !sectorsEnabled || !showOverlay) null
-        else SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors).level
+        else SectorMatcher.match(offer.pickupAddress, offer.dropoffAddress, sectors, SectorContext.of(offer)).level
 }
 
 /** Main-thread state behind the Android timer. Tests exercise the same invalidation as production. */
