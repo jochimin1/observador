@@ -73,6 +73,7 @@ fun DashboardScreen(
     onOpenHealth: (() -> Unit)? = null,
     onOpenTrips: (() -> Unit)? = null,
     onOpenReports: ((com.ubers.observador.domain.StatsPeriod) -> Unit)? = null,
+    onOpenEfficiency: (() -> Unit)? = null,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -322,6 +323,7 @@ fun DashboardScreen(
                             selectedSlotStart = slot.startHour
                             showSlotDetail = true
                         },
+                        onOpenEfficiency = onOpenEfficiency,
                         modifier = Modifier.padding(top = 16.dp)
                     )
                 }

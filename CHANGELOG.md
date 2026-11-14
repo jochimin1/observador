@@ -14,6 +14,32 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.48.0] — sin publicar
+
+Horarios, mercado y eficiencia. Notas: [docs/releases/1.48.0.md](docs/releases/1.48.0.md).
+
+### Añadido
+- Pantalla «Horarios y eficiencia» (Análisis y enlace desde «Mejores horas»), con períodos de 7 días, 4 semanas o 12 semanas.
+- Tiempo del período en tres estados: conectado y leyendo (tramos confirmados de las sesiones), conectado sin lectura (huecos y final incierto) y desconectado. Suman exactamente el período.
+- Por franja de 2 horas (hora del reloj):
+  - **Mercado:** ofertas vistas por hora conectado y leyendo, y medianas ofertadas (RD$/h, RD$/km, km de recogida).
+  - **Tomadas:** tasa sobre las ofertas vistas.
+  - **Resultado:** dinero confirmado por hora conectado y leyendo, con los viajes sin confirmar indicados.
+  - **Tiempo:** buscando, yendo a recoger, esperando y con pasajero. Las partes no se solapan (prioridad pasajero > espera > recogida) y suman el tiempo leído.
+- Las pausas no se separan: cuentan como buscando.
+- Muestra mínima: 2 h leídas por franja y 5 ofertas para tasas y medianas. Sin lectura se dice «no observado».
+- Km con pasajero, de recogida y sin pasajero desde los tramos medidos. Los huecos se muestran aparte.
+- Comparaciones:
+  - por día (de medianoche a medianoche) y turno fijo (0–6, 6–12, 12–18, 18–24), con al menos 3 h leídas;
+  - por modalidad, solo ofertas y viajes;
+  - contra el período anterior del mismo largo y los mismos días de la semana.
+- Hasta 3 avisos ordenados por minutos perdidos:
+  - una franja con 10 puntos más de búsqueda o de recogida y espera que el promedio;
+  - un día con un 20 % menos de dinero confirmado por hora.
+
+### Sin cambios
+- Room 20, sin migración. «Mejores horas» en Inicio sigue igual y enlaza a la pantalla nueva.
+
 ## [1.47.0] — 2026-11-14
 
 Sectores configurables y zonas de trabajo. Notas: [docs/releases/1.47.0.md](docs/releases/1.47.0.md).

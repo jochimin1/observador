@@ -181,6 +181,7 @@ private const val ROUTE_HEALTH = "health"
 private const val ROUTE_LAB = "lab"
 private const val ROUTE_TRIPS = "trips"
 private const val ROUTE_TRIP = "trip"
+private const val ROUTE_EFFICIENCY = "efficiency"
 
 /** The main destinations, one per tab of the bottom bar (decision 7: five tabs at the bottom). */
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
@@ -247,7 +248,8 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                     onOpenEarnings = { open(Tab.EARNINGS) },
                     onOpenHealth = { navController.navigate(ROUTE_HEALTH) { launchSingleTop = true } },
                     onOpenTrips = { openTrips() },
-                    onOpenReports = { p -> openReports(ReportsNavigation.forStats(p)) }
+                    onOpenReports = { p -> openReports(ReportsNavigation.forStats(p)) },
+                    onOpenEfficiency = { navController.navigate(ROUTE_EFFICIENCY) { launchSingleTop = true } }
                 )
             }
             composable(Tab.EARNINGS.route) {
@@ -268,7 +270,10 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                 com.ubers.observador.ui.reports.ReportsScreen(onBack = { navController.popBackStack() })
             }
             composable(Tab.ANALYSIS.route) {
-                IntelligenceScreen(onNavigateBack = null)
+                IntelligenceScreen(
+                    onNavigateBack = null,
+                    onOpenEfficiency = { navController.navigate(ROUTE_EFFICIENCY) { launchSingleTop = true } }
+                )
             }
             composable(Tab.SETTINGS.route) {
                 SettingsScreen(
@@ -292,6 +297,10 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             composable("$ROUTE_TRIP/{id}") { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
                 com.ubers.observador.ui.trips.TripDetailScreen(tripId = id, onBack = { navController.popBackStack() })
+            }
+            // 1.48.0: Horarios y eficiencia, from Análisis and from «Mejores horas»
+            composable(ROUTE_EFFICIENCY) {
+                com.ubers.observador.ui.efficiency.EfficiencyScreen(onBack = { navController.popBackStack() })
             }
             composable(ROUTE_LAB) {
                 com.ubers.observador.ui.lab.LabScreen(onBack = { navController.popBackStack() })

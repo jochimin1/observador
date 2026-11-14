@@ -81,7 +81,11 @@ private fun date(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefaul
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceViewModel = viewModel()) {
+fun IntelligenceScreen(
+    onNavigateBack: (() -> Unit)?,
+    onOpenEfficiency: (() -> Unit)? = null,
+    viewModel: IntelligenceViewModel = viewModel()
+) {
     val state by viewModel.state.collectAsState()
     val message by viewModel.message.collectAsState()
     var confirmPromote by remember { mutableStateOf(false) }
@@ -146,6 +150,8 @@ fun IntelligenceScreen(onNavigateBack: (() -> Unit)?, viewModel: IntelligenceVie
                 }
             }
             Limitations()
+            // 1.48.0: market, taken, result and time by slot
+            onOpenEfficiency?.let { com.ubers.observador.ui.efficiency.EfficiencyEntryCard(onOpen = it) }
             // 1.36.0: offers of the week in the driver's care sectors
             SectorWeekCard()
             // 1.47.0: zones measured with the GPS of the trips taken

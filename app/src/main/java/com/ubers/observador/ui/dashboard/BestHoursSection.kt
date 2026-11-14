@@ -56,6 +56,7 @@ fun BestHoursSection(
     selectedStartHour: Int?,
     onSelectPeriod: (StatsPeriod) -> Unit,
     onSelectSlot: (TimeSlotStats) -> Unit,
+    onOpenEfficiency: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val use24Hour = DateFormat.is24HourFormat(LocalContext.current)
@@ -124,6 +125,10 @@ fun BestHoursSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            // 1.48.0: the same slots by hours connected, taken offers, real money and time
+            onOpenEfficiency?.let {
+                androidx.compose.material3.TextButton(onClick = it) { Text("Ver horarios y eficiencia →") }
             }
         }
     }

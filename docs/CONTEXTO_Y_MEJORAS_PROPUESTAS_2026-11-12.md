@@ -287,6 +287,8 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 
 ### 1.47.0 — Horarios, mercado y eficiencia
 
+> Entregada como **1.48.0** ([plan](roadmap/PLAN_1.48.0_HORARIOS_MERCADO_EFICIENCIA.md)).
+
 **Prioridad P2 · esfuerzo mediano/grande · propósito:** decidir cuándo trabajar y dónde se pierde tiempo con denominadores correctos.
 
 - Vista de condiciones ofrecidas de todas las ofertas observadas, vista de ofertas tomadas y vista de resultados monetarios confirmados.
