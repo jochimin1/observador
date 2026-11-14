@@ -32,12 +32,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         OnlineSessionEntity::class, DistanceSegmentEntity::class, TripDistanceEntity::class,
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
-        TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class
+        TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun observationLogDao(): ObservationLogDao
 
     abstract fun offerDao(): OfferDao
 
@@ -61,6 +63,13 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        internal val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS observation_log (id TEXT NOT NULL, kind TEXT NOT NULL, atMs INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_observation_log_kind_atMs ON observation_log (kind, atMs)")
+            }
+        }
 
         /** 1.43.0: vehicle identity and component plans; legacy records retain their values. */
         internal val MIGRATION_17_18 = object : Migration(17, 18) {
@@ -450,7 +459,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .build()
     }
 }

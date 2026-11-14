@@ -330,7 +330,7 @@ class AppSettings(private val context: Context) {
         editSettings { it[notifiedKey(type)] = key }
 
     /** "Medir km con GPS" (Fase 8E). Not part of profiles. */
-    val distanceEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_ENABLED] ?: false }
+    val distanceEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DISTANCE_ENABLED] ?: true }
 
     suspend fun updateDistanceEnabled(value: Boolean) = editSettings {
         it[KEY_DISTANCE_ENABLED] = value

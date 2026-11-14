@@ -57,8 +57,16 @@ class PlaceNamer(context: Context) {
             Log.w(TAG, "Geocoder failed", e)
             null
         }
-        val a = found?.firstOrNull() ?: return@withContext null
-        PlaceNames.of(a.thoroughfare, a.subThoroughfare, a.subLocality, a.locality, a.featureName)
+        val a = found?.firstOrNull()
+        val result = a?.let { PlaceNames.of(it.thoroughfare, it.subThoroughfare, it.subLocality, it.locality, it.featureName) }
+        com.ubers.observador.domain.backup.MaintenanceGate.shared.access {
+            com.ubers.observador.data.db.AppDatabase.getInstance(app).observationLogDao().insert(
+                com.ubers.observador.data.db.ObservationLog(kind = "PLACE_LOOKUP", payload = org.json.JSONObject()
+                    .put("latitudeE7", latE7).put("longitudeE7", lngE7)
+                    .put("result", result ?: org.json.JSONObject.NULL).toString())
+            )
+        }
+        result
     }
 
     private companion object {

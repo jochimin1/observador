@@ -148,7 +148,7 @@ fun RouteSettingsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            InfoLine(R.drawable.ic_info, "Usa las mismas posiciones de «Medir km con GPS»: no gasta más batería. Se guarda siempre, hasta que lo borres.")
+            InfoLine(R.drawable.ic_info, "Usa las mismas posiciones de «Medir km con GPS», sin una segunda solicitud de GPS. Se guarda siempre, hasta que lo borres.")
             InfoLine(R.drawable.ic_info, "El mapa con calles y los nombres de los lugares usan internet (OpenStreetMap y el servicio de mapas del teléfono).")
             if (enabled && !gpsReady) {
                 InfoLine(R.drawable.ic_warning, "Con «Medir km con GPS» apagado o sin permiso, los viajes se guardan sin recorrido.", tint = MaterialTheme.colorScheme.error)

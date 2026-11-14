@@ -85,13 +85,22 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     fun clearMessage() = _state.update { it.copy(message = null) }
 
     /** [uri] is where the driver chose to save (null = they closed the picker). */
-    fun create(uri: Uri?) {
+    fun create(uri: Uri?, password: String = "") {
         if (uri == null || _state.value.busy) return
         _state.update { it.copy(busy = true, busyLabel = "Creando respaldo…", message = null) }
         viewModelScope.launch {
             val message = try {
                 val out = app.contentResolver.openOutputStream(uri, "w") ?: throw BackupException("No se pudo abrir el lugar elegido para guardar.")
-                val r = BackupWriter(app).write(out)
+                val r = if (password.isEmpty()) BackupWriter(app).write(out) else withContext(Dispatchers.IO) {
+                    val temp = java.io.File.createTempFile("backup-encrypt-", ".zip", app.cacheDir)
+                    val secret = password.toCharArray()
+                    try {
+                        val result = BackupWriter(app).write(temp.outputStream(), markAsLast = false)
+                        out.use { target -> temp.inputStream().use { com.ubers.observador.domain.backup.EncryptedBackup.encrypt(it, target, secret) } }
+                        settings.updateLastBackupAt(result.manifest.createdAtMs)
+                        result
+                    } finally { secret.fill('\u0000'); temp.delete() }
+                }
                 BackupFormat.createdText(r.manifest, r.bytes)
             } catch (e: BackupException) {
                 discard(uri)
@@ -107,7 +116,7 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** [uri] is the file the driver chose (null = they closed the picker). Checks it; nothing live is touched. */
-    fun choose(uri: Uri?) {
+    fun choose(uri: Uri?, password: String = "") {
         if (uri == null || _state.value.busy) return
         _state.update { it.copy(busy = true, busyLabel = "Revisando el archivo…", message = null, preview = null) }
         viewModelScope.launch {
@@ -116,7 +125,14 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
                 val dbVersion = withContext(Dispatchers.IO) {
                     com.ubers.observador.domain.backup.MaintenanceGate.shared.access { AppDatabase.getInstance(app).openHelper.readableDatabase.version }
                 }
-                val p = restorer.prepare(input, dbVersion)
+                val p = if (password.isEmpty()) restorer.prepare(input, dbVersion) else withContext(Dispatchers.IO) {
+                    val temp = java.io.File.createTempFile("backup-decrypt-", ".zip", app.cacheDir)
+                    val secret = password.toCharArray()
+                    try {
+                        input.use { source -> temp.outputStream().use { com.ubers.observador.domain.backup.EncryptedBackup.decrypt(source, it, secret) } }
+                        restorer.prepare(temp.inputStream(), dbVersion)
+                    } finally { secret.fill('\u0000'); temp.delete() }
+                }
                 prepared = p
                 val date = RESTORE_DATE.format(java.time.Instant.ofEpochMilli(p.manifest.createdAtMs).atZone(java.time.ZoneId.systemDefault()))
                 _state.update {
@@ -130,7 +146,7 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(busy = false, message = e.message) }
             } catch (e: Exception) {
                 Log.w(TAG, "Could not check backup", e)
-                _state.update { it.copy(busy = false, message = "No se pudo leer el archivo elegido. Tus datos no se tocaron.") }
+                _state.update { it.copy(busy = false, message = "No se pudo leer el archivo: comprueba la contraseña y que esté completo. Tus datos no se tocaron.") }
             }
         }
     }

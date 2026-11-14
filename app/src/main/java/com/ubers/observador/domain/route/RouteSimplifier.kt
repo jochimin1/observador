@@ -12,7 +12,7 @@ import kotlin.math.sqrt
 object RouteSimplifier {
 
     fun simplify(points: List<RoutePoint>, toleranceM: Double): List<RoutePoint> {
-        if (points.size <= 2) return points
+        if (points.size <= 2 || toleranceM <= 0.0) return points
         val out = ArrayList<RoutePoint>(points.size)
         runsOf(points).forEach { run -> out += simplifyRun(run, toleranceM) }
         return out

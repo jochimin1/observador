@@ -61,6 +61,9 @@ object BackupFormat {
             (v is Set<*> && v.all { it is String })
 
     /** The settings that go in the backup: everything except the moment's state and unsupported types. */
+    fun selectAllSettings(all: Map<String, Any?>): Map<String, Any> =
+        all.filterValues { it != null && supported(it) }.mapValues { it.value!! }.toSortedMap()
+
     fun selectSettings(all: Map<String, Any?>): Map<String, Any> {
         val out = java.util.TreeMap<String, Any>()
         for ((k, v) in all) if (v != null && !isVolatile(k) && supported(v)) out[k] = v

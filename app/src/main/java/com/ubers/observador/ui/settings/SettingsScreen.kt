@@ -343,6 +343,7 @@ fun SettingsScreen(
                 onEnabled = { viewModel.setDistanceEnabled(it) },
                 onMode = { viewModel.setDistanceMode(it) }
             )
+            DataGpsCard(distanceEnabled, locationPermitted)
             // Fase 8K: the route of the taken trips
             val routeEnabled by viewModel.routeEnabled.collectAsState()
             val routeCounts by viewModel.routeCounts.collectAsState()
@@ -525,6 +526,9 @@ fun SettingsScreen(
                     .align(Alignment.CenterHorizontally)
                     .padding(top = 16.dp)
             )
+
+            // What this version brought, from docs/releases/changelogs/<version>.md (generated at build time)
+            ReleaseNotesCard()
 
             Spacer(Modifier.height(24.dp))
         }

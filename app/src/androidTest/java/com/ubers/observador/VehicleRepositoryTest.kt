@@ -133,7 +133,7 @@ class VehicleRepositoryTest {
                 result
             } finally { db.close() }
             val manifest=BackupArchive.create(context.getDatabasePath(name),emptyMap(),zip)
-            assertEquals(18,manifest.dbVersion)
+            assertEquals(19,manifest.dbVersion)
             assertEquals(1,manifest.rows["vehicle_profiles"])
             val target=context.getDatabasePath(restored)
             ZipFile(zip).use { z -> z.getInputStream(z.getEntry(BackupFormat.ENTRY_DB)).use { s -> target.outputStream().use { s.copyTo(it) } } }

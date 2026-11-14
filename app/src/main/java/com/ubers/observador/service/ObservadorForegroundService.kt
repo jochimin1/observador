@@ -163,7 +163,7 @@ class ObservadorForegroundService : Service() {
         }
         // The GPS follows the tracker: on while a stretch is open, off otherwise
         scope.launch {
-            DistanceMonitor.state.map { it.measuring != null }.distinctUntilChanged().collect { setGps(it) }
+            combine(DistanceMonitor.state, ticker) { live, _ -> live.measuring != null }.collect { setGps(it) }
         }
         // Notification: paused / active, and "Midiendo km · 23.4 km hoy" while measuring
         scope.launch {
@@ -242,23 +242,38 @@ class ObservadorForegroundService : Service() {
     }
 
     /** The GPS is on only while measuring. */
+    private var gpsGeneration = 0L
+    private var retryGpsAfter = 0L
+
     private fun setGps(on: Boolean) {
         // A refused request (below) stays visible in Salud until measuring stops
-        if (!on) HealthMonitor.onGpsRequested(null)
+        if (!on) { HealthMonitor.onGpsRequested(null); DistanceMonitor.setRequestError(null); retryGpsAfter = 0 }
+        if (on && android.os.SystemClock.elapsedRealtime() < retryGpsAfter) return
         if (on == gpsOn) return
+        val generation = ++gpsGeneration
         if (on) {
             try {
                 val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, policy.fixIntervalMs)
                     .setMinUpdateIntervalMillis(policy.fixIntervalMs / 2)
                     .build()
                 locationClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                    .addOnFailureListener {
+                        if (generation == gpsGeneration && gpsOn) {
+                            gpsOn = false
+                            retryGpsAfter = android.os.SystemClock.elapsedRealtime() + 30_000L
+                            DistanceMonitor.setRequestError("Android no pudo iniciar el GPS. Revisa ubicación y permisos; se reintentará mientras la medición siga activa.")
+                        }
+                    }
+                    .addOnSuccessListener { if (generation == gpsGeneration && gpsOn) DistanceMonitor.setRequestError(null) }
                 gpsOn = true
                 HealthMonitor.onGpsRequested(System.currentTimeMillis())
             } catch (e: SecurityException) {
+                DistanceMonitor.setRequestError("Falta permiso de ubicación precisa. Revisa los permisos de Observador.")
                 Log.w(TAG, "No location permission", e)
                 HealthMonitor.onGpsRequested(System.currentTimeMillis())
             }
         } else {
+            DistanceMonitor.setRequestError(null)
             locationClient.removeLocationUpdates(callback)
             gpsOn = false
         }

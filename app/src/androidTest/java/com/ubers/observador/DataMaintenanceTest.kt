@@ -175,7 +175,7 @@ class DataMaintenanceTest {
         try { DataEraser(context) { if (it == point) throw IOException("injected $point") }.erase("Done"); fail("must fail") }
         catch (_: EraseRolledBack) { }
         assertEquals(listOf("original"), ids())
-        assertEquals(before, settings.backupSnapshot().filterKeys { it != "pending_notice" })
+        assertEquals(before.filterKeys { it != "pending_notice" }, settings.backupSnapshot().filterKeys { it != "pending_notice" })
         assertEquals("private capture", File(context.filesDir, "capturas/proof.txt").readText())
         assertEquals("private close budget", File(context.filesDir, "cierres/proof.txt").readText())
         assertEquals("private report", File(context.cacheDir, "exports/proof.txt").readText())

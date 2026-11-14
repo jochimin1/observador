@@ -138,10 +138,10 @@ data class RoutePolicy(
     val filters: DistancePolicy = DistancePolicy(),
     /** Points wait in memory at most this long: a phone switched off loses at most 30 s. */
     val flushMs: Long = 30_000L,
-    /** Safety cap per trip. */
-    val maxTripMs: Long = 3 * 3_600_000L,
-    /** Simplifying removes points closer than this to the line. */
-    val toleranceM: Double = 5.0,
+    /** Optional test/custom cap; production preserves long trips. */
+    val maxTripMs: Long = Long.MAX_VALUE,
+    /** Storage keeps all accepted points; display simplification is separate. */
+    val toleranceM: Double = 0.0,
     /** A trip closed by «Buscando» was over this long before (LifecycleConfig.searchEndsTripMs). */
     val searchEndsTripMs: Long = 45_000L
 )

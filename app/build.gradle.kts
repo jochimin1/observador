@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 55
-        versionName = "1.44.0"
+        versionCode = 56
+        versionName = "1.45.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,6 +51,51 @@ android {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+/**
+ * "Novedades de esta versión" in Ajustes. Reads the "## Novedades en la app" section of
+ * docs/releases/changelogs/<versionName>.md and packages its bullets as assets/novedades.txt.
+ * The build fails if the release card or that section is missing, so every version ships its notes.
+ */
+abstract class ReleaseNotesTask : DefaultTask() {
+    @get:Input abstract val versionName: Property<String>
+    @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE) abstract val changelog: ConfigurableFileCollection
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction fun generate() {
+        val version = versionName.get()
+        val card = changelog.singleFile
+        if (!card.exists()) throw GradleException(
+            "Falta docs/releases/changelogs/$version.md con la sección «## Novedades en la app».")
+        val lines = card.readLines(Charsets.UTF_8)
+        val start = lines.indexOfFirst { it.trim().equals("## Novedades en la app", ignoreCase = true) }
+        if (start < 0) throw GradleException("docs/releases/changelogs/$version.md no tiene «## Novedades en la app».")
+        val items = lines.drop(start + 1)
+            .takeWhile { !it.startsWith("## ") }
+            .filter { it.trimStart().startsWith("- ") }
+            .map { line ->
+                line.trimStart().removePrefix("- ").trim()
+                    .replace(Regex("""\[([^\]]+)]\([^)]*\)"""), "$1")
+                    .replace("`", "").replace("**", "")
+            }
+        if (items.isEmpty()) throw GradleException("«## Novedades en la app» de $version.md está vacía.")
+        val out = outputDir.get().file("novedades.txt").asFile
+        out.parentFile.mkdirs()
+        out.writeText(items.joinToString("\n"), Charsets.UTF_8)
+    }
+}
+
+val releaseNotes = tasks.register<ReleaseNotesTask>("generateReleaseNotes") {
+    val version = android.defaultConfig.versionName ?: error("versionName sin definir")
+    versionName.set(version)
+    changelog.from(rootProject.layout.projectDirectory.file("docs/releases/changelogs/$version.md"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(releaseNotes, ReleaseNotesTask::outputDir)
+    }
 }
 
 dependencies {

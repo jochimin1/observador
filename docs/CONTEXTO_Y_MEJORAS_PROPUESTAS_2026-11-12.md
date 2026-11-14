@@ -263,11 +263,13 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 - Medir consumo con Uber y Observador juntos, en recorridos equivalentes; ajustar precisión, frecuencia y entrega según fase/movimiento a partir de esos resultados.
 - Mostrar huecos de señal, cobertura por fase y motivo de descarte; mantener separados km del tracker y geometría simplificada del mapa.
 - Manejar fallos asíncronos de solicitud GPS y servicio limitado en segundo plano, no solo la llamada inicial; guiar la recuperación desde la app.
-- Preferencias para guardar nombres, direcciones, rutas y consultas de nombres de lugares; retención elegible y vista del espacio ocupado. No borrar histórico sin una acción explícita.
-- Exportaciones saneadas por defecto en los flujos donde sea adecuado y opción explícita de incluir identidad/coordenadas; respaldo manual cifrado opcional con recuperación bien explicada.
+- Decisión del conductor (2026-11-14): guardar nombres, direcciones, rutas y consultas de lugares por defecto; conservación indefinida y vista del espacio ocupado. Borrado solo por acción explícita.
+- Exportación integral con identidad, direcciones, coordenadas y todas las evidencias, sin anonimizar ni filtrar por defecto; respaldo manual cifrado opcional con el mismo contenido completo.
 - Mejorar caché de mapas: evitar descargas simultáneas duplicadas, revisar su límite durante sesiones largas y soportar cabeceras de caché/revalidación cuando resulte necesario. El código ya cachea 30 días y limita descargas a dos: eso es una base existente.
 
 **Validación de salida:** ruta con pantalla apagada, permiso aproximado, pérdida de señal, reinicio y red caída; batería medida y documentada. Respetar la política del proveedor de mapas; no añadir descarga masiva sobre el servidor público de teselas.
+
+> **Actualización 2026-11-14:** 1.46.0 pasa a ser «Uso laboral medido por odómetro de jornada» ([plan](roadmap/PLAN_1.46.0_JORNADAS_ODOMETRO.md)). Las propuestas siguientes avanzan un número: la de abajo pasa a 1.47.0, y así sucesivamente.
 
 ### 1.46.0 — Sectores configurables y zonas de trabajo
 

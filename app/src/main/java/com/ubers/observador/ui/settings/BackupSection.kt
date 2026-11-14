@@ -47,15 +47,19 @@ private val LAST_BACKUP_FORMAT = DateTimeFormatter.ofPattern("d/M/yyyy h:mm a", 
 @Composable
 fun BackupSection(viewModel: BackupViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    var password by androidx.compose.runtime.remember { mutableStateOf("") }
+    var encrypted by rememberSaveable { mutableStateOf(false) }
     var confirming by rememberSaveable { mutableStateOf(false) }
     var eraseStep by rememberSaveable { mutableStateOf(0) } // 0 none, 1 warning, 2 type BORRAR
     var typed by rememberSaveable { mutableStateOf("") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        viewModel.create(uri)
+        viewModel.create(uri, if (encrypted) password else "")
+        password = ""
     }
 
     val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        viewModel.choose(uri)
+        viewModel.choose(uri, if (encrypted) password else "")
+        password = ""
     }
 
     IconSectionHeader("Respaldo y datos", R.drawable.ic_download)
@@ -90,7 +94,16 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Button(onClick = { confirming = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Switch(checked = encrypted, enabled = !state.busy, onCheckedChange = { encrypted = it; password = "" })
+                Text("Cifrar / abrir respaldo cifrado")
+            }
+            if (encrypted) {
+                OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Contraseña (mínimo 8 caracteres)") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Necesitas esta contraseña para restaurar. No se guarda y no se puede recuperar. El archivo cifrado incluye los mismos datos completos.", style = MaterialTheme.typography.bodySmall)
+            }
+            Button(onClick = { confirming = true }, enabled = !state.busy && (!encrypted || password.length >= 8), modifier = Modifier.fillMaxWidth()) {
                 if (state.busy) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text("  ${state.busyLabel}")
@@ -100,7 +113,7 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
             }
             OutlinedButton(
                 onClick = { restorePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
-                enabled = !state.busy,
+                enabled = !state.busy && (!encrypted || password.length >= 8),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Restaurar respaldo") }
             TextButton(
@@ -203,7 +216,7 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
             confirmButton = {
                 TextButton(onClick = {
                     confirming = false
-                    picker.launch(BackupFormat.fileName(System.currentTimeMillis(), ZoneId.systemDefault()))
+                    picker.launch(BackupFormat.fileName(System.currentTimeMillis(), ZoneId.systemDefault()).let { if (encrypted) it.removeSuffix(".zip") + ".obsenc" else it })
                 }) { Text("Elegir dónde guardar") }
             },
             dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancelar") } }

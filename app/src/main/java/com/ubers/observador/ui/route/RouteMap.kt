@@ -95,6 +95,7 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
         val w = constraints.maxWidth.toDouble()
         val h = constraints.maxHeight.toDouble()
         val padding = 28.0 * density
+        val displayRuns = remember(points) { com.ubers.observador.domain.route.RouteGeometry.displayRuns(points) }
         val fitted = remember(points, w, h) { MapMath.fit(points, w, h, tilePx, padding) }
         var view by remember(fitted) { mutableStateOf(fitted) }
         val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
@@ -148,7 +149,7 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
                 return Offset(x.toFloat(), y.toFloat())
             }
             val width = 5.dp.toPx()
-            RouteSimplifier.runsOf(points).forEach { run ->
+            displayRuns.forEach { run ->
                 if (run.size < 2) return@forEach
                 val path = Path().apply {
                     moveTo(at(run[0]).x, at(run[0]).y)
@@ -158,7 +159,7 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
                 drawPath(path, RouteColors.of(run[0].phase), style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
             // Phases join where they change
-            points.zipWithNext().filter { (a, b) -> a.phase != b.phase }.forEach { (a, b) ->
+            points.zipWithNext().filter { (a, b) -> a.phase != b.phase && b.atMs - a.atMs <= 60_000 }.forEach { (a, b) ->
                 drawLine(RouteColors.of(b.phase), at(a), at(b), width, StrokeCap.Round)
             }
             listOfNotNull(points.firstOrNull()?.let { it to RouteColors.start }, points.lastOrNull()?.let { it to RouteColors.end })

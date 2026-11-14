@@ -14,6 +14,16 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.45.0] — 2026-11-14
+
+- Conservación completa e indefinida por defecto, exportación integral JSON y respaldo cifrado opcional con todos los datos.
+- Diagnóstico GPS, errores asíncronos y reintento; prueba manual de descarga del teléfono, sin atribución por app.
+- Registro persistente de consultas de lugares; Room 19 con migración aditiva.
+- Rutas nuevas sin corte de tres horas ni simplificación destructiva; simplificación solo visual.
+- Caché de mapas sin solicitudes duplicadas, con revisión del límite durante sesiones largas.
+- «Novedades de la versión» en Ajustes, debajo de la versión: se genera al compilar desde la sección «Novedades en la app» de la ficha de la versión; la compilación falla si falta.
+- Notas, límites, validación y comandos de instalación en `docs/releases/1.45.0.md`.
+
 ## [Sin publicar]
 
 ## [1.44.0] - 2026-11-13

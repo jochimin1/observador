@@ -141,8 +141,8 @@ class RouteTest {
         assertEquals(listOf(RoutePhase.PICKUP, RoutePhase.PASSENGER), points(out).map { it.phase })
     }
 
-    @Test fun stopsAtThreeHours() {
-        val policy = RoutePolicy()
+    @Test fun explicitThreeHourPolicyStillStopsAtConfiguredLimit() {
+        val policy = RoutePolicy(maxTripMs = 3 * 3_600_000L)
         val r = RouteRecorder(policy)
         r.onRide("s1", RideLifecycleState.IN_TRIP, t0)
         drive(r, t0 + 5 * sec, 3)
@@ -404,7 +404,7 @@ class RouteTest {
         assertEquals(t0 + 6 * min, summary.startAt)
         assertEquals(t0 + 23 * min, summary.endAt)
         assertEquals(points.size, summary.pointsKept)
-        assertTrue(points.size in 4..60) // a few streets, simplified
+        assertEquals(278, points.size) // Every generated point is preserved (two legs, endpoints included).
         assertEquals(setOf(RoutePhase.PICKUP, RoutePhase.PASSENGER), points.map { it.phase }.toSet())
         // Without «Iniciar viaje» the whole route is not told apart
         val (_, undistinguished) = com.ubers.observador.data.debug.RouteTestSeeder.generate(

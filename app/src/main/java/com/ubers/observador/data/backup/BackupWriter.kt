@@ -29,7 +29,7 @@ class BackupWriter(context: Context) {
                 try {
                     val copy = File(tmp, BackupFormat.ENTRY_DB)
                     DatabaseFiles.snapshot(app, copy)
-                    val settings = BackupFormat.selectSettings(AppSettings(app).backupSnapshot())
+                    val settings = BackupFormat.selectAllSettings(AppSettings(app).backupSnapshot())
                     val archive = File(tmp, "respaldo.zip")
                     val manifest = BackupArchive.create(copy, settings, archive)
                     archive.inputStream().use { BackupLimits.copy(it, out, BackupLimits.ZIP_BYTES) }

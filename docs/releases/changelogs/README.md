@@ -1,11 +1,14 @@
 # Changelogs por versión
 
-Cada ficha indica cambios realizados, fecha, código Android, etiqueta, rama de checkout y commits incluidos. Las versiones históricas no se vuelven a publicar ni se mueven sus etiquetas para añadir documentación.
+Cada ficha indica cambios realizados, fecha, código Android, etiqueta, rama de checkout y commits incluidos.
+
+Desde 1.45.0 cada ficha incluye además la sección `## Novedades en la app`: viñetas cortas en lenguaje del conductor, sin nombres de clases ni rutas de archivos. La compilación las incluye en la app (Ajustes, debajo de la versión) y **falla si la ficha de la versión o esa sección no existen**. Las versiones históricas no se vuelven a publicar ni se mueven sus etiquetas para añadir documentación.
 
 La única etiqueta original sin un changelog propio es 1.0.0: el archivo se introdujo en 1.1.0. Su ficha se completa retrospectivamente a partir del registro conservado.
 
 ## Entregas documentadas
 
+- [1.45.0](1.45.0.md) — código 56
 - [1.44.0](1.44.0.md) — código 55
 - [1.43.0](1.43.0.md) — código 54
 - [1.42.0](1.42.0.md) — código 53

@@ -30,6 +30,7 @@ import java.time.ZoneId
 data class DistanceLiveState(
     /** How it is measuring, or null when the GPS is off. */
     val measuring: SegmentOrigin? = null,
+    val requestError: String? = null,
     val open: DistanceSegment? = null,
     val lastFixAt: Long? = null,
     /** The foreground service could not take the "location" type (started in the background): open the app once. */
@@ -58,6 +59,10 @@ object DistanceMonitor {
     private var lastConditions: DistanceConditions? = null
     private var backgroundLimited = false
     private var lastFixAt: Long? = null
+    private var requestError: String? = null
+
+    @Synchronized
+    fun setRequestError(message: String?) { requestError = message; publish() }
 
     private val _state = MutableStateFlow(DistanceLiveState())
     val state: StateFlow<DistanceLiveState> = _state.asStateFlow()
@@ -161,6 +166,7 @@ object DistanceMonitor {
     private fun publish() {
         _state.value = DistanceLiveState(
             measuring = tracker.open?.origin,
+            requestError = requestError,
             open = tracker.open,
             lastFixAt = lastFixAt,
             backgroundLimited = backgroundLimited,
