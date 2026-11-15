@@ -38,10 +38,12 @@ class ClosureRepository(private val db: AppDatabase) {
             val earnings = reportData.report(w, c, test)
             val operating = OperatingRepository(db).report(w, c, end, test)
             val online = reportData.online(w, end, test)
-            val expenses = reportData.expenseData(test)
+            val expenses = ExpenseRepository(db).paidBetween(start, end).let { all -> all.copy(
+                fuel = all.fuel.filter { TestData.keep(it.id, test) },
+                expenses = all.expenses.filter { TestData.keep(it.id, test) }) }
             val fuel = expenses.fuel.filter { it.atMs >= start && it.atMs < end }
             val paid = expenses.expenses.filter { it.atMs >= start && it.atMs < end }
-            val touching = db.tripDao().getAllTrips().filter { TestData.keep(it.id, test) }.map { it.toDomain() }
+            val touching = db.tripDao().getClosureCandidates(start, end).filter { TestData.keep(it.id, test) }.map { it.toDomain() }
                 .filter { it.createdAt < end && (it.status.isOpen || (it.completedAt ?: it.cancelledAt ?: it.interruptedAt ?: it.updatedAt) >= start) }
             val unfinished = touching.filter { it.status.isOpen || (it.completedAt ?: it.cancelledAt ?: it.interruptedAt ?: Long.MAX_VALUE) >= end }
             val profit = operating.profitMinor.takeIf { unfinished.isEmpty() }

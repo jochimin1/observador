@@ -26,7 +26,13 @@ interface ExpenseDao {
     @Query("SELECT * FROM recurring_costs ORDER BY starts_on") fun observeRecurring(): Flow<List<RecurringCostEntity>>
     @Query("SELECT * FROM odometer_readings ORDER BY at") fun observeOdometer(): Flow<List<OdometerReadingEntity>>
 
+    @Query("SELECT * FROM fuel_entries WHERE at >= :from AND at < :to ORDER BY at")
+    suspend fun getFuelBetween(from: Long, to: Long): List<FuelEntryEntity>
+
     @Query("SELECT * FROM fuel_entries ORDER BY at") suspend fun getFuel(): List<FuelEntryEntity>
+    @Query("SELECT * FROM expense_entries WHERE at >= :from AND at < :to ORDER BY at")
+    suspend fun getExpensesBetween(from: Long, to: Long): List<ExpenseEntryEntity>
+
     @Query("SELECT * FROM expense_entries ORDER BY at") suspend fun getExpenses(): List<ExpenseEntryEntity>
     @Query("SELECT * FROM recurring_costs ORDER BY starts_on") suspend fun getRecurring(): List<RecurringCostEntity>
     @Query("SELECT * FROM odometer_readings ORDER BY at") suspend fun getOdometer(): List<OdometerReadingEntity>

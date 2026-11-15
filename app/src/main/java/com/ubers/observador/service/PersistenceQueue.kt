@@ -28,6 +28,7 @@ class PersistenceQueue(
     scope: CoroutineScope,
     private val gate: MaintenanceGate = MaintenanceGate.shared,
     private val now: () -> Long = System::currentTimeMillis,
+    private val nanoTime: () -> Long = System::nanoTime,
     private val onFailure: (Throwable) -> Unit = {}
 ) {
 
@@ -49,11 +50,11 @@ class PersistenceQueue(
         fun sharedHealth(): StateFlow<QueueHealth> = shared().health
     }
 
-    private data class Work(val permit: MaintenanceGate.Permit, val submittedAt: Long, val block: suspend () -> Unit)
+    private data class Work(val permit: MaintenanceGate.Permit, val submittedAt: Long, val submittedNanos: Long, val block: suspend () -> Unit)
     private val jobs = Channel<Work>(Channel.UNLIMITED, onUndeliveredElement = { gate.release(it.permit); finished(it) })
 
     /** Submission times of the jobs not finished yet, oldest first. */
-    private val waiting = ArrayDeque<Long>()
+    private val waiting = LinkedHashMap<Work, Long>()
     private val _health = MutableStateFlow(QueueHealth())
     val health: StateFlow<QueueHealth> = _health.asStateFlow()
 
@@ -63,9 +64,17 @@ class PersistenceQueue(
             try {
                 for (job in jobs) {
                     try {
-                        gate.runReserved(job.permit, job.block)
+                        gate.runReserved(job.permit) {
+                            val started = nanoTime()
+                            val wait = (started - job.submittedNanos).coerceAtLeast(0)
+                            _health.update { it.copy(lastWaitNanos = wait, maxWaitNanos = maxOf(it.maxWaitNanos, wait)) }
+                            try { job.block() } finally {
+                                val elapsed = (nanoTime() - started).coerceAtLeast(0)
+                                _health.update { it.copy(lastRunNanos = elapsed, maxRunNanos = maxOf(it.maxRunNanos, elapsed)) }
+                            }
+                        }
                         finished(job)
-                        _health.update { it.copy(lastWriteAt = now()) }
+                        _health.update { it.copy(lastWriteAt = now(), completed = it.completed + 1) }
                     } catch (e: Exception) {
                         finished(job)
                         if (e is CancellationException && !currentCoroutineContext().isActive) throw e
@@ -87,18 +96,19 @@ class PersistenceQueue(
     }
 
     private fun finished(work: Work) = synchronized(waiting) {
-        waiting.remove(work.submittedAt)
-        _health.update { it.copy(pending = waiting.size, oldestPendingAt = waiting.firstOrNull()) }
+        waiting.remove(work)
+        _health.update { it.copy(pending = waiting.size, oldestPendingAt = waiting.values.firstOrNull(), peakPending = maxOf(it.peakPending, waiting.size)) }
     }
 
     fun enqueue(job: suspend () -> Unit): Boolean {
-        val work = Work(gate.reserve(), now(), job)
+        val work = Work(gate.reserve(), now(), nanoTime(), job)
         synchronized(waiting) {
-            waiting.addLast(work.submittedAt)
-            _health.update { it.copy(pending = waiting.size, oldestPendingAt = waiting.firstOrNull()) }
+            waiting[work] = work.submittedAt
+            _health.update { it.copy(pending = waiting.size, oldestPendingAt = waiting.values.firstOrNull(), peakPending = maxOf(it.peakPending, waiting.size)) }
         }
         val accepted = jobs.trySend(work).isSuccess
         if (!accepted) {
+            _health.update { it.copy(rejected = it.rejected + 1) }
             gate.release(work.permit)
             finished(work)
         }

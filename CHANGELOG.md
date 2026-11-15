@@ -14,6 +14,23 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.51.0] — 2026-11-15
+
+### Cambiado
+
+- Arranque asíncrono con carga, error y reintento; el contenido espera al tema y la bienvenida guardados. Se retiran los dos `runBlocking` de MainActivity.
+- Costos: distancias y gastos por intervalo. Cierres: viajes candidatos y pagos del intervalo, sin cargar odómetro ni planes recurrentes.
+- Cola: seguimiento de pendientes por identidad con mapa ordenado; eliminar un trabajo deja de buscar por toda la cola. Se preserva orden FIFO y exclusión de mantenimiento.
+- Cancelaciones de cálculo en Reportes y Horarios se propagan en vez de convertirse en errores de pantalla.
+
+### Añadido
+
+- Salud y diagnóstico exportado: medias, máximos y último tiempo de arranque preparado, lectura, tarjeta y cálculo de costos; heap Java y métricas de espera, ejecución, máximo de pendientes, completados y rechazados del guardado.
+- Agregados de memoria fija por tipo de medición; no se conservan listas crecientes de muestras.
+- Comparación reproducible con 10.000 tramos y 10.000 gastos, igualdad de resultados y pruebas de ráfaga FIFO de 2.001 trabajos.
+
+Resultados, límites y comandos: [1.51.0](docs/releases/1.51.0.md).
+
 ## [1.50.0] — sin publicar
 
 Interfaz para trabajar y revisar. Notas: [docs/releases/1.50.0.md](docs/releases/1.50.0.md).

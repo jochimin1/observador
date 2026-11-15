@@ -164,7 +164,9 @@ class UberAccessibilityService : AccessibilityService() {
     private var unreadableKey: Int? = null
 
     /** Reads the tree once; the offer parser and the ride lifecycle both work from that copy. */
-    private fun readScreen() {
+    private fun readScreen() = PerformanceMonitor.measure(com.ubers.observador.domain.health.PerformanceMetric.READING) { readScreenNow() }
+
+    private fun readScreenNow() {
         if (!observing) return
         // Null root means the window tree isn't ready: unknown, not "card gone"
         val root = rootInActiveWindow ?: run {
@@ -321,6 +323,7 @@ class UberAccessibilityService : AccessibilityService() {
     }
 
     private fun sessionStart(offer: UberOffer, hash: String, windowId: Int?) {
+        val offerStartedNanos = System.nanoTime()
         Log.d(TAG, "Session started: $hash")
         overlayManager.dismiss()
         notifier.cancel()
@@ -361,7 +364,10 @@ class UberAccessibilityService : AccessibilityService() {
                 mainHandler.post {
                     // The card may already be gone or replaced while we were analysing
                     if (!observing || generation != readingGeneration || tracker.activeHash != hash || hash !in visibleOffers) return@post
-                    if (showOverlay) overlayManager.show(analysis, quality, overlaySeconds, large, banner)
+                    if (showOverlay) {
+                        overlayManager.show(analysis, quality, overlaySeconds, large, banner)
+                        if (!overlayManager.lastShowFailed) PerformanceMonitor.record(com.ubers.observador.domain.health.PerformanceMetric.OVERLAY, System.nanoTime() - offerStartedNanos)
+                    }
                     OfferDebug.onOverlay(showOverlay)
                     if (notify) {
                         notifier.notifyGoodOffer(analysis, quality, sectorTitle = banner?.text)

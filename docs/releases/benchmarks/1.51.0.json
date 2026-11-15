@@ -1,0 +1,31 @@
+{
+  "version": "1.51.0",
+  "versionCode": 62,
+  "date": "2026-11-15",
+  "environment": "emulator-5582 / Observador_QA_API36",
+  "database": "isolated Room in-memory, schema 21",
+  "dataset": {
+    "distanceSegments": 10002,
+    "expenses": 10000
+  },
+  "window": "one workday, UTC, start hour 4",
+  "samples": 7,
+  "warmupPerVariant": 1,
+  "comparison": "1.50.0 complete-query logic vs 1.51.0 bounded-query logic, same database",
+  "complete": {
+    "materializedRows": 20002,
+    "medianMs": 174.529
+  },
+  "bounded": {
+    "materializedRows": 42,
+    "medianMs": 5.5631
+  },
+  "sameOperatingReport": true,
+  "timingIsPassFailThreshold": false,
+  "limitations": [
+    "Synthetic queries only, not whole-app speed",
+    "Shared emulator hardware",
+    "No physical phone or battery measurement",
+    "Startup first-frame timing not comparable to full content readiness"
+  ]
+}

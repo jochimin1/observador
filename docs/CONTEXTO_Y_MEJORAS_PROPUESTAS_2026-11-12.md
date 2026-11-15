@@ -342,6 +342,8 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 
 ### 1.51.0 — Rendimiento y arquitectura mantenible
 
+Seguimiento 2026-11-15: implementación y resultados en [notas de 1.51.0](releases/1.51.0.md). Se abordan arranque asíncrono, consultas acotadas de costos/cierres, métricas de memoria fija y cola, y propagación de cancelaciones. Las notas identifican los límites pendientes (medición física, paginación general y cola durable); la propuesta original se conserva debajo.
+
 **Prioridad P2 · esfuerzo mediano/grande · propósito:** que el historial crezca manteniendo lectura rápida y consumo razonable.
 
 - Medir latencia de lectura/tarjeta, arranque, consultas y memoria; definir presupuestos con el teléfono objetivo.

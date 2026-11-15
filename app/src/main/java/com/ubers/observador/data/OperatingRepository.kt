@@ -37,6 +37,7 @@ class OperatingRepository(private val db: AppDatabase) {
     }
 
     suspend fun report(window: EarningsWindow, clock: WorkdayClock, now: Long, includeTest: Boolean): OperatingReport = MaintenanceGate.shared.access {
+        com.ubers.observador.service.PerformanceMonitor.measure(com.ubers.observador.domain.health.PerformanceMetric.OPERATING) {
         db.withTransaction {
             val trips = TestData.filter(db.tripDao().getTripsTouching(window.startMs, minOf(now, window.endMs)), includeTest) { it.id }.map { it.toDomain() }
             val ids = trips.map { it.id }
@@ -46,9 +47,10 @@ class OperatingRepository(private val db: AppDatabase) {
             val income = EarningsReports.build(window, clock, TestData.filter(input.completedTrips, includeTest) { it.id },
                 input.summaries, TestData.filter(input.unassigned, includeTest) { it.observationId }).summary
             OperatingCosts.report(window, clock, now, db.operatingCostDao().getAll().map { it.toDomain() }, trips, money, distance,
-                TestData.filter(db.distanceDao().getAllSegments(), includeTest) { it.id }.map { it.toDomain() },
+                TestData.filter(db.distanceDao().getSegmentsTouching(window.startMs, minOf(now, window.endMs)), includeTest) { it.id }.map { it.toDomain() },
                 TestData.filter(db.onlineDao().getBetween(window.startMs, window.endMs), includeTest) { it.id }.map { it.toDomain() },
-                TestData.filter(db.expenseDao().getExpenses(), includeTest) { it.id }.map { it.toDomain() }, income)
+                TestData.filter(db.expenseDao().getExpensesBetween(window.startMs, minOf(now, window.endMs)), includeTest) { it.id }.map { it.toDomain() }, income)
+        }
         }
     }
 }

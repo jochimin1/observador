@@ -8,12 +8,12 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,6 +21,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val startedNanos = System.nanoTime()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (com.ubers.observador.data.backup.DataRecovery.failure != null) {
@@ -68,12 +70,7 @@ class MainActivity : ComponentActivity() {
         notificationsGranted = hasNotificationPermission()
         // 1.29.0: the welcome asks for the permissions itself; a driver updating from an older
         // version (reading already on) skips it and is never asked again
-        val onboardingDone = kotlinx.coroutines.runBlocking { appSettings.onboardingDone.first() }
-        val showOnboarding = com.ubers.observador.domain.Onboarding.shouldShow(onboardingDone, accessibilityEnabled)
-        if (!showOnboarding) {
-            if (onboardingDone == null) lifecycleScope.launch { appSettings.updateOnboardingDone(true) }
-            requestPermissionsIfNeeded()
-        }
+        val startup = androidx.lifecycle.ViewModelProvider(this)[com.ubers.observador.ui.StartupViewModel::class.java]
         // Fase 8L: opening the app after «Cerrar Observador» turns reading back on
         com.ubers.observador.ui.AppNavigation.closeRequested.value = false
         lifecycleScope.launch { com.ubers.observador.data.AppSettings(applicationContext).reopenAfterClose() }
@@ -88,10 +85,29 @@ class MainActivity : ComponentActivity() {
         ObservadorForegroundService.start(this)
         handleOpen(intent)
         setContent {
-            val themeFlow = remember { com.ubers.observador.data.AppSettings(applicationContext).themeSettings }
-            // Read once before the first frame, so a "Noche" driver never sees a light flash
-            val initialTheme = remember { kotlinx.coroutines.runBlocking { themeFlow.first() } }
-            val themeSettings by themeFlow.collectAsState(initial = initialTheme)
+            val startupState by startup.state.collectAsState()
+            val initial = startupState as? com.ubers.observador.ui.StartupState.Ready
+            if (initial == null) {
+                androidx.compose.material3.Surface(color = androidx.compose.ui.graphics.Color(0xFF101010), modifier = Modifier.fillMaxSize()) {
+                    androidx.compose.foundation.layout.Column(Modifier.padding(24.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+                        Text(if (startupState is com.ubers.observador.ui.StartupState.Failed) "No se pudieron leer los ajustes." else "Abriendo Observador…", color = androidx.compose.ui.graphics.Color.White)
+                        if (startupState is com.ubers.observador.ui.StartupState.Failed) androidx.compose.material3.TextButton(onClick = startup::retry) { Text("Reintentar") }
+                    }
+                }
+                return@setContent
+            }
+            val onboardingDone = initial.onboardingDone
+            val showOnboarding = remember { com.ubers.observador.domain.Onboarding.shouldShow(onboardingDone, accessibilityEnabled) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (!showOnboarding) {
+                    if (onboardingDone == null) appSettings.updateOnboardingDone(true)
+                    requestPermissionsIfNeeded()
+                }
+                androidx.compose.runtime.withFrameNanos { }
+                com.ubers.observador.service.PerformanceMonitor.record(com.ubers.observador.domain.health.PerformanceMetric.STARTUP, System.nanoTime() - startedNanos)
+            }
+            // The retained startup state follows saved settings, including across recreation.
+            val themeSettings = initial.theme
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
             // "Noche" by the hour: the hour is checked every minute
             val hour by androidx.compose.runtime.produceState(java.time.LocalTime.now().hour) {
@@ -115,7 +131,7 @@ class MainActivity : ComponentActivity() {
             }
             // Latched: turning reading on mid-welcome must not close it; «Ver bienvenida» opens it again
             var onboarding by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(showOnboarding) }
-            val done by appSettings.onboardingDone.collectAsState(initial = onboardingDone)
+            val done = initial.onboardingDone
             androidx.compose.runtime.LaunchedEffect(done) { if (done == false) onboarding = true }
             ObservadorTheme(resolved) {
                 com.ubers.observador.ui.settings.RestoreResultDialog()

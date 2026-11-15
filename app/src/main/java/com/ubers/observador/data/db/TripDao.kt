@@ -77,6 +77,9 @@ interface TripDao {
     @Query("DELETE FROM trips WHERE id LIKE :prefix || '%'")
     suspend fun deleteTripsByIdPrefix(prefix: String): Int
 
+    @Query("SELECT * FROM trips WHERE created_at < :to AND (status NOT IN ('COMPLETED','CANCELLED','INTERRUPTED') OR COALESCE(completed_at, cancelled_at, interrupted_at, updated_at) >= :from)")
+    suspend fun getClosureCandidates(from: Long, to: Long): List<TripEntity>
+
     @Query("SELECT * FROM trips")
     suspend fun getAllTrips(): List<TripEntity>
 

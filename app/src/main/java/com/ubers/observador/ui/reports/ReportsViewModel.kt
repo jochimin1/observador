@@ -155,6 +155,7 @@ class ReportsViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 Loaded(c, window, window?.let { ReportPeriods.labelOf(c.period, it) } ?: "Elige las fechas", clock, source, cfg[4] as Int, false)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "Report data failed", e)
                 Loaded(c, window, window?.let { ReportPeriods.labelOf(c.period, it) } ?: "", clock, null, cfg[4] as Int, true)
             }

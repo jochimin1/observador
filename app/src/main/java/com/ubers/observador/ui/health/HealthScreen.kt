@@ -60,13 +60,15 @@ fun HealthScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val report by remember(context) { HealthMonitor.reports(context) }.collectAsState(initial = null)
     val incidents by HealthMonitor.incidents.collectAsState()
+    val timings by com.ubers.observador.service.PerformanceMonitor.timings.collectAsState()
+    val queue by com.ubers.observador.service.PersistenceQueue.sharedHealth().collectAsState()
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         val current = report
         if (uri != null && current != null) scope.launch {
             message = try {
-                val text = HealthExport.text(current, incidents, versions(context), ZoneId.systemDefault())
+                val text = HealthExport.text(current, incidents, versions(context), ZoneId.systemDefault()) + "\n" + com.ubers.observador.service.PerformanceMonitor.text()
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error("No destination")
                 }
@@ -97,6 +99,14 @@ fun HealthScreen(onBack: () -> Unit) {
                 r.checks.forEach { CheckCard(it) }
             }
 
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Rendimiento y guardado", style = MaterialTheme.typography.titleSmall)
+                    val diagnostic = remember(timings, queue) { com.ubers.observador.service.PerformanceMonitor.text() }
+                    Text(diagnostic, style = MaterialTheme.typography.bodySmall)
+                    Text("Mediciones de este proceso; al reiniciar empiezan de nuevo. Son tiempos de procesamiento, no una medida de la red de Uber ni del GPS.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Incidentes recientes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)

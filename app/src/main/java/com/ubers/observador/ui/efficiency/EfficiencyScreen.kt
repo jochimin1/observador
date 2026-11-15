@@ -105,6 +105,7 @@ class EfficiencyViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 load(p, test)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e("EfficiencyViewModel", "Efficiency not computed", e)
                 EfficiencyState(loading = false, failed = true, period = p)
             }

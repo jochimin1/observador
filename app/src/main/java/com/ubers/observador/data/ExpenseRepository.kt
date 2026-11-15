@@ -41,6 +41,13 @@ class ExpenseRepository(private val db: AppDatabase) {
         }
     }
 
+    /** Paid rows only; recurring plans and odometer history are not needed by a closure. */
+    suspend fun paidBetween(from: Long, to: Long): ExpenseData = MaintenanceGate.shared.access {
+        db.withTransaction {
+            ExpenseData(dao.getFuelBetween(from, to).map { it.toDomain() }, dao.getExpensesBetween(from, to).map { it.toDomain() }, emptyList(), emptyList())
+        }
+    }
+
     /** [resetAtKm]: the driver confirmed "cambié de odómetro o de motor" for this lower odometer. */
     suspend fun saveFuel(entry: FuelEntry, resetAtKm: Long? = null) = MaintenanceGate.shared.access {
         db.withTransaction {

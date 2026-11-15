@@ -54,7 +54,14 @@ data class QueueHealth(
     /** Only the kind of error (class name), never its message: messages can carry data. */
     val lastFailure: String? = null,
     /** False once the consumer stopped: nothing submitted afterwards is saved. */
-    val alive: Boolean = true
+    val alive: Boolean = true,
+    val peakPending: Int = 0,
+    val completed: Long = 0,
+    val rejected: Long = 0,
+    val lastWaitNanos: Long = 0,
+    val maxWaitNanos: Long = 0,
+    val lastRunNanos: Long = 0,
+    val maxRunNanos: Long = 0
 )
 
 data class HealthSignals(

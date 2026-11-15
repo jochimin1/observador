@@ -113,6 +113,7 @@ class OperatingRepositoryTest {
         val zip = File(context.cacheDir, "operating-${UUID.randomUUID()}.zip")
         try {
             val db = AppDatabase.openFile(context, name)
+            val schemaVersion = db.openHelper.readableDatabase.version
             val original = try {
                 assertNull(OperatingRepository(db).save(input(), clock, start))
                 val rows = db.operatingCostDao().getAll()
@@ -120,7 +121,7 @@ class OperatingRepositoryTest {
                 rows
             } finally { db.close() }
             val manifest = BackupArchive.create(context.getDatabasePath(name), emptyMap(), zip)
-            assertEquals(19, manifest.dbVersion)
+            assertEquals(schemaVersion, manifest.dbVersion)
             assertEquals(1, manifest.rows["operating_cost_models"])
             val target = context.getDatabasePath(restoredName)
             ZipFile(zip).use { z -> z.getInputStream(z.getEntry(BackupFormat.ENTRY_DB)).use { s -> target.outputStream().use { s.copyTo(it) } } }
