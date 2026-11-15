@@ -1,0 +1,84 @@
+{
+  "version": "1.52.0",
+  "versionCode": 63,
+  "status": "PASSED",
+  "validationSourceCommit": "f4efd22c8deb5a5200187ad30fae8c2e41f73e7d",
+  "appTree": "8b3d07bb6eac4bacd0efa0d578b3aa4ccbd16640",
+  "room": {
+    "version": 21,
+    "identity": "3e8586c0da9a9b6f181c00e549cc40ff"
+  },
+  "pythonTests": 10,
+  "jvm": {
+    "tests": 846,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "instrumentation": {
+    "api": "36",
+    "model": "sdk_gphone64_x86_64",
+    "counts": {
+      "upgradeSeed": 1,
+      "upgradeVerify": 1,
+      "regressions": 47
+    },
+    "status": "PASSED"
+  },
+  "lint": {
+    "lint-results-debug": {
+      "Error": 0,
+      "Fatal": 0,
+      "Warning": 52,
+      "Hint": 1
+    },
+    "lint-results-release": {
+      "Error": 0,
+      "Fatal": 0,
+      "Warning": 52,
+      "Hint": 1
+    }
+  },
+  "apkDebug": {
+    "package": "com.ubers.observador",
+    "versionCode": 63,
+    "versionName": "1.52.0",
+    "debuggable": true,
+    "sha256": "75c042a19ebe98a7321356324b09b53d0da6caa216fdbc9e63db696f4e6959ac",
+    "sizeBytes": 43785060,
+    "certificatesSha256": [
+      "7fd6e52380bedb2303b76795678ba47090f437759655a0e81cdf86681fc74998"
+    ]
+  },
+  "signedQa": {
+    "package": "com.ubers.observador",
+    "versionCode": 63,
+    "versionName": "1.52.0",
+    "debuggable": false,
+    "sha256": "3570f747391748d1d3a661acf24f972b0630979cd7c6e8ac039366f2be96037f",
+    "sizeBytes": 33355541,
+    "certificatesSha256": [
+      "7fd6e52380bedb2303b76795678ba47090f437759655a0e81cdf86681fc74998"
+    ]
+  },
+  "optimizedExperimentalQa": {
+    "package": "com.ubers.observador",
+    "versionCode": 63,
+    "versionName": "1.52.0",
+    "debuggable": false,
+    "sha256": "7f93a24c1f8401a1ce440de76ef0a3504f2f454a238014bb7c17363d9a368dc7",
+    "sizeBytes": 5708510,
+    "certificatesSha256": [
+      "7fd6e52380bedb2303b76795678ba47090f437759655a0e81cdf86681fc74998"
+    ]
+  },
+  "pending": [
+    "GitHub Actions execution",
+    "API 30 emulator run",
+    "Physical workday and restore restart",
+    "New production signing identity transition",
+    "Full optimized variant runtime regression"
+  ],
+  "physicalPhoneModified": false,
+  "remotePublished": false
+}

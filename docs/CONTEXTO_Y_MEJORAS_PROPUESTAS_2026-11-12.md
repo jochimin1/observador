@@ -356,6 +356,8 @@ Seguimiento 2026-11-15: implementación y resultados en [notas de 1.51.0](releas
 
 ### 1.52.0 — Entrega estable y mantenimiento continuo
 
+**Seguimiento 2026-11-15:** implementación local de automatización, controles de APK/firma, actualización en emulador y firma externa en [las notas de 1.52.0](releases/1.52.0.md). El [procedimiento de validación](releases/VALIDACION.md) distingue ejecución local, CI configurada y jornada física pendiente. La variante optimizada es experimental; no se declara un cambio a una clave nueva de producción ni una distribución remota.
+
 **Prioridad P2 · esfuerzo mediano · propósito:** que cada actualización sea reproducible, verificable e instalable sin perder datos.
 
 - Integración continua en checkout limpio: JVM, análisis estático, compilación, esquemas/migraciones y pruebas instrumentadas aisladas.

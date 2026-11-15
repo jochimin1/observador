@@ -22,6 +22,11 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 - Comprobación de firma e identidad antes de actualizar, con evidencias JSON.
 - Instrumentación restringida a emuladores y prueba de actualización conservando evidencia y tema.
 - Firma release configurable mediante variables externas; variante optimizada experimental separada.
+- Pruebas históricas de migración actualizadas hasta Room 21 y conservación de todos los puntos de ruta comprobada.
+
+### Validación
+
+10 pruebas Python, 846 JVM, 47 regresiones instrumentadas y 2 pasos de actualización correctos. Compilación desde checkout limpio; lint debug/release con 0 errores y 52 advertencias. APK release de QA firmado y optimizado experimental generados/verificados, sin publicación remota ni instalación en el teléfono.
 
 Notas y límites: [1.52.0](docs/releases/1.52.0.md).
 
