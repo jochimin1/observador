@@ -21,13 +21,18 @@ def main():
         parser.error("Solo se permite un serial emulator-N")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    result = {"startedAtUtc": datetime.now(timezone.utc).isoformat(), **source_checks()}
+    result_file = output / "results.json"
+    result = {"status": "RUNNING", "startedAtUtc": datetime.now(timezone.utc).isoformat()}
+    result_file.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    result.update(source_checks())
 
     def stage(name, command):
         print(name, flush=True)
         with (output / (name + ".log")).open("w", encoding="utf-8") as log:
             process = subprocess.run([str(x) for x in command], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
         if process.returncode:
+            result.update(status="FAILED", failedStage=name)
+            result_file.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             raise RuntimeError(f"Falló {name}: revisar {output / (name + '.log')}")
 
     stage("python-tests", [sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"])
@@ -60,7 +65,8 @@ def main():
     else:
         result["instrumentation"] = "NOT_RUN: pass --serial emulator-N"
     result["finishedAtUtc"] = datetime.now(timezone.utc).isoformat()
-    (output / "results.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    result["status"] = "PASSED" if args.serial else "HOST_PASSED"
+    result_file.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2))
 
 

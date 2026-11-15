@@ -27,6 +27,8 @@ def main():
     if device("shell", "getprop", "ro.kernel.qemu") != "1":
         raise ValueError("El dispositivo no acredita ser un emulador")
     args.output.mkdir(parents=True, exist_ok=True)
+    # A failed rerun must never leave an earlier success presented as its result.
+    (args.output / "results.json").write_text(json.dumps({"status": "RUNNING", "serial": args.serial}) + "\n", encoding="utf-8")
     current = inspect_apk(args.apk)
     test = inspect_apk(args.test_apk)
     if current["package"] != PACKAGE or not current["debuggable"]:
@@ -62,7 +64,7 @@ def main():
     classes = migrations + ["ReleaseMigrationTest", "StartupSettingsTest", "OperatingRepositoryTest",
                             "ClosureRepositoryTest", "BackupRoundTripTest", "FullDataTest"]
     counts["regressions"] = instrument(",".join(PACKAGE + "." + name for name in classes), "regressions")
-    result = {"serial": args.serial, "api": device("shell", "getprop", "ro.build.version.sdk"),
+    result = {"status": "PASSED", "serial": args.serial, "api": device("shell", "getprop", "ro.build.version.sdk"),
               "model": device("shell", "getprop", "ro.product.model"), "counts": counts,
               "apk": current, "testApk": test, "previousApk": previous, "regressionClasses": classes}
     (args.output / "results.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

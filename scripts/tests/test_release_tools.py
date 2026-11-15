@@ -2,9 +2,14 @@
 import sys
 from pathlib import Path
 import unittest
+import json
+import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from release_tools import app_identity, certificate_hashes, check_update, instrumentation_count, parse_badging
+import test_emulator
+import validate_release
 
 
 class ReleaseToolsTest(unittest.TestCase):
@@ -49,6 +54,28 @@ class ReleaseToolsTest(unittest.TestCase):
                        "OK (2 tests)\nINSTRUMENTATION_STATUS_CODE: -2"):
             with self.subTest(output=output), self.assertRaises(ValueError):
                 instrumentation_count(output)
+
+    def test_failed_host_rerun_cannot_reuse_a_previous_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = Path(directory) / "results.json"
+            result.write_text('{"status":"PASSED"}', encoding="utf-8")
+            with patch.object(sys, "argv", ["validate_release.py", "--output", directory]), \
+                    patch.object(validate_release, "source_checks", side_effect=ValueError("invalid source")):
+                with self.assertRaises(ValueError):
+                    validate_release.main()
+            self.assertNotEqual("PASSED", json.loads(result.read_text())["status"])
+
+    def test_failed_emulator_rerun_cannot_reuse_a_previous_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = Path(directory) / "results.json"
+            result.write_text('{"status":"PASSED"}', encoding="utf-8")
+            with patch.object(sys, "argv", ["test_emulator.py", "--serial", "emulator-1234", "--output", directory]), \
+                    patch.object(test_emulator, "sdk_tool", return_value="unused-adb"), \
+                    patch.object(test_emulator, "run", return_value="1"), \
+                    patch.object(test_emulator, "inspect_apk", side_effect=ValueError("invalid apk")):
+                with self.assertRaises(ValueError):
+                    test_emulator.main()
+            self.assertNotEqual("PASSED", json.loads(result.read_text())["status"])
 
 
 if __name__ == "__main__":
