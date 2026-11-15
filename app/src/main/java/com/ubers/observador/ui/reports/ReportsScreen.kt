@@ -74,8 +74,13 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = viewModel()) {
+fun ReportsScreen(onBack: () -> Unit, onTrip: (String) -> Unit = {}, onMoney: () -> Unit = {}, viewModel: ReportsViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    var closing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (closing) {
+        ClosureScreen(state.window, state.includeTest, { closing = false }, onTrip, onMoney)
+        return
+    }
     val snackbar = remember { SnackbarHostState() }
     var picking by remember { mutableStateOf(false) }
     var allTotals by remember { mutableStateOf(false) }
@@ -131,6 +136,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = viewModel())
             }
             if (state.failed) item { InfoLine(R.drawable.ic_info, "No se pudieron leer los datos del periodo. Prueba de nuevo.", tint = MaterialTheme.colorScheme.error) }
             state.totals?.let { t -> item { TotalsCard(t, allTotals, onToggle = { allTotals = !allTotals }) } }
+            item { OutlinedButton(onClick = { closing = true }) { Text("Cierre de jornada y revisiones") } }
             item { FiltersCard(state, viewModel) }
             item { FilesCard(state, viewModel) }
             item {

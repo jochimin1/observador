@@ -14,6 +14,24 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.49.0] — 2026-11-14
+
+### Añadido
+
+- Cierre de jornada o periodo desde Reportes: ingresos confirmados, pendientes, gastos pagados, costos operativos, beneficio, tiempo y cobertura.
+- Historial persistente de cierres y revisiones inmutables. Una revisión conserva intervalo, zona, corte, política TEST y metas del cierre original.
+- CSV, JSON y PDF paginado construidos con los mismos registros congelados; detalle de viajes, importes pendientes, gastos, costos y referencias.
+- Incidencias con acceso al viaje y a Ganancias. Metas opcionales de beneficio y tiempo máximo por cierre.
+- Room 21: migración aditiva 20→21 para `report_closures`, incluida en respaldos y exportación completa.
+
+### Criterios
+
+- Ingreso del viaje por finalización; ingresos sin viaje por observación; intervalo con inicio incluido y fin excluido.
+- Gastos pagados separados del costo operativo para evitar restarlos dos veces. Beneficio desconocido cuando falta cobertura.
+- Las exportaciones históricas de detalle continúan disponibles; los tres formatos del nuevo cierre comparten su propia instantánea.
+
+Validación y comandos: [1.49.0](docs/releases/1.49.0.md).
+
 ## [1.48.0] — sin publicar
 
 Horarios, mercado y eficiencia. Notas: [docs/releases/1.48.0.md](docs/releases/1.48.0.md).

@@ -267,7 +267,9 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             }
             // Fase 8J: not a tab; opened from Ajustes, Inicio, Ganancias and Gastos
             composable(ReportsNavigation.ROUTE) {
-                com.ubers.observador.ui.reports.ReportsScreen(onBack = { navController.popBackStack() })
+                com.ubers.observador.ui.reports.ReportsScreen(onBack = { navController.popBackStack() },
+                    onTrip = { id -> navController.navigate("$ROUTE_TRIP/${android.net.Uri.encode(id)}") },
+                    onMoney = { navController.navigate(Tab.EARNINGS.route) })
             }
             composable(Tab.ANALYSIS.route) {
                 IntelligenceScreen(

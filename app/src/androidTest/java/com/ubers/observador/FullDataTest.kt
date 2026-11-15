@@ -44,8 +44,11 @@ class FullDataTest {
             val output = ByteArrayOutputStream()
             FullDataExport.write(context, output)
             val json = JSONObject(output.toString("UTF-8"))
-            assertEquals(19, json.getInt("databaseVersion"))
+            // The version the app opened, not a number written by hand: every new schema must still export whole
+            assertEquals(db.openHelper.readableDatabase.version, json.getInt("databaseVersion"))
             val tables = json.getJSONObject("tables")
+            assertTrue(tables.has("work_shifts"))
+            assertTrue(tables.has("report_closures"))
             assertTrue(tables.has("trip_route_points"))
             assertTrue(tables.has("financial_observations"))
             val rows = tables.getJSONArray("observation_log")
@@ -69,7 +72,7 @@ class FullDataTest {
         com.ubers.observador.domain.backup.EncryptedBackup.decrypt(encrypted.toByteArray().inputStream(), clear, password)
         val restorer = com.ubers.observador.data.backup.BackupRestorer(context)
         try {
-            val prepared = restorer.prepare(clear.toByteArray().inputStream(), 20)
+            val prepared = restorer.prepare(clear.toByteArray().inputStream(), AppDatabase.getInstance(context).openHelper.readableDatabase.version)
             assertEquals(original.manifest.rows, prepared.manifest.rows)
             assertEquals(original.manifest.sha256, prepared.manifest.sha256)
         } finally { restorer.discard(); password.fill('\u0000') }
