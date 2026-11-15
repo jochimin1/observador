@@ -58,11 +58,7 @@ class Migration13To14Test {
     fun theChainFrom4Opens() = runBlocking {
         helper.createDatabase(CHAIN_DB, 4).close()
         val room = Room.databaseBuilder(context, AppDatabase::class.java, CHAIN_DB)
-            .addMigrations(
-                AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
-                AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15
-            )
+            .addMigrations(*releaseTestMigrations)
             .build()
         assertEquals(0, room.routeDao().observeRouteCount().first())
         room.close()
@@ -83,7 +79,9 @@ class Migration13To14Test {
         assertEquals(13, route.pointsReceived)
         assertTrue(route.startWithPassenger)
         val points = repo.getPoints("trip-1")
-        assertEquals(4, points.size) // a straight line: the ends of each phase
+        // Full-data retention (1.44.0+) keeps every accepted point, including straight lines.
+        assertEquals(12, points.size)
+        assertEquals((0 until 12).map { 184_861_000 + it * 1_000 }, points.map { it.latE7 })
         assertEquals(points.map { it.seq }, points.map { it.seq }.sorted())
         // A closed route is not reopened by a stray write of another session
         repo.save(RouteUpdate(listOf(RouteWrite("no-such-session", openAt = 2_000L))))

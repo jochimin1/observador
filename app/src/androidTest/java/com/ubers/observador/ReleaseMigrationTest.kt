@@ -14,14 +14,6 @@ class ReleaseMigrationTest {
     @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java)
 
     @Test fun everyExportedSchemaMigratesTo21WithoutLosingTheOffer() {
-        val migrations = arrayOf(
-            AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7,
-            AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
-            AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13,
-            AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
-            AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19,
-            AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21
-        )
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         for (start in 4..20) {
             val name = "release-migration-$start-${UUID.randomUUID()}"
@@ -29,7 +21,7 @@ class ReleaseMigrationTest {
                 helper.createDatabase(name, start).use { db ->
                     db.execSQL("INSERT INTO detected_offers (offer_hash,detectedAt,price,pickupKm,pickupMin,tripKm,tripMin,totalKm,totalMin,rdpPerKm,rdpPerHour,fuelCost,netProfit,score) VALUES ('release-retained',1000,125.5,1.0,2,4.0,8,5.0,10,25.1,753.0,10.5,115.0,90)")
                 }
-                helper.runMigrationsAndValidate(name, 21, true, *migrations).use { db ->
+                helper.runMigrationsAndValidate(name, 21, true, *releaseTestMigrations).use { db ->
                     db.query("SELECT price,offer_hash FROM detected_offers").use { row ->
                         assertTrue("retained offer from schema $start", row.moveToFirst())
                         assertEquals(125.5, row.getDouble(0), 0.0)

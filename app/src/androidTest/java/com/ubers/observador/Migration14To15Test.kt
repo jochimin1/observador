@@ -55,11 +55,7 @@ class Migration14To15Test {
     fun theChainFrom4Opens() = runBlocking {
         helper.createDatabase(CHAIN_DB, 4).close()
         val room = Room.databaseBuilder(context, AppDatabase::class.java, CHAIN_DB)
-            .addMigrations(
-                AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
-                AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15
-            )
+            .addMigrations(*releaseTestMigrations)
             .build()
         assertNull(room.readingAuditDao().observeLatest().first())
         room.close()
