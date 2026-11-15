@@ -33,8 +33,18 @@ data class HealthCheck(
     val title: String,
     val detail: String,
     /** What helps, in the driver's words, or null when nothing needs doing. */
-    val action: String? = null
+    val action: String? = null,
+    /** 1.45.0: the screen that fixes it, offered as a button. */
+    val fix: HealthFix? = null
 )
+
+/** 1.45.0: where the driver is taken to recover. */
+enum class HealthFix(val label: String) {
+    LOCATION_SETTINGS("Abrir ajustes de ubicación"),
+    APP_SETTINGS("Abrir permisos de Observador"),
+    BATTERY_SETTINGS("Abrir ajustes de batería"),
+    RETRY_SERVICE("Reintentar la ubicación ahora")
+}
 
 data class HealthReport(val atMs: Long, val checks: List<HealthCheck>) {
     val overall: HealthLevel get() = checks.maxByOrNull { it.level.rank }?.level ?: HealthLevel.OK
@@ -82,6 +92,17 @@ data class HealthSignals(
     val lastFixAt: Long? = null,
     /** Android refused the location type to the foreground service (started from the background). */
     val gpsBackgroundLimited: Boolean = false,
+    /** 1.45.0: only the approximate location is granted (km and routes need the precise one). */
+    val approximateOnly: Boolean = false,
+    /** 1.45.0: the phone's own location switch. */
+    val locationServicesOn: Boolean = true,
+    /** 1.45.0: the request was refused after it was made (asynchronously), and why (our label). */
+    val gpsRequestFailedAt: Long? = null,
+    val gpsRequestFailure: String? = null,
+    /** 1.45.0: the system said positions are not available, since then (null once they are). */
+    val gpsUnavailableSince: Long? = null,
+    /** 1.45.0: Android may stop or slow Observador in the background (battery optimisation or restriction). */
+    val batteryRestricted: Boolean = false,
     val queue: QueueHealth = QueueHealth()
 )
 
@@ -163,26 +184,49 @@ object HealthRules {
         }
     }
 
+    /** 1.45.0: how long the system may say «no positions» before it is reported. */
+    const val GPS_UNAVAILABLE_MS = 30_000L
+
     fun gps(s: HealthSignals, now: Long): HealthCheck {
         val requested = s.gpsRequestedAt
+        val battery = if (s.batteryRestricted) " Android tiene Observador con ahorro de batería y puede frenarlo en segundo plano." else ""
+        val batteryFix = if (s.batteryRestricted) HealthFix.BATTERY_SETTINGS else HealthFix.LOCATION_SETTINGS
         return when {
+            requested == null && !s.locationPermitted && s.approximateOnly -> HealthCheck(HealthArea.GPS, HealthLevel.INFO,
+                "Solo ubicación aproximada",
+                "Con la ubicación aproximada Android da posiciones de hasta 3 km de error: no sirven para medir km ni rutas.",
+                "En los permisos de Observador elige «Ubicación precisa».", HealthFix.APP_SETTINGS)
             requested == null && !s.locationPermitted -> HealthCheck(HealthArea.GPS, HealthLevel.OFF, "Sin permiso de ubicación",
-                "Los km medidos con GPS no están disponibles.", "Concede la ubicación precisa si quieres medir km.")
+                "Los km medidos con GPS no están disponibles.", "Concede la ubicación precisa si quieres medir km.", HealthFix.APP_SETTINGS)
             requested == null -> HealthCheck(HealthArea.GPS, HealthLevel.OFF, "GPS en reposo",
                 "Solo se enciende mientras se miden km.")
+            !s.locationPermitted && s.approximateOnly -> HealthCheck(HealthArea.GPS, HealthLevel.FAIL, "Solo ubicación aproximada",
+                "Se pidieron posiciones, pero solo está concedida la ubicación aproximada: no se miden km ni rutas.",
+                "En los permisos de Observador elige «Ubicación precisa».", HealthFix.APP_SETTINGS)
             !s.locationPermitted -> HealthCheck(HealthArea.GPS, HealthLevel.FAIL, "Se retiró el permiso de ubicación",
-                "Se pidieron posiciones, pero el permiso ya no está concedido.", "Concede la ubicación precisa a Observador.")
+                "Se pidieron posiciones, pero el permiso ya no está concedido.", "Concede la ubicación precisa a Observador.", HealthFix.APP_SETTINGS)
+            !s.locationServicesOn -> HealthCheck(HealthArea.GPS, HealthLevel.FAIL, "Ubicación del teléfono apagada",
+                "Observador pidió posiciones, pero la ubicación del teléfono está desactivada.",
+                "Activa la ubicación en los ajustes rápidos o en Ajustes de Android.", HealthFix.LOCATION_SETTINGS)
+            s.gpsRequestFailedAt != null && s.gpsRequestFailedAt >= requested -> HealthCheck(HealthArea.GPS, HealthLevel.FAIL,
+                "Android rechazó la solicitud del GPS",
+                "La solicitud se rechazó ${ago(now, s.gpsRequestFailedAt)}" + (s.gpsRequestFailure?.let { " ($it)" } ?: "") + ". Los km no se están midiendo.",
+                "Comprueba la ubicación del teléfono y pulsa «Reintentar».", HealthFix.RETRY_SERVICE)
             s.gpsBackgroundLimited -> HealthCheck(HealthArea.GPS, HealthLevel.WARN, "Ubicación limitada en segundo plano",
                 "Android arrancó Observador sin acceso a la ubicación; puede que no lleguen posiciones.",
-                "Abre Observador una vez para recuperar la ubicación.")
+                "Abre Observador una vez para recuperar la ubicación (o pulsa «Reintentar»).", HealthFix.RETRY_SERVICE)
             s.lastFixAt == null || s.lastFixAt < requested -> if (now - requested >= GPS_FIRST_FIX_MS) {
                 HealthCheck(HealthArea.GPS, HealthLevel.FAIL, "GPS autorizado, pero sin posiciones",
-                    "Se pidieron posiciones ${ago(now, requested)} y no ha llegado ninguna. Los km no se están midiendo.",
-                    "Comprueba que la ubicación del teléfono esté activada y abre Observador una vez.")
+                    "Se pidieron posiciones ${ago(now, requested)} y no ha llegado ninguna. Los km no se están midiendo.$battery",
+                    "Comprueba que la ubicación del teléfono esté activada y abre Observador una vez.", batteryFix)
             } else HealthCheck(HealthArea.GPS, HealthLevel.INFO, "Buscando señal", "Esperando la primera posición.")
+            s.gpsUnavailableSince != null && now - s.gpsUnavailableSince >= GPS_UNAVAILABLE_MS && s.lastFixAt <= s.gpsUnavailableSince ->
+                HealthCheck(HealthArea.GPS, HealthLevel.WARN, "Sin señal GPS",
+                    "El teléfono informa que no puede ubicarse desde ${ago(now, s.gpsUnavailableSince)}. Ese tramo queda como hueco de señal.",
+                    "Es normal bajo techo o en túneles; si sigue al aire libre, reinicia la ubicación del teléfono.")
             now - s.lastFixAt >= GPS_SILENCE_MS -> HealthCheck(HealthArea.GPS, HealthLevel.WARN, "Posiciones interrumpidas",
-                "La última posición llegó ${ago(now, s.lastFixAt)}.",
-                "Comprueba que la ubicación esté activada; en lugares cerrados es normal perder señal.")
+                "La última posición llegó ${ago(now, s.lastFixAt)}.$battery",
+                "Comprueba que la ubicación esté activada; en lugares cerrados es normal perder señal.", if (s.batteryRestricted) HealthFix.BATTERY_SETTINGS else null)
             else -> HealthCheck(HealthArea.GPS, HealthLevel.OK, "GPS entregando posiciones",
                 "Última posición ${ago(now, s.lastFixAt)}.")
         }

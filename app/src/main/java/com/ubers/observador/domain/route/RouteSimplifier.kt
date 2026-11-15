@@ -92,7 +92,8 @@ object RouteFinish {
         if (!hasPassenger && !close.cancelled) {
             pts = pts.map { if (it.phase == RoutePhase.PICKUP) it.copy(phase = RoutePhase.UNKNOWN) else it }
         }
-        val kept = RouteSimplifier.simplify(pts, toleranceM)
+        // A tolerance of 0 keeps every point (1.45.0 default)
+        val kept = if (toleranceM > 0.0) RouteSimplifier.simplify(pts, toleranceM) else pts
         val coverage = when {
             kept.isEmpty() -> RouteCoverage.NO_GPS
             summary.coverage == RouteCoverage.PARTIAL || close.coverage != RouteCoverage.FULL -> RouteCoverage.PARTIAL

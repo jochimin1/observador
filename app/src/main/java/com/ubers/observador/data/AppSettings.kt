@@ -67,6 +67,8 @@ class AppSettings(private val context: Context) {
         private val KEY_DISTANCE_MANUAL = androidx.datastore.preferences.core.booleanPreferencesKey("distance_manual")
         // Fase 8K: record the route of the taken trips (on unless switched off; decision 1 of 17/10)
         private val KEY_ROUTE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("route_enabled")
+        // 1.45.0: how often the GPS is asked for positions (Fija until «Batería medida» says otherwise)
+        private val KEY_GPS_FREQUENCY = stringPreferencesKey("gps_frequency")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         private val KEY_MAINTENANCE_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("maintenance_notification")
@@ -341,6 +343,13 @@ class AppSettings(private val context: Context) {
     val routeEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_ROUTE_ENABLED] ?: true }
 
     suspend fun updateRouteEnabled(value: Boolean) = editSettings { it[KEY_ROUTE_ENABLED] = value }
+
+    /** 1.45.0: «Frecuencia del GPS». */
+    val gpsFrequency: Flow<com.ubers.observador.domain.gps.GpsFrequency> =
+        context.dataStore.data.map { com.ubers.observador.domain.gps.GpsFrequency.fromStorage(it[KEY_GPS_FREQUENCY]) }
+
+    suspend fun updateGpsFrequency(value: com.ubers.observador.domain.gps.GpsFrequency) =
+        editSettings { it[KEY_GPS_FREQUENCY] = value.storageKey }
 
     val distanceMode: Flow<com.ubers.observador.domain.distance.DistanceMode> =
         context.dataStore.data.map { com.ubers.observador.domain.distance.DistanceMode.fromStorage(it[KEY_DISTANCE_MODE]) }

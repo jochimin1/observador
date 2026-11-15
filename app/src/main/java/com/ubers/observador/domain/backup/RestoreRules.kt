@@ -96,6 +96,8 @@ object RestoreRules {
         "show_overlay" to Bool,
         "distance_enabled" to Bool,
         "route_enabled" to Bool,
+        // 1.45.0
+        "gps_frequency" to Str(setOf("FIXED", "ADAPTIVE")),
         "goal_notification" to Bool,
         "weekly_report_notification" to Bool,
         "maintenance_notification" to Bool,

@@ -142,6 +142,11 @@ data class RoutePolicy(
     val maxTripMs: Long = 3 * 3_600_000L,
     /** Simplifying removes points closer than this to the line. */
     val toleranceM: Double = 5.0,
+    /**
+     * 1.45.0, the driver's rule «todo debe guardarse»: off, so every valid point stays in the
+     * database, the exports and the backups. The map simplifies only what it draws.
+     */
+    val simplifyStored: Boolean = false,
     /** A trip closed by «Buscando» was over this long before (LifecycleConfig.searchEndsTripMs). */
     val searchEndsTripMs: Long = 45_000L
 )

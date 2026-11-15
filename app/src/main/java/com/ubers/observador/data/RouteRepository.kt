@@ -66,10 +66,10 @@ class RouteRepository(private val db: AppDatabase, private val policy: RoutePoli
         dao.upsertRoute(route.toEntity())
     }
 
-    /** Simplifies the stored points and works out the start and the end. */
+    /** Works out the start and the end (1.45.0: every stored point is kept; see RoutePolicy.simplifyStored). */
     private suspend fun finish(route: TripRouteSummary, close: RouteClose): TripRouteSummary {
         val stored = dao.getPoints(route.tripId).map { it.toDomain() }
-        val done = RouteFinish.finish(route, stored, close, policy.toleranceM)
+        val done = RouteFinish.finish(route, stored, close, if (policy.simplifyStored) policy.toleranceM else 0.0)
         if (done.points.size != stored.size || done.points != stored) {
             dao.deletePoints(route.tripId)
             if (done.points.isNotEmpty()) dao.insertPoints(done.points.map { it.toEntity(route.tripId, it.seq) })

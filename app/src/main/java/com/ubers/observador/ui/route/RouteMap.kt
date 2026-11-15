@@ -96,6 +96,9 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
         val h = constraints.maxHeight.toDouble()
         val padding = 28.0 * density
         val fitted = remember(points, w, h) { MapMath.fit(points, w, h, tilePx, padding) }
+        // 1.45.0: every point is stored; only the drawing is simplified (5 m), so the trace on the
+        // map and the kilometres measured stay separate things
+        val drawn = remember(points) { RouteSimplifier.simplify(points, MAP_TOLERANCE_M) }
         var view by remember(fitted) { mutableStateOf(fitted) }
         val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
         var missing by remember { mutableIntStateOf(0) }
@@ -148,7 +151,7 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
                 return Offset(x.toFloat(), y.toFloat())
             }
             val width = 5.dp.toPx()
-            RouteSimplifier.runsOf(points).forEach { run ->
+            RouteSimplifier.runsOf(drawn).forEach { run ->
                 if (run.size < 2) return@forEach
                 val path = Path().apply {
                     moveTo(at(run[0]).x, at(run[0]).y)
@@ -208,3 +211,6 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** 1.45.0: points closer than this to the line are left out of the drawing only. */
+private const val MAP_TOLERANCE_M = 5.0

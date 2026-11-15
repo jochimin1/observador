@@ -4,10 +4,17 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 
-/** Explicit local-file limits; enforced while streaming even when ZIP metadata omits its size. */
+/**
+ * Sanity bounds against a damaged or hostile file, enforced while streaming even when ZIP metadata
+ * omits its size. 1.45.0: raised so a real history is never left out (the driver's rule: backups
+ * carry everything); in practice the limit is the phone's free space, checked before writing.
+ */
 object BackupLimits {
-    const val ZIP_BYTES = 256L * 1024 * 1024
-    const val DATABASE_BYTES = 512L * 1024 * 1024
+    const val ZIP_BYTES = 4L * 1024 * 1024 * 1024
+    /** Under 2^31 so it still fits ZIP's 32-bit size fields. */
+    const val DATABASE_BYTES = 2_000_000_000L
+    /** One data file (a day of screen recordings, of GPS signal…). */
+    const val DATA_FILE_BYTES = 512L * 1024 * 1024
     const val TEXT_BYTES = 8L * 1024 * 1024
     const val FREE_MARGIN_BYTES = 16L * 1024 * 1024
 

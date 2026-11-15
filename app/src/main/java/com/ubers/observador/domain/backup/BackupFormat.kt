@@ -31,10 +31,47 @@ data class DecodedSettings(val values: Map<String, Any>, val rejected: List<Stri
 
 object BackupFormat {
 
-    const val FORMAT_VERSION = 1
+    /** 2 since 1.45.0: the app's own files travel too, under [DATA_PREFIX]. Format 1 is still read. */
+    const val FORMAT_VERSION = 2
     const val ENTRY_DB = "observador.db"
     const val ENTRY_SETTINGS = "ajustes.json"
     const val ENTRY_MANIFEST = "ficha.json"
+
+    /**
+     * 1.45.0: the folders of filesDir that are the driver's data and travel in every backup (and in
+     * «Exportar todo»): screen recordings, close decisions, GPS signal, battery readings and place
+     * lookups. Only these names, one level deep, are ever written back by a restore.
+     */
+    const val DATA_PREFIX = "archivos/"
+    val DATA_DIRS: List<String> = listOf("capturas", "cierres", "gps", "bateria", "lugares")
+    /** Entries in a backup, at most (a damaged or hostile file is refused before being read). */
+    const val MAX_ENTRIES = 20_000
+    private val SAFE_FILE = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+
+    fun dataEntry(dir: String, file: String): String {
+        require(dir in DATA_DIRS && SAFE_FILE.matches(file) && ".." !in file)
+        return "$DATA_PREFIX$dir/$file"
+    }
+
+    /** («gps», «senal-2026-11-13.txt») for a valid data entry; null for anything else. */
+    fun parseDataEntry(name: String): Pair<String, String>? {
+        if (!name.startsWith(DATA_PREFIX)) return null
+        val rest = name.removePrefix(DATA_PREFIX).split('/')
+        if (rest.size != 2) return null
+        val (dir, file) = rest
+        if (dir !in DATA_DIRS || !SAFE_FILE.matches(file) || ".." in file) return null
+        return dir to file
+    }
+
+    /** Why a list of entry names cannot be a backup, or null when it can. */
+    fun entriesProblem(names: List<String>): String? {
+        val required = setOf(ENTRY_MANIFEST, ENTRY_SETTINGS, ENTRY_DB)
+        if (names.size != names.toSet().size) return "El respaldo tiene archivos repetidos."
+        if (!names.containsAll(required)) return "Al respaldo le faltan archivos."
+        val unknown = names.filter { it !in required && parseDataEntry(it) == null }
+        if (unknown.isNotEmpty()) return "El respaldo tiene archivos inesperados."
+        return null
+    }
 
     /**
      * Settings that describe the moment, not the driver's choices: measuring km, closed with the
@@ -151,9 +188,13 @@ object BackupFormat {
         )
     }
 
-    /** Entries whose SHA-256 is missing from the sheet or differs from the one computed on the file. */
+    /**
+     * Entries whose SHA-256 is missing from the sheet or differs from the one computed on the file;
+     * since format 2 also every data file, in either list (a file the sheet does not list, or one it
+     * lists that is not there, is a mismatch).
+     */
     fun mismatches(m: BackupManifest, actual: Map<String, String>): List<String> =
-        listOf(ENTRY_DB, ENTRY_SETTINGS).filter { name ->
+        (listOf(ENTRY_DB, ENTRY_SETTINGS) + (m.sha256.keys + actual.keys).filter { parseDataEntry(it) != null }.distinct().sorted()).filter { name ->
             val expected = m.sha256[name]
             val found = actual[name]
             expected == null || found == null || !expected.equals(found, ignoreCase = true)
@@ -182,7 +223,8 @@ object BackupFormat {
     fun sizeText(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
-        else -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+        bytes < 1024L * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+        else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
     }
 
     /** «1,284 ofertas, 96 viajes, 12 gastos». */
@@ -192,5 +234,12 @@ object BackupFormat {
         count((rows["expense_entries"] ?: 0) + (rows["fuel_entries"] ?: 0), "gasto", "gastos")
     ).joinToString(", ")
 
-    fun createdText(m: BackupManifest, bytes: Long): String = "Respaldo creado: ${contentText(m.rows)} · ${sizeText(bytes)}."
+    /** Data files listed in the sheet (format 2). */
+    fun dataFiles(m: BackupManifest): List<String> = m.sha256.keys.filter { parseDataEntry(it) != null }.sorted()
+
+    fun createdText(m: BackupManifest, bytes: Long): String {
+        val files = dataFiles(m).size
+        val extra = if (files == 0) "" else ", " + count(files, "archivo", "archivos")
+        return "Respaldo creado: ${contentText(m.rows)}$extra · ${sizeText(bytes)}."
+    }
 }
