@@ -1,5 +1,7 @@
 package com.ubers.observador.ui.expenses
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,7 +24,11 @@ import com.ubers.observador.domain.expenses.ExpenseInput
 import com.ubers.observador.domain.vehicle.*
 import com.ubers.observador.ui.components.AppFilterChip
 import com.ubers.observador.ui.components.SectionCard
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.platform.LocalContext
+import com.ubers.observador.service.TireSensorScanner
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -56,7 +62,9 @@ private fun parseKm(text: String): Result<Long?> {
 @Composable
 fun TirePanel(viewModel: TiresViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val sensors by viewModel.sensors.collectAsState()
     if (state.loading) return
+    var binding by remember { mutableStateOf<WheelPosition?>(null) }
     var install by remember { mutableStateOf<WheelPosition?>(null) }
     var edit by remember { mutableStateOf<Tire?>(null) }
     var event by remember { mutableStateOf<Pair<Tire, TireEvent?>?>(null) }
@@ -72,7 +80,9 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
                 Text("Mostrar en", style = MaterialTheme.typography.bodySmall)
                 PressureUnit.entries.forEach { u -> AppFilterChip(selected = state.unit == u, onClick = { viewModel.setUnit(u) }, label = { Text(u.label) }) }
             }
+            SensorRecorder(viewModel, sensors)
             state.wheels.forEach { w ->
+                SensorLine(w.position, state, sensors, onBind = { binding = w.position }, onUnbind = { viewModel.unbind(w.position) })
                 WheelBlock(w, state,
                     onInstall = { install = w.position },
                     onEdit = { edit = it },
@@ -86,6 +96,7 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
                 style = MaterialTheme.typography.bodySmall)
         }
     }
+    binding?.let { pos -> BindSensorDialog(pos, onSave = { viewModel.bindCard(pos, it) }) { binding = null } }
     install?.let { pos ->
         InstallDialog(pos, state.unit, current = state.wheels.first { it.position == pos }.tire,
             linkable = { at -> viewModel.linkable(TireEventKind.INSTALL, at) },
@@ -322,4 +333,83 @@ private fun TireDialog(title: String, onDismiss: () -> Unit, save: suspend () ->
             finally { busy = false }
         } }) { Text("Guardar") } },
         dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") } })
+}
+
+
+/** 1.54.0: the sensor of one wheel: its ID, when its last advertisement arrived and what it seems to say. */
+@Composable
+private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: SensorUi, onBind: () -> Unit, onUnbind: suspend () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val b = SensorBindings.active(sensors.bindings, state.vehicle.id, position)
+    val frame = b?.let { sensors.latest[it.sensorId] }?.takeIf { b != null && it.receivedAt >= b.boundAt }
+    val now = System.currentTimeMillis()
+    val st = SensorFreshness.state(b, frame?.receivedAt, sensors.scan.listening, now)
+    if (b == null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${position.label}: sin sensor Bluetooth", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = onBind) { Text("Asociar sensor") }
+        }
+        return
+    }
+    Text("${position.label} · sensor ${SensorIds.shown(b.sensorId)} · ${st.label}" +
+        (frame?.let { " · recibido ${SensorFreshness.ago(now, it.receivedAt)}" } ?: ""), style = MaterialTheme.typography.bodySmall)
+    if (frame?.pressurePa != null && frame.parsedId == b.sensorId) {
+        val p = TirePressure.format(frame.pressurePa, state.unit)
+        val t = frame.temperatureCenti?.let { " · " + java.math.BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() + " °C" } ?: ""
+        val bat = frame.batteryPct?.let { " · batería del sensor $it %" } ?: ""
+        Text("Lectura provisional, sin validar: $p$t$bat. No se usa para el estado de la rueda hasta comprobarla con un manómetro.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Row {
+        TextButton(onClick = onBind) { Text("Cambiar sensor") }
+        TextButton(onClick = { scope.launch { onUnbind() } }) { Text("Desvincular") }
+    }
+}
+
+/** 1.54.0: listen for a few minutes and keep every advertisement, to validate the sensors' format. */
+@Composable
+private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    val scan = sensors.scan
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        message = if (granted.values.all { it }) viewModel.startListening() else "Sin el permiso no se pueden escuchar los sensores."
+    }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) scope.launch {
+            message = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri, "w")?.use { viewModel.exportFrames(it) }; "Anuncios exportados." }
+                    .getOrElse { "No se pudo exportar: ${it.message}" }
+            }
+        }
+    }
+    Text("Sensores Bluetooth (en prueba)", style = MaterialTheme.typography.titleSmall)
+    Text(if (scan.listening) "Escuchando: ${scan.devices} equipos cerca · ${scan.frames} anuncios · ${scan.mine} de tus sensores" +
+            (scan.lastMineAt?.let { " (último ${SensorFreshness.ago(System.currentTimeMillis(), it)})" } ?: "") +
+            ". Se detiene sola a los ${TireSensorScanner.MAX_MS / 60_000} min."
+        else "Pon la moto cerca y escucha unos minutos: se guardan todos los anuncios recibidos (${sensors.frameCount} hasta ahora) para validar el formato de tus sensores. Los sensores pueden tardar en emitir; rodar o mover la rueda ayuda.",
+        style = MaterialTheme.typography.bodySmall)
+    (message ?: scan.problem)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (scan.listening) OutlinedButton(onClick = { viewModel.stopListening() }) { Text("Detener") }
+        else Button(onClick = {
+            message = null
+            val missing = TireSensorScanner.missingPermissions(context)
+            if (missing.isNotEmpty()) { permissions.launch(missing.toTypedArray()) } else { message = viewModel.startListening() }
+        }) { Text("Escuchar sensores") }
+        if (sensors.frameCount > 0) TextButton(onClick = { exporter.launch("observador-sensores-${java.time.LocalDate.now()}.csv") }) { Text("Exportar anuncios") }
+    }
+}
+
+@Composable
+private fun BindSensorDialog(position: WheelPosition, onSave: suspend (String) -> String?, onDismiss: () -> Unit) {
+    var text by rememberSaveable { mutableStateOf("") }
+    TireDialog("Sensor de la rueda ${position.label.lowercase()}", onDismiss, save = { onSave(text) }) {
+        Text("Escribe el ID impreso en la tarjeta del kit (6 caracteres, por ejemplo 13AE32). " +
+            "Si escribes el código doble de la tarjeta (13AE32&23A434), el primero va a la delantera y el segundo a la trasera.",
+            style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(text, { text = it }, label = { Text("ID del sensor o código doble") }, singleLine = true)
+        Text("Comprueba que el sensor esté puesto en esta rueda: un sensor cambiado de rueda daría datos de la otra.", style = MaterialTheme.typography.bodySmall)
+    }
 }

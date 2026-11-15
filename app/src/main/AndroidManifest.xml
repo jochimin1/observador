@@ -14,6 +14,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Fase 8K: the street map of a trip's route (OpenStreetMap tiles) and the names of its places -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 1.54.0: listen to the tyre pressure sensors' Bluetooth LE advertisements (no connection).
+         Without neverForLocation: some sensor advertisements could be filtered out by it; precise
+         location is already granted for the kilometres. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <queries>
         <package android:name="com.ubercab.driver" />

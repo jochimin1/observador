@@ -72,3 +72,61 @@ fun TireEventEntity.toDomain(): TireEvent? {
 
 fun TireEvent.toEntity() = TireEventEntity(id, tireId, kind.storageKey, atMs, pressure?.pascals, pressure?.entered, pressure?.unit?.storageKey,
     temperature.storageKey, odometerKm, expenseId, note, createdAt, updatedAt)
+
+/** 1.54.0: a sensor on a wheel, kept after it is replaced or removed (unbound_at). */
+@Entity(tableName = "tire_sensors", indices = [Index(value = ["sensor_id"]), Index(value = ["vehicle_id", "position"])])
+data class TireSensorEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "vehicle_id") val vehicleId: String,
+    val position: String,
+    @ColumnInfo(name = "sensor_id") val sensorId: String,
+    val family: String,
+    @ColumnInfo(name = "bound_at") val boundAt: Long,
+    @ColumnInfo(name = "unbound_at") val unboundAt: Long?,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+/**
+ * 1.54.0: every Bluetooth advertisement recorded, as received (raw_hex), with what the provisional
+ * parser read from it. Kept forever; travels in the backup and in «Exportar todo».
+ */
+@Entity(tableName = "tire_sensor_frames", indices = [Index(value = ["received_at"]), Index(value = ["sensor_id", "received_at"])])
+data class TireSensorFrameEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "session_id") val sessionId: String,
+    @ColumnInfo(name = "received_at") val receivedAt: Long,
+    val address: String,
+    val name: String?,
+    val rssi: Int,
+    @ColumnInfo(name = "raw_hex") val rawHex: String,
+    /** The associated sensor whose ID the frame mentions, if any. */
+    @ColumnInfo(name = "sensor_id") val sensorId: String?,
+    @ColumnInfo(name = "parser_version") val parserVersion: String,
+    @ColumnInfo(name = "parsed_id") val parsedId: String?,
+    @ColumnInfo(name = "pressure_pa") val pressurePa: Int?,
+    @ColumnInfo(name = "temperature_centi") val temperatureCenti: Int?,
+    @ColumnInfo(name = "battery_pct") val batteryPct: Int?,
+    val leak: Int?,
+    val problem: String?
+)
+
+@Dao
+interface TireSensorDao {
+    @Query("SELECT * FROM tire_sensors ORDER BY bound_at, id") fun observeSensors(): Flow<List<TireSensorEntity>>
+    @Query("SELECT * FROM tire_sensors ORDER BY bound_at, id") suspend fun sensors(): List<TireSensorEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(sensor: TireSensorEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putFrames(frames: List<TireSensorFrameEntity>)
+    /** The newest frame of each associated sensor. */
+    @Query("SELECT * FROM tire_sensor_frames AS f WHERE f.sensor_id IS NOT NULL AND f.received_at = (SELECT MAX(g.received_at) FROM tire_sensor_frames AS g WHERE g.sensor_id = f.sensor_id)")
+    fun observeLatest(): Flow<List<TireSensorFrameEntity>>
+    @Query("SELECT COUNT(*) FROM tire_sensor_frames") fun observeCount(): Flow<Int>
+    @Query("SELECT * FROM tire_sensor_frames ORDER BY received_at, id") suspend fun frames(): List<TireSensorFrameEntity>
+}
+
+fun TireSensorEntity.toDomain(): SensorBinding? {
+    val pos = WheelPosition.fromStorage(position) ?: return null
+    return SensorBinding(id, vehicleId, pos, sensorId, family, boundAt, unboundAt, createdAt, updatedAt)
+}
+
+fun SensorBinding.toEntity() = TireSensorEntity(id, vehicleId, position.storageKey, sensorId, family, boundAt, unboundAt, createdAt, updatedAt)

@@ -31,6 +31,15 @@ data class TiresUiState(
     val expenses: List<ExpenseEntry> = emptyList()
 )
 
+/** 1.54.0: the sensors of the active motorbike and what the recorder heard. */
+data class SensorUi(
+    val bindings: List<SensorBinding> = emptyList(),
+    /** Newest recorded frame of each associated sensor ID. */
+    val latest: Map<String, com.ubers.observador.data.db.TireSensorFrameEntity> = emptyMap(),
+    val frameCount: Int = 0,
+    val scan: com.ubers.observador.service.SensorScanState = com.ubers.observador.service.SensorScanState()
+)
+
 /** 1.53.0 «Mi moto y neumáticos». Recomputed from what is written; writes go through TireRepository. */
 class TiresViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.getInstance(app)
@@ -38,6 +47,45 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
     private val vehicles = VehicleRepository(db)
     private val expenses = ExpenseRepository(db)
     private val settings = AppSettings(app)
+    private val sensorRepo = com.ubers.observador.data.TireSensorRepository(db)
+
+    val sensors: StateFlow<SensorUi> = combine(sensorRepo.observeBindings(), sensorRepo.observeLatest(), sensorRepo.observeFrameCount(),
+        com.ubers.observador.service.TireSensorScanner.state) { b, latest, count, scan ->
+        SensorUi(b, latest.filter { it.sensorId != null }.associateBy { it.sensorId!! }, count, scan)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SensorUi())
+
+    /** IDs of the sensors associated with the active motorbike, for the recorder to recognise. */
+    private fun activeIds(): Set<String> = sensors.value.bindings.filter { it.active && it.vehicleId == state.value.vehicle.id }.map { it.sensorId }.toSet()
+
+    fun startListening(): String? = com.ubers.observador.service.TireSensorScanner.start(getApplication(), activeIds())
+    fun stopListening() = com.ubers.observador.service.TireSensorScanner.stop(getApplication())
+
+    /** «13AE32» for [position], or the card's «13AE32&23A434» for both wheels. */
+    suspend fun bindCard(position: WheelPosition, text: String): String? {
+        val now = System.currentTimeMillis()
+        val v = state.value.vehicle.id
+        val card = SensorIds.parseCard(text).getOrElse { return it.message }
+        return when (card) {
+            is SensorIds.Card.Single -> sensorRepo.bind(v, position, card.id, now)
+            is SensorIds.Card.Pair -> sensorRepo.bindPair(v, card.front, card.rear, now)
+        }.also { if (it == null && com.ubers.observador.service.TireSensorScanner.state.value.listening) startListening() }
+    }
+
+    suspend fun unbind(position: WheelPosition) = sensorRepo.unbind(state.value.vehicle.id, position, System.currentTimeMillis())
+
+    /** Every recorded frame as CSV (all columns, raw advertisement included). */
+    suspend fun exportFrames(out: java.io.OutputStream) {
+        val frames = sensorRepo.frames()
+        out.bufferedWriter(Charsets.UTF_8).use { w ->
+            w.write("\uFEFFsession_id,received_at,address,name,rssi,raw_hex,sensor_id,parser_version,parsed_id,pressure_pa,temperature_centi,battery_pct,leak,problem\r\n")
+            frames.forEach { f ->
+                w.write(listOf(f.sessionId, f.receivedAt, f.address, f.name, f.rssi, f.rawHex, f.sensorId, f.parserVersion, f.parsedId,
+                    f.pressurePa, f.temperatureCenti, f.batteryPct, f.leak, f.problem)
+                    .joinToString(",") { v -> (v?.toString() ?: "").let { t -> if (t.any { it == ',' || it == '"' || it == '\n' }) "\"" + t.replace("\"", "\"\"") + "\"" else t } })
+                w.write("\r\n")
+            }
+        }
+    }
 
     val state: StateFlow<TiresUiState> = combine(tires.observe(), vehicles.observe(), expenses.observeAll(), settings.tirePressureUnit) { data, care, money, unit ->
         val vehicle = care.active

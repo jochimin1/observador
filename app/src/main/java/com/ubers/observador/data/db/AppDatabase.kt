@@ -33,9 +33,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
         TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class,
-        WorkShiftEntity::class, ClosureEntity::class, TireEntity::class, TireEventEntity::class
+        WorkShiftEntity::class, ClosureEntity::class, TireEntity::class, TireEventEntity::class,
+        TireSensorEntity::class, TireSensorFrameEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -64,9 +65,22 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun closureDao(): ClosureDao
     abstract fun workShiftDao(): WorkShiftDao
     abstract fun tireDao(): TireDao
+    abstract fun tireSensorDao(): TireSensorDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.54.0 «TPMS compatible»: sensor associations and recorded advertisements. Only new tables. */
+        internal val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `tire_sensors` (`id` TEXT NOT NULL, `vehicle_id` TEXT NOT NULL, `position` TEXT NOT NULL, `sensor_id` TEXT NOT NULL, `family` TEXT NOT NULL, `bound_at` INTEGER NOT NULL, `unbound_at` INTEGER, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_sensors_sensor_id` ON `tire_sensors` (`sensor_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_sensors_vehicle_id_position` ON `tire_sensors` (`vehicle_id`, `position`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `tire_sensor_frames` (`id` TEXT NOT NULL, `session_id` TEXT NOT NULL, `received_at` INTEGER NOT NULL, `address` TEXT NOT NULL, `name` TEXT, `rssi` INTEGER NOT NULL, `raw_hex` TEXT NOT NULL, `sensor_id` TEXT, `parser_version` TEXT NOT NULL, `parsed_id` TEXT, `pressure_pa` INTEGER, `temperature_centi` INTEGER, `battery_pct` INTEGER, `leak` INTEGER, `problem` TEXT, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_sensor_frames_received_at` ON `tire_sensor_frames` (`received_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_sensor_frames_sensor_id_received_at` ON `tire_sensor_frames` (`sensor_id`, `received_at`)")
+            }
+        }
 
         /** 1.53.0 «Mi moto y neumáticos»: two new tables only; no existing row changes. */
         internal val MIGRATION_21_22 = object : Migration(21, 22) {
@@ -490,7 +504,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 .build()
     }
 }

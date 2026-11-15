@@ -14,6 +14,19 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.54.0] — 2026-11-15
+
+### Añadido
+
+- Sensores de presión Bluetooth (en prueba) en «Neumáticos»: grabadora que escucha hasta 5 minutos, en primer plano, y guarda todos los anuncios recibidos tal cual, con exportación CSV.
+- Asociación de sensores por ID (13AE32) o con el código doble de la tarjeta del kit (13AE32&23A434); un sensor nunca puede estar en las dos ruedas y el historial de asociaciones se conserva.
+- Por rueda: sensor, estado de recepción («recibiendo», «esperando emisión», «lectura antigua»…) y hora de lo último recibido. La lectura del formato es provisional: se muestra marcada «sin validar» y no decide el estado de la rueda.
+- Room 23: tablas `tire_sensors` y `tire_sensor_frames`, solo creación. Permiso de búsqueda Bluetooth.
+
+### Validación
+
+Pruebas JVM de sensores (6) y neumáticos (8) correctas en el entorno del agente. Compilación, lint, instrumentación (migración 22→23, cadena 4–22→23, repositorio de sensores) y esquema 23 pendientes de Gradle. Formato de los sensores LEEPEE sin validar: falta grabar anuncios reales y compararlos con un manómetro.
+
 ## [1.53.0] — 2026-11-15
 
 ### Añadido

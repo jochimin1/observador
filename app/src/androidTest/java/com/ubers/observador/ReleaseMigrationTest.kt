@@ -13,15 +13,15 @@ import java.util.UUID
 class ReleaseMigrationTest {
     @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java)
 
-    @Test fun everyExportedSchemaMigratesTo22WithoutLosingTheOffer() {
+    @Test fun everyExportedSchemaMigratesTo23WithoutLosingTheOffer() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        for (start in 4..21) {
+        for (start in 4..22) {
             val name = "release-migration-$start-${UUID.randomUUID()}"
             try {
                 helper.createDatabase(name, start).use { db ->
                     db.execSQL("INSERT INTO detected_offers (offer_hash,detectedAt,price,pickupKm,pickupMin,tripKm,tripMin,totalKm,totalMin,rdpPerKm,rdpPerHour,fuelCost,netProfit,score) VALUES ('release-retained',1000,125.5,1.0,2,4.0,8,5.0,10,25.1,753.0,10.5,115.0,90)")
                 }
-                helper.runMigrationsAndValidate(name, 22, true, *releaseTestMigrations).use { db ->
+                helper.runMigrationsAndValidate(name, 23, true, *releaseTestMigrations).use { db ->
                     db.query("SELECT price,offer_hash FROM detected_offers").use { row ->
                         assertTrue("retained offer from schema $start", row.moveToFirst())
                         assertEquals(125.5, row.getDouble(0), 0.0)

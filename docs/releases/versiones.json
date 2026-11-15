@@ -446,5 +446,12 @@
     "tag": "v1.53.0",
     "branch": "release/1.53.0",
     "source": "verified-workspace"
+  },
+  {
+    "version": "1.54.0",
+    "versionCode": 65,
+    "tag": "v1.54.0",
+    "branch": "release/1.54.0",
+    "source": "verified-workspace"
   }
 ]
