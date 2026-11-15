@@ -162,6 +162,8 @@ dependencies {
     // 1.28.0: charts of the Violeta theme (Apache 2.0)
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
+    // 1.54.0: camera reading of the TPMS kit card
+    implementation(libs.zxing.android.embedded)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

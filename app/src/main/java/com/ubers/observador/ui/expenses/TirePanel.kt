@@ -410,6 +410,16 @@ private fun BindSensorDialog(position: WheelPosition, onSave: suspend (String) -
             "Si escribes el código doble de la tarjeta (13AE32&23A434), el primero va a la delantera y el segundo a la trasera.",
             style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(text, { text = it }, label = { Text("ID del sensor o código doble") }, singleLine = true)
+        val scanner = rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
+            result.contents?.let { text = it.trim() }
+        }
+        OutlinedButton(onClick = {
+            scanner.launch(com.journeyapps.barcodescanner.ScanOptions()
+                .setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE, com.journeyapps.barcodescanner.ScanOptions.CODE_128)
+                .setPrompt("Apunta al código de un sensor o al QR doble de la tarjeta")
+                .setBeepEnabled(false)
+                .setOrientationLocked(false))
+        }) { Text("Escanear la tarjeta con la cámara") }
         Text("Comprueba que el sensor esté puesto en esta rueda: un sensor cambiado de rueda daría datos de la otra.", style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -21,11 +21,13 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 - Sensores de presión Bluetooth (en prueba) en «Neumáticos»: grabadora que escucha hasta 5 minutos, en primer plano, y guarda todos los anuncios recibidos tal cual, con exportación CSV.
 - Asociación de sensores por ID (13AE32) o con el código doble de la tarjeta del kit (13AE32&23A434); un sensor nunca puede estar en las dos ruedas y el historial de asociaciones se conserva.
 - Por rueda: sensor, estado de recepción («recibiendo», «esperando emisión», «lectura antigua»…) y hora de lo último recibido. La lectura del formato es provisional: se muestra marcada «sin validar» y no decide el estado de la rueda.
+- Escáner con la cámara para la tarjeta del kit (Code 128 de cada sensor y QR doble).
+- Reglas de alertas por rueda (presión baja/alta con confirmación e histéresis, temperatura, batería, fuga informada, pérdida de señal) listas y probadas; se activan solo cuando el formato de los sensores quede validado.
 - Room 23: tablas `tire_sensors` y `tire_sensor_frames`, solo creación. Permiso de búsqueda Bluetooth.
 
 ### Validación
 
-Pruebas JVM de sensores (6) y neumáticos (8) correctas en el entorno del agente. Compilación, lint, instrumentación (migración 22→23, cadena 4–22→23, repositorio de sensores) y esquema 23 pendientes de Gradle. Formato de los sensores LEEPEE sin validar: falta grabar anuncios reales y compararlos con un manómetro.
+Pruebas JVM de sensores (6), alertas (5) y neumáticos (8) correctas en el entorno del agente. Compilación, lint, instrumentación (migración 22→23, cadena 4–22→23, repositorio de sensores) y esquema 23 pendientes de Gradle. Formato de los sensores LEEPEE sin validar: falta grabar anuncios reales y compararlos con un manómetro.
 
 ## [1.53.0] — 2026-11-15
 
