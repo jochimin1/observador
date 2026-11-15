@@ -14,6 +14,17 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.52.0] — 2026-11-15
+
+### Añadido
+
+- Validación automática de compilación, pruebas, lint, esquemas históricos y APK.
+- Comprobación de firma e identidad antes de actualizar, con evidencias JSON.
+- Instrumentación restringida a emuladores y prueba de actualización conservando evidencia y tema.
+- Firma release configurable mediante variables externas; variante optimizada experimental separada.
+
+Notas y límites: [1.52.0](docs/releases/1.52.0.md).
+
 ## [1.51.0] — 2026-11-15
 
 ### Cambiado

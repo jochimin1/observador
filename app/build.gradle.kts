@@ -18,19 +18,46 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 62
-        versionName = "1.51.0"
+        versionCode = 63
+        versionName = "1.52.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // No key or password is stored in the project. A partial setup fails explicitly.
+    val signingNames = listOf("OBSERVADOR_KEYSTORE", "OBSERVADOR_STORE_PASSWORD", "OBSERVADOR_KEY_ALIAS", "OBSERVADOR_KEY_PASSWORD")
+    val signingValues = signingNames.map { providers.environmentVariable(it).orNull }
+    val hasReleaseSigning = signingValues.any { !it.isNullOrBlank() }
+    if (hasReleaseSigning && signingValues.any { it.isNullOrBlank() }) {
+        throw GradleException("Firma incompleta: configura las cuatro variables OBSERVADOR de firma.")
+    }
+    if (hasReleaseSigning) {
+        val externalStore = file(signingValues[0]!!).canonicalFile
+        if (externalStore.toPath().startsWith(rootProject.projectDir.canonicalFile.toPath())) {
+            throw GradleException("El almacén de firma debe estar fuera del repositorio.")
+        }
+        signingConfigs.create("externalRelease") {
+            storeFile = externalStore
+            storePassword = signingValues[1]
+            keyAlias = signingValues[2]
+            keyPassword = signingValues[3]
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("externalRelease")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        // Experimental only: never substituted for the normal release or debug APK.
+        create("optimized") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
     compileOptions {

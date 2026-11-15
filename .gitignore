@@ -16,3 +16,7 @@
 local.properties
 
 /scripts/__pycache__/
+*.jks
+*.keystore
+/keystore.properties
+/scripts/tests/__pycache__/
