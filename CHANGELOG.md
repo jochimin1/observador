@@ -14,6 +14,21 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.53.0] — 2026-11-15
+
+### Añadido
+
+- «Neumáticos» bajo «Mi moto» (Gastos): ficha de la goma delantera y trasera con marca, modelo, medida, fecha y odómetro de instalación y presión objetivo.
+- Revisiones manuales de presión en psi, bar o kPa, en frío o en caliente; cada lectura conserva el valor y la unidad escritos. Una revisión vale 14 días y nunca se renueva sola.
+- Estado por rueda que distingue «falta revisar» de «problema detectado» (presión baja o alta frente al objetivo).
+- Cambio de goma que conserva la anterior en el historial con sus km; reparaciones con nota.
+- Enlace con Gastos: una instalación o reparación puede registrar su importe o enlazar un gasto ya anotado, una sola vez. Las revisiones nunca crean gastos y borrar un registro no borra su gasto.
+- Room 22: tablas `tire_components` y `tire_events`, solo creación; respaldo, restauración, «Exportar todo» y «Borrar todos los datos» las incluyen.
+
+### Validación
+
+Pruebas JVM de neumáticos (8) correctas en el entorno del agente. Compilación, suite JVM completa, lint, instrumentación (migración 21→22, cadena 4–21→22, repositorio) y esquema 22 pendientes de ejecutar con Gradle.
+
 ## [1.52.0] — 2026-11-15
 
 ### Añadido

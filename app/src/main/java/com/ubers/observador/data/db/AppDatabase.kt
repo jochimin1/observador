@@ -33,9 +33,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FuelEntryEntity::class, ExpenseEntryEntity::class, RecurringCostEntity::class, OdometerReadingEntity::class,
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
         TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class,
-        WorkShiftEntity::class, ClosureEntity::class
+        WorkShiftEntity::class, ClosureEntity::class, TireEntity::class, TireEventEntity::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -63,9 +63,21 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
     abstract fun closureDao(): ClosureDao
     abstract fun workShiftDao(): WorkShiftDao
+    abstract fun tireDao(): TireDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.53.0 «Mi moto y neumáticos»: two new tables only; no existing row changes. */
+        internal val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `tire_components` (`id` TEXT NOT NULL, `vehicle_id` TEXT NOT NULL, `position` TEXT NOT NULL, `brand` TEXT, `model` TEXT, `size` TEXT, `target_pa` INTEGER, `target_entered` TEXT, `target_unit` TEXT, `installed_at` INTEGER NOT NULL, `installed_odometer_km` INTEGER, `removed_at` INTEGER, `removed_odometer_km` INTEGER, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_components_vehicle_id_position` ON `tire_components` (`vehicle_id`, `position`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `tire_events` (`id` TEXT NOT NULL, `tire_id` TEXT NOT NULL, `kind` TEXT NOT NULL, `at` INTEGER NOT NULL, `pressure_pa` INTEGER, `pressure_entered` TEXT, `pressure_unit` TEXT, `temperature` TEXT NOT NULL, `odometer_km` INTEGER, `expense_id` TEXT, `note` TEXT, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_events_tire_id` ON `tire_events` (`tire_id`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tire_events_expense_id` ON `tire_events` (`expense_id`)")
+            }
+        }
 
         internal val MIGRATION_20_21 = object : Migration(20, 21) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -478,7 +490,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                 .build()
     }
 }

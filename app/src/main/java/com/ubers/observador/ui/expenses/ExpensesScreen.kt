@@ -223,6 +223,8 @@ fun ExpensesScreen(
             // 1.46.0: work shifts and the measured work share, above the motorbike card
             if (!state.loading) item { WorkShiftPanel(state, viewModel) }
             if (!state.loading) item { VehiclePanel(state, viewModel::saveVehicle, viewModel::savePlan, viewModel::saveModel) }
+            // 1.53.0 «Mi moto y neumáticos»: the two wheels, right under the motorbike card
+            if (!state.loading) item { TirePanel() }
             state.summary?.let { s -> item { SummaryCard(s, state.net, state.from?.format(MONTH) ?: "") } }
             item { EfficiencyCard(state.overview.efficiency, state.overview.suggestion) { confirmSuggestion = it } }
             item { RecurringCard(state.recurring, onEdit = { form = Form.Recurring(it) }, onDelete = { viewModel.delete(DeletedExpense.Recurring(it)) }) }

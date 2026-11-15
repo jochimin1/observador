@@ -107,6 +107,8 @@ object RestoreRules {
         "goal_notification" to Bool,
         "weekly_report_notification" to Bool,
         "maintenance_notification" to Bool,
+        // 1.53.0
+        "tire_pressure_unit" to Str(setOf("PSI", "BAR", "KPA")),
         "auto_night" to Bool,
         "daily_goal_minor" to LongR(0, 100_000_000L),
         "weekly_goal_minor" to LongR(0, 100_000_000L),

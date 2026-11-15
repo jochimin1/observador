@@ -67,6 +67,8 @@ class AppSettings(private val context: Context) {
         private val KEY_DISTANCE_MANUAL = androidx.datastore.preferences.core.booleanPreferencesKey("distance_manual")
         // Fase 8K: record the route of the taken trips (on unless switched off; decision 1 of 17/10)
         private val KEY_ROUTE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("route_enabled")
+        // 1.53.0: unit in which tyre pressures are shown (each reading keeps the unit it was written in)
+        private val KEY_TIRE_PRESSURE_UNIT = stringPreferencesKey("tire_pressure_unit")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         // 1.46.0: measured work share the driver answered «Ahora no» to; reminders already sent
@@ -392,6 +394,13 @@ class AppSettings(private val context: Context) {
     val routeEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_ROUTE_ENABLED] ?: true }
 
     suspend fun updateRouteEnabled(value: Boolean) = editSettings { it[KEY_ROUTE_ENABLED] = value }
+
+    /** 1.53.0: «Mi moto y neumáticos». */
+    val tirePressureUnit: Flow<com.ubers.observador.domain.vehicle.PressureUnit> =
+        context.dataStore.data.map { com.ubers.observador.domain.vehicle.PressureUnit.fromStorage(it[KEY_TIRE_PRESSURE_UNIT]) }
+
+    suspend fun updateTirePressureUnit(value: com.ubers.observador.domain.vehicle.PressureUnit) =
+        editSettings { it[KEY_TIRE_PRESSURE_UNIT] = value.storageKey }
 
     val distanceMode: Flow<com.ubers.observador.domain.distance.DistanceMode> =
         context.dataStore.data.map { com.ubers.observador.domain.distance.DistanceMode.fromStorage(it[KEY_DISTANCE_MODE]) }
