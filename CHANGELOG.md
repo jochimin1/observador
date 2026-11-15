@@ -14,6 +14,28 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.50.0] — sin publicar
+
+Interfaz para trabajar y revisar. Notas: [docs/releases/1.50.0.md](docs/releases/1.50.0.md).
+
+### Cambiado
+- Ajustes: menú de 6 grupos (Lectura y avisos, Rentabilidad, Vehículo y gastos, Jornada, Privacidad y respaldo, Apariencia), cada uno en su pantalla; atrás vuelve al menú. Arriba quedan encendido, Salud, perfiles y Reportes; abajo, Laboratorio, versión y novedades. Ningún ajuste cambia de clave, valor ni valor por defecto.
+- Navegación: la pestaña Gastos pasa a ser **Viajes** (Centro de Viajes). Gastos, moto y jornada se abren desde Ganancias (tarjeta arriba e ícono en la barra) y desde el botón + de Violeta; la barra inferior marca Ganancias mientras estás en Gastos.
+
+### Añadido
+- Buscador de ajustes por título y palabras relacionadas, sin acentos ni mayúsculas, por inicio de palabra.
+- Tarjeta sobre Uber configurable:
+  - de 2 a 4 cifras, en el orden elegido (precio, km y minutos, RD$/km, RD$/h, ganancia estimada tras combustible, recogida, direcciones);
+  - posición arriba, centro o abajo, y letra normal, grande (×1,2) o muy grande (×1,4), que se suma al aumento del tema Sol;
+  - el puntaje con color y etiqueta siempre está. Por defecto es la tarjeta de 1.49.0;
+  - aviso de que en el centro o abajo puede tapar botones de Uber.
+- La ✕ de la tarjeta mide al menos 48 dp y TalkBack la anuncia como «Cerrar tarjeta».
+- Estados comunes «Cargando», «Vacío» (con qué hacer), «Error» («Tus datos no se tocaron») y «Parcial», anunciados por TalkBack, en Viajes, Ganancias, Análisis, Zonas y Horarios.
+- 34 campos de formulario sobreviven al giro y a la recreación de la pantalla.
+
+### Sin cambios
+- Room 21, sin migración. Cálculos, puntaje y datos iguales.
+
 ## [1.49.0] — 2026-11-14
 
 ### Añadido

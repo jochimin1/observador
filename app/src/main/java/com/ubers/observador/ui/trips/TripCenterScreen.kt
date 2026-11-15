@@ -73,7 +73,8 @@ private val DAY = DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.forL
 /** 1.40.0: every trip, whatever happened to it, with filters and a local search. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TripCenterScreen(onBack: () -> Unit, onOpenTrip: (String) -> Unit, vm: TripCenterViewModel = viewModel()) {
+/** 1.50.0: a bottom tab, so [onBack] is null there. */
+fun TripCenterScreen(onBack: (() -> Unit)?, onOpenTrip: (String) -> Unit, vm: TripCenterViewModel = viewModel()) {
     val state by vm.list.collectAsState()
     val hide by vm.hideNames.collectAsState()
     val q = state.query
@@ -82,8 +83,8 @@ fun TripCenterScreen(onBack: () -> Unit, onOpenTrip: (String) -> Unit, vm: TripC
         topBar = {
             TopAppBar(
                 colors = com.ubers.observador.ui.theme.topBarColors(),
-                title = { Text("Centro de Viajes") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("← Volver") } }
+                title = { Text("Viajes") },
+                navigationIcon = { onBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } } }
             )
         }
     ) { padding ->
@@ -123,13 +124,11 @@ fun TripCenterScreen(onBack: () -> Unit, onOpenTrip: (String) -> Unit, vm: TripC
                 )
             }
             when {
-                state.loading -> item { Text("Cargando…") }
-                state.error -> item { Text("No se pudieron cargar los viajes.", color = MaterialTheme.colorScheme.error) }
+                state.loading -> item { com.ubers.observador.ui.components.LoadingState("Cargando viajes…") }
+                state.error -> item { com.ubers.observador.ui.components.ErrorState("no se pudieron cargar los viajes.") }
                 state.shown.isEmpty() -> item {
-                    Text(
-                        if (state.all.isEmpty()) "No hay viajes en este periodo." else "Ningún viaje coincide con los filtros.",
-                        style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp)
-                    )
+                    if (state.all.isEmpty()) com.ubers.observador.ui.components.EmptyState("No hay viajes en este periodo.", hint = "Cambia el periodo arriba, o revisa en Salud que Observador esté leyendo Uber.")
+                    else com.ubers.observador.ui.components.EmptyState("Ningún viaje coincide con los filtros.", hint = "Quita algún filtro o borra la búsqueda.")
                 }
                 else -> items(state.shown, key = { it.id }) { row -> TripRowCard(row, hide, state.zone) { onOpenTrip(row.id) } }
             }

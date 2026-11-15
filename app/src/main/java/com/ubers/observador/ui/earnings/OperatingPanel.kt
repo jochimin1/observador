@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.earnings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,7 +31,7 @@ private fun decimal(n: Long, places: Int = 2) = BigDecimal.valueOf(n, places).st
 @Composable
 fun OperatingPanel(report: OperatingReport?, models: List<OperatingCostModel>, clock: WorkdayClock,
     onSave: suspend (OperatingCostInput) -> String?) {
-    var editing by remember { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
     SectionCard(title = "Rentabilidad operativa", icon = R.drawable.ic_payments,
         subtitle = "Estimación por consumo y uso · distinta del neto por gastos registrados") {
         if (report == null) Text("No se pudo calcular la rentabilidad de este periodo.")
@@ -82,15 +83,15 @@ internal fun OperatingModelDialog(models: List<OperatingCostModel>, clock: Workd
     onSave: suspend (OperatingCostInput) -> String?, onDismiss: () -> Unit,
     suggestedFuel: Pair<Long?, Long?>? = null, suggestedShare: Int? = null) {
     val last = models.maxByOrNull { it.effectiveAtMs }
-    var price by remember { mutableStateOf((suggestedFuel?.first ?: last?.fuelPriceMinor)?.let { decimal(it) }.orEmpty()) }
-    var efficiency by remember { mutableStateOf((suggestedFuel?.second ?: last?.kmPerGallonMilli)?.let { decimal(it, 3) }.orEmpty()) }
-    var wear by remember { mutableStateOf(decimal(last?.maintenancePerKmMinor ?: 0)) }
-    var depreciation by remember { mutableStateOf(decimal(last?.depreciationPerKmMinor ?: 0)) }
-    var fixed by remember { mutableStateOf(decimal(last?.fixedMinor ?: 0)) }
-    var basis by remember { mutableStateOf(last?.fixedBasis ?: FixedCostBasis.WORKDAY) }
-    var share by remember { mutableStateOf((suggestedShare ?: last?.looseWorkSharePct ?: 100).toString()) }
+    var price by rememberSaveable { mutableStateOf((suggestedFuel?.first ?: last?.fuelPriceMinor)?.let { decimal(it) }.orEmpty()) }
+    var efficiency by rememberSaveable { mutableStateOf((suggestedFuel?.second ?: last?.kmPerGallonMilli)?.let { decimal(it, 3) }.orEmpty()) }
+    var wear by rememberSaveable { mutableStateOf(decimal(last?.maintenancePerKmMinor ?: 0)) }
+    var depreciation by rememberSaveable { mutableStateOf(decimal(last?.depreciationPerKmMinor ?: 0)) }
+    var fixed by rememberSaveable { mutableStateOf(decimal(last?.fixedMinor ?: 0)) }
+    var basis by rememberSaveable { mutableStateOf(last?.fixedBasis ?: FixedCostBasis.WORKDAY) }
+    var share by rememberSaveable { mutableStateOf((suggestedShare ?: last?.looseWorkSharePct ?: 100).toString()) }
     val today = clock.workdayOf(System.currentTimeMillis())
-    var date by remember { mutableStateOf(if (last == null) today.toString() else maxOf(today.plusDays(1), runCatching { LocalDate.parse(last.effectiveDay).plusDays(1) }.getOrDefault(today.plusDays(1))).toString()) }
+    var date by rememberSaveable { mutableStateOf(if (last == null) today.toString() else maxOf(today.plusDays(1), runCatching { LocalDate.parse(last.effectiveDay).plusDays(1) }.getOrDefault(today.plusDays(1))).toString()) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()

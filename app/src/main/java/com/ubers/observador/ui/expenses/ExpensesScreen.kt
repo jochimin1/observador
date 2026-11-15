@@ -99,6 +99,8 @@ private sealed interface Form {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ExpensesScreen(
+    /** 1.50.0: opened from Ganancias, no longer a tab. */
+    onBack: (() -> Unit)? = null,
     onOpenReports: ((thisMonth: Boolean) -> Unit)? = null,
     viewModel: ExpensesViewModel = viewModel()
 ) {
@@ -173,6 +175,7 @@ fun ExpensesScreen(
             TopAppBar(
                 colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Gastos") },
+                navigationIcon = { onBack?.let { back -> TextButton(onClick = back) { Text("← Ganancias") } } },
                 actions = {
                     IconButton(onClick = {
                         if (onOpenReports != null) onOpenReports(state.period == ExpensePeriod.THIS_MONTH) else exporting = true

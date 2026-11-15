@@ -313,6 +313,8 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 
 ### 1.49.0 — Cierre de jornada y reportes coherentes
 
+> Entregada como **1.49.0**.
+
 **Prioridad P2 · esfuerzo mediano/grande · depende de Centro de Viajes, finanzas y costos · propósito:** terminar el día sabiendo qué pasó y qué falta revisar.
 
 - Cierre con viajes, ingresos confirmados, pendientes, gasto registrado, costo operativo, horas, km y cobertura.
@@ -325,6 +327,8 @@ P1 = corrección importante o base necesaria para confiar; P2 = evolución de al
 **Validación de salida:** totales reconstruibles desde el detalle; jornada nocturna y semana personalizada coherentes; un ajuste posterior no cambia un informe cerrado sin indicar su revisión.
 
 ### 1.50.0 — Interfaz para trabajar y revisar
+
+> Entregada como **1.50.0**.
 
 **Prioridad P2 · esfuerzo mediano · propósito:** consultar lo esencial rápidamente y revisar después con menos esfuerzo.
 

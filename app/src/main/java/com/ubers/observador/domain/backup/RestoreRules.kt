@@ -68,6 +68,7 @@ object RestoreRules {
     private object Profiles : Rule
     private object Sectors : Rule
     private object ZoneNames : Rule
+    private object OverlayFields : Rule
     private object ZonePrivate : Rule
 
     private val RULES: Map<String, Rule> = mapOf(
@@ -97,6 +98,9 @@ object RestoreRules {
         "week_start_day" to Str(setOf("MONDAY", "SUNDAY")),
         "app_theme" to Str(setOf("SYSTEM", "LIGHT", "DARK", "NIGHT", "SUN", "VIOLET")),
         "show_overlay" to Bool,
+        "overlay_fields" to OverlayFields,
+        "overlay_position" to Str(setOf("TOP", "CENTER", "BOTTOM")),
+        "overlay_text_size" to Str(setOf("NORMAL", "LARGE", "XLARGE")),
         "distance_enabled" to Bool,
         "route_enabled" to Bool,
         "shift_reminders" to Bool,
@@ -128,6 +132,7 @@ object RestoreRules {
         is DoubleR -> (v as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= rule.min && it <= rule.max }
         is Str -> (v as? String)?.takeIf { it.length <= rule.maxLen && (rule.allowed == null || it in rule.allowed) }
         is Sectors -> (v as? String)?.takeIf { it.length <= 100_000 && com.ubers.observador.domain.sectors.CareSectorCodec.decode(it) != null }
+        is OverlayFields -> (v as? String)?.takeIf { it.length <= 200 && com.ubers.observador.domain.OverlayLayoutCodec.decodeFields(it) != null }
         is ZoneNames -> (v as? String)?.takeIf { it.length <= 20_000 && com.ubers.observador.domain.zones.ZoneSettingsCodec.decodeNames(it) != null }
         is ZonePrivate -> (v as? String)?.takeIf { it.length <= 5_000 && com.ubers.observador.domain.zones.ZoneSettingsCodec.decodePrivate(it) != null }
         is Profiles -> (v as? String)?.takeIf { text ->

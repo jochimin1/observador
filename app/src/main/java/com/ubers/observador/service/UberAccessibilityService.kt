@@ -116,6 +116,8 @@ class UberAccessibilityService : AccessibilityService() {
                 withContext(Dispatchers.Main.immediate) { sectorCloser.configure(config) }
             }
         }
+        // 1.50.0: figures, position and text size of the card, for real and test offers alike
+        scope.launch { settings.overlayLayout.collect { overlayManager.layout = it } }
         Log.d(TAG, "Service connected")
     }
 

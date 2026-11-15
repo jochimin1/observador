@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.trips
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,8 +31,9 @@ internal fun TripMoneyEditor(
     onSave: suspend (ManualMoneyRequest) -> MoneyEditResult,
     onVoid: (String) -> Unit, onUndo: (String) -> Unit
 ) {
-    var editing by remember(trip.id) { mutableStateOf(false) }
-    var target by remember(trip.id) { mutableStateOf<FinancialObservation?>(null) }
+    var editing by rememberSaveable(trip.id) { mutableStateOf(false) }
+    var targetId by rememberSaveable(trip.id) { mutableStateOf<String?>(null) }
+    val target = observations.firstOrNull { it.observationId == targetId }
     var voidTarget by remember { mutableStateOf<FinancialObservation?>(null) }
     val history = observations.distinctBy { it.observationId }
     val liveIds = ManualMoney.live(history).map { it.observationId }.toSet()
@@ -43,7 +45,7 @@ internal fun TripMoneyEditor(
         Text("Cobros registrados: efectivo ${MoneyFormat.format(MoneyAmount(collected.cash, "DOP"))} · digital ${MoneyFormat.format(MoneyAmount(collected.digital, "DOP"))}", style = MaterialTheme.typography.bodySmall)
         Text("Los cobros no se suman al ingreso. El saldo a transferir por Uber requiere su estado de cuenta; no se deduce de estos cobros.", style = MaterialTheme.typography.bodySmall)
         if (!trip.status.isOpen) {
-            OutlinedButton(onClick = { target = null; editing = true }) { Text("Registrar dinero") }
+            OutlinedButton(onClick = { targetId = null; editing = true }) { Text("Registrar dinero") }
             val undo = history.filter { it.source == FinancialSource.MANUAL &&
                 (ManualMoney.ENTRY in it.evidence || ManualMoney.ACTION in it.evidence) &&
                 it.evidence.none { code -> code.startsWith(ManualMoney.UNDO) } }
@@ -70,7 +72,7 @@ internal fun TripMoneyEditor(
                     Text("Restaurado por ti el ${date.format(Instant.ofEpochMilli(it))}; conserva la fecha y fuente originales.", style = MaterialTheme.typography.bodySmall)
                 }
                 if (active && !trip.status.isOpen && row.type in ManualMoney.types) Row {
-                    TextButton(onClick = { target = row; editing = true }) { Text("Corregir") }
+                    TextButton(onClick = { targetId = row.observationId; editing = true }) { Text("Corregir") }
                     TextButton(onClick = { voidTarget = row }) { Text("Anular") }
                 }
             }
@@ -87,9 +89,9 @@ internal fun TripMoneyEditor(
 private fun MoneyEntryDialog(trip: Trip, before: TripFinancialSummary, history: List<FinancialObservation>, original: FinancialObservation?,
     onSave: suspend (ManualMoneyRequest) -> MoneyEditResult, onDismiss: () -> Unit) {
     val id = remember { UUID.randomUUID().toString() }
-    var type by remember { mutableStateOf(original?.type ?: FinancialObservationType.TRIP_TOTAL) }
-    var semantics by remember { mutableStateOf(original?.semantics ?: AmountSemantics.ABSOLUTE_TOTAL) }
-    var amount by remember { mutableStateOf(original?.amount?.toDecimal()?.let { if (type == FinancialObservationType.COMMISSION) it.abs() else it }?.toPlainString().orEmpty()) }
+    var type by rememberSaveable { mutableStateOf(original?.type ?: FinancialObservationType.TRIP_TOTAL) }
+    var semantics by rememberSaveable { mutableStateOf(original?.semantics ?: AmountSemantics.ABSOLUTE_TOTAL) }
+    var amount by rememberSaveable { mutableStateOf(original?.amount?.toDecimal()?.let { if (type == FinancialObservationType.COMMISSION) it.abs() else it }?.toPlainString().orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val request = ManualMoneyRequest(id, type, semantics, amount, original?.observationId)

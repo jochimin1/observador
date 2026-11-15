@@ -208,8 +208,8 @@ fun EfficiencyScreen(onBack: () -> Unit, viewModel: EfficiencyViewModel = viewMo
             }
             val r = state.current
             when {
-                state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                state.failed || r == null -> Text("No se pudo calcular. Tus datos no se tocaron.")
+                state.loading -> com.ubers.observador.ui.components.LoadingState("Calculando horarios…")
+                state.failed || r == null -> com.ubers.observador.ui.components.ErrorState("no se pudo calcular este periodo.")
                 else -> {
                     ObservedCard(r)
                     if (r.suggestions.isNotEmpty()) SuggestionsCard(r)

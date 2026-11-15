@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.settings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,43 @@ private sealed interface ProfileDialog {
     data class Context(val profile: SettingsProfile) : ProfileDialog
 }
 
+private val ProfileDialogSaver = androidx.compose.runtime.saveable.Saver<ProfileDialog?, String>(
+    save = { dialog ->
+        val profile = when (dialog) {
+            is ProfileDialog.Rename -> dialog.profile
+            is ProfileDialog.Apply -> dialog.profile
+            is ProfileDialog.Overwrite -> dialog.profile
+            is ProfileDialog.Delete -> dialog.profile
+            is ProfileDialog.Context -> dialog.profile
+            else -> null
+        }
+        val kind = when (dialog) {
+            ProfileDialog.New -> "NEW"
+            is ProfileDialog.Rename -> "RENAME"
+            is ProfileDialog.Apply -> "APPLY"
+            is ProfileDialog.Overwrite -> "OVERWRITE"
+            is ProfileDialog.Delete -> "DELETE"
+            is ProfileDialog.Context -> "CONTEXT"
+            null -> "NONE"
+        }
+        kind + "|" + (profile?.let { com.ubers.observador.domain.SettingsProfileCodec.encode(listOf(it)) } ?: "")
+    },
+    restore = { text ->
+        val kind = text.substringBefore('|')
+        val profile = com.ubers.observador.domain.SettingsProfileCodec.decode(text.substringAfter('|', "")).firstOrNull()
+        if (kind == "NEW") ProfileDialog.New else profile?.let {
+            when (kind) {
+                "RENAME" -> ProfileDialog.Rename(it)
+                "APPLY" -> ProfileDialog.Apply(it)
+                "OVERWRITE" -> ProfileDialog.Overwrite(it)
+                "DELETE" -> ProfileDialog.Delete(it)
+                "CONTEXT" -> ProfileDialog.Context(it)
+                else -> null
+            }
+        }
+    }
+)
+
 /**
  * Saved sets of settings ("Día", "Noche", "Lluvia"...), applied in one tap instead of editing every
  * field again. A profile saves costs, minimums, score weights and cut-offs, and how offers are
@@ -86,7 +124,7 @@ fun ProfilesCard(
     onDelete: (String) -> Unit,
     onContext: (String, com.ubers.observador.domain.ProfileContext) -> Unit = { _, _ -> }
 ) {
-    var dialog by remember { mutableStateOf<ProfileDialog?>(null) }
+    var dialog by rememberSaveable(stateSaver = ProfileDialogSaver) { mutableStateOf<ProfileDialog?>(null) }
     val focus = LocalFocusManager.current
 
     when (val d = dialog) {
@@ -244,7 +282,7 @@ private fun NameDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember { mutableStateOf(initial) }
+    var name by rememberSaveable { mutableStateOf(initial) }
     var touched by remember { mutableStateOf(false) }
     val error = problem(name)
     AlertDialog(
@@ -290,9 +328,9 @@ private fun ContextDialog(
     onConfirm: (com.ubers.observador.domain.ProfileContext) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var shift by remember { mutableStateOf(profile.context.shift) }
-    var product by remember { mutableStateOf(profile.context.product) }
-    var forVehicle by remember { mutableStateOf(profile.context.vehicleId != null) }
+    var shift by rememberSaveable { mutableStateOf(profile.context.shift) }
+    var product by rememberSaveable { mutableStateOf(profile.context.product) }
+    var forVehicle by rememberSaveable { mutableStateOf(profile.context.vehicleId != null) }
     // A saved product no longer seen still shows, so it can be removed
     val options = (products + listOfNotNull(profile.context.product)).distinct()
     AlertDialog(

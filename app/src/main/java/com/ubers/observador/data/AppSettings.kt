@@ -559,6 +559,19 @@ class AppSettings(private val context: Context) {
     suspend fun updateShowOverlay(value: Boolean) =
         editSettings { it[KEY_SHOW_OVERLAY] = value }
 
+    /** 1.50.0: the figures, position and text size of the card over Uber. */
+    val overlayLayout: Flow<com.ubers.observador.domain.OverlayLayout> = context.dataStore.data.map { prefs ->
+        com.ubers.observador.domain.OverlayLayoutCodec.layout(
+            prefs[stringPreferencesKey("overlay_fields")], prefs[stringPreferencesKey("overlay_position")], prefs[stringPreferencesKey("overlay_text_size")]
+        )
+    }
+
+    suspend fun updateOverlayLayout(layout: com.ubers.observador.domain.OverlayLayout) = editSettings {
+        it[stringPreferencesKey("overlay_fields")] = com.ubers.observador.domain.OverlayLayoutCodec.encodeFields(layout.fields)
+        it[stringPreferencesKey("overlay_position")] = layout.position.name
+        it[stringPreferencesKey("overlay_text_size")] = layout.textSize.name
+    }
+
     /**
      * Writes a whole model in one edit (promotion or rollback, only after the user confirms), so
      * no offer is ever scored with half of one model and half of another.

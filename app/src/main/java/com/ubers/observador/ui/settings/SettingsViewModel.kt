@@ -94,6 +94,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun updateMaxPickupMin(v: Int) = viewModelScope.launch { appSettings.updateMaxPickupMin(v) }
     fun updateMinScore(v: Int) = viewModelScope.launch { appSettings.updateMinScore(v) }
     fun updateOverlayDuration(v: Int) = viewModelScope.launch { appSettings.updateOverlayDuration(v) }
+    /** 1.50.0: figures, position and size of the card over Uber. */
+    val overlayLayout: StateFlow<com.ubers.observador.domain.OverlayLayout> =
+        appSettings.overlayLayout.stateIn(viewModelScope, SharingStarted.Eagerly, com.ubers.observador.domain.OverlayLayout())
+
+    fun setOverlayLayout(layout: com.ubers.observador.domain.OverlayLayout) = viewModelScope.launch { appSettings.updateOverlayLayout(layout) }
+
     fun updateShowOverlay(v: Boolean) = viewModelScope.launch {
         com.ubers.observador.service.UberAccessibilityService.instance?.cancelPendingSectorCloses()
         appSettings.updateShowOverlay(v)

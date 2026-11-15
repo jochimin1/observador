@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.ubers.observador.domain.SettingsGroup
+import com.ubers.observador.domain.SettingsIndex
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -84,6 +88,9 @@ fun SettingsScreen(
     val engine = state.engineSettings
     val thresholds = state.thresholds
     val fuelSet = engine.fuelPricePerGallon > 0 && engine.kmPerGallon > 0
+    // 1.50.0: null = the menu of groups; a group = only its settings, on its own screen
+    var group by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
+    BackHandler(enabled = group != null) { group = null }
 
     Scaffold(
 
@@ -91,9 +98,11 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 colors = com.ubers.observador.ui.theme.topBarColors(),
-                title = { Text("Ajustes") },
+                title = { Text(group?.label ?: "Ajustes") },
                 navigationIcon = {
-                    onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } }
+                    val g = group
+                    if (g != null) TextButton(onClick = { group = null }) { Text("← Ajustes") }
+                    else onNavigateBack?.let { back -> TextButton(onClick = back) { Text("← Volver") } }
                 }
             )
         }
@@ -103,11 +112,13 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                // Each group starts at its top
+                .verticalScroll(remember(group) { androidx.compose.foundation.ScrollState(0) }),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(Modifier.height(4.dp))
 
+            if (group == null) {
             val observing by viewModel.observerEnabled.collectAsState()
             ObserverSwitchCard(enabled = observing, onChange = { viewModel.setObserverEnabled(it) })
             // Fase 8L: close everything with one button
@@ -159,6 +170,11 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSearch(onOpen = { group = it })
+            SettingsGroup.entries.forEach { g -> GroupCard(g, onClick = { group = g }) }
+            }
+
+            if (group == SettingsGroup.APPEARANCE) {
             SectionHeader("Apariencia", R.drawable.ic_contrast)
             val theme by viewModel.themeSettings.collectAsState()
             ThemeCard(selected = theme.theme, onSelect = { viewModel.setTheme(it) })
@@ -197,6 +213,9 @@ fun SettingsScreen(
                 }
             )
 
+            }
+
+            if (group == SettingsGroup.PROFIT) {
             SectionHeader("Costos operativos", R.drawable.ic_local_gas_station)
             DecimalSettingCard(
                 title = "Precio del combustible",
@@ -332,6 +351,9 @@ fun SettingsScreen(
                 onValid = { viewModel.updateExcellentScore(it) }
             )
 
+            }
+
+            if (group == SettingsGroup.VEHICLE) {
             SectionHeader("Kilómetros", R.drawable.ic_route)
             val distanceEnabled by viewModel.distanceEnabled.collectAsState()
             val distanceMode by viewModel.distanceMode.collectAsState()
@@ -356,6 +378,9 @@ fun SettingsScreen(
                 onDeleteAll = { viewModel.deleteAllRoutes() }
             )
 
+            }
+
+            if (group == SettingsGroup.PROFIT) {
             SectionHeader("Ganancias y metas", R.drawable.ic_flag)
             val goals by viewModel.goals.collectAsState()
             IntSettingCard(
@@ -402,6 +427,9 @@ fun SettingsScreen(
                 onChange = { viewModel.setWeeklyReportNotification(it) }
             )
 
+            }
+
+            if (group == SettingsGroup.VEHICLE) {
             SectionHeader("Gastos y mantenimiento", R.drawable.ic_receipt_long)
             val workShare by viewModel.workSharePct.collectAsState()
             val intervals by viewModel.maintenanceIntervals.collectAsState()
@@ -439,6 +467,9 @@ fun SettingsScreen(
                 onChange = { viewModel.setMaintenanceNotification(it) }
             )
 
+            }
+
+            if (group == SettingsGroup.WORKDAY) {
             SectionHeader("Jornada", R.drawable.ic_calendar_month)
             IntSettingCard(
                 title = "Inicio de la jornada",
@@ -453,7 +484,10 @@ fun SettingsScreen(
                 onValid = { viewModel.updateWorkdayStartHour(it) }
             )
 
-            SectionHeader("Overlay", R.drawable.ic_layers)
+            }
+
+            if (group == SettingsGroup.READING) {
+            SectionHeader("Tarjeta sobre Uber", R.drawable.ic_layers)
             SettingCard(
                 title = "Mostrar tarjeta sobre Uber",
                 description = "Muestra una tarjeta pequeña encima de la app de Uber con el precio, los km, " +
@@ -477,6 +511,10 @@ fun SettingsScreen(
                 )
             }
 
+            if (state.showOverlay) {
+                val layout by viewModel.overlayLayout.collectAsState()
+                OverlayLayoutCard(layout, onChange = { viewModel.setOverlayLayout(it) })
+            }
             val overlayMessage by viewModel.overlayTestMessage.collectAsState()
             OverlayPreviewCard(
                 message = overlayMessage,
@@ -508,14 +546,23 @@ fun SettingsScreen(
             // 1.35.0: sectors the driver wants to be warned about
             SectorsSection()
 
+            }
+
+            if (group == null) {
             // 1.39.0: captures, reading register and development tools live in Laboratorio
             onOpenLab?.let {
                 NavigationCard(R.drawable.ic_science, "Laboratorio",
                     "Capturas de pantalla de Uber, registro de lecturas" + (if (BuildConfig.DEBUG) " y herramientas de desarrollo." else "."), it)
             }
 
+            }
+
+            if (group == SettingsGroup.PRIVACY) {
             // 1.31.0: backup of everything the app keeps (restore and reset follow)
             BackupSection()
+            }
+
+            if (group == null) {
 
             // Which build is installed, to match a bug or a screenshot with CHANGELOG.md
             Text(
@@ -529,6 +576,7 @@ fun SettingsScreen(
 
             // What this version brought, from docs/releases/changelogs/<version>.md (generated at build time)
             ReleaseNotesCard()
+            }
 
             Spacer(Modifier.height(24.dp))
         }

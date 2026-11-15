@@ -38,6 +38,9 @@ class OverlayManager(private val context: Context) {
     /** Fase 8G: the Sol theme draws the card's text 15 % bigger, for the glare. */
     private var textScale = 1f
 
+    /** 1.50.0: figures, position and text size chosen in Ajustes › Lectura y avisos (kept up to date by the service). */
+    @Volatile var layout = com.ubers.observador.domain.OverlayLayout()
+
     private companion object {
         const val TAG = "OverlayManager"
         const val LARGE_SCALE = 1.15f
@@ -51,11 +54,12 @@ class OverlayManager(private val context: Context) {
         large: Boolean = false,
         banner: SectorBanner? = null
     ) = runOnMain {
-        textScale = if (large) LARGE_SCALE else 1f
+        textScale = (if (large) LARGE_SCALE else 1f) * layout.textSize.scale
         removeNow()
         val view = buildCardView(analysis, quality, banner).apply {
             contentDescription = (banner?.let { it.text + ". " } ?: "") +
-                "Oferta ${quality.label}, ${analysis.score} de 100. Toca para cerrar"
+                "Oferta ${quality.label}, ${analysis.score} de 100. " +
+                layout.fields.flatMap { it.text(analysis) }.joinToString(". ") + ". Toca para cerrar"
             setOnClickListener {
                 // 1.37.0: a tap on the card also stops any pending close
                 onTap?.invoke()
@@ -71,10 +75,7 @@ class OverlayManager(private val context: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = getStatusBarHeight() + (4 * context.resources.displayMetrics.density).toInt()
-        }
+        ).apply { place(this) }
         try {
             windowManager.addView(view, params)
             lastShowFailed = false
@@ -114,10 +115,7 @@ class OverlayManager(private val context: Context) {
         val params = WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = getStatusBarHeight() + (4 * dp).toInt()
-        }
+            PixelFormat.TRANSLUCENT).apply { place(this) }
         try {
             windowManager.addView(view, params)
             overlayView = view
@@ -144,6 +142,30 @@ class OverlayManager(private val context: Context) {
     private fun runOnMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else handler.post(block)
     }
+
+    /** 1.50.0: top (below the status bar), centre, or bottom (above the navigation bar). */
+    private fun place(params: WindowManager.LayoutParams) {
+        val dp = context.resources.displayMetrics.density
+        when (layout.position) {
+            com.ubers.observador.domain.OverlayPosition.TOP -> {
+                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                params.y = getStatusBarHeight() + (4 * dp).toInt()
+            }
+            com.ubers.observador.domain.OverlayPosition.CENTER -> {
+                params.gravity = Gravity.CENTER
+                params.y = 0
+            }
+            com.ubers.observador.domain.OverlayPosition.BOTTOM -> {
+                params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                params.y = navigationBarHeight() + (16 * dp).toInt()
+            }
+        }
+    }
+
+    /** The real navigation bar of this screen (Android 11+, the app's minimum), 0 when hidden. */
+    private fun navigationBarHeight(): Int = runCatching {
+        windowManager.currentWindowMetrics.windowInsets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+    }.getOrDefault(0)
 
     private fun getStatusBarHeight(): Int {
         val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
@@ -187,16 +209,23 @@ class OverlayManager(private val context: Context) {
             })
         }
 
-        // Price + verdict row
+        // Stack the header at large font scales so the primary figure keeps usable width.
+        val fields = layout.fields.ifEmpty { com.ubers.observador.domain.OverlayLayout.DEFAULT_FIELDS }
+        val first = fields.first()
+        val stacked = context.resources.configuration.fontScale * textScale > 1.5f
         card.addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(TextView(context).apply {
-                text = "RD$%.2f".format(analysis.offer.price)
-                textSize = 22f * textScale
+                text = first.text(analysis).joinToString("\n").ifEmpty { "—" }
+                textSize = (if (first == com.ubers.observador.domain.OverlayField.ADDRESSES) 15f else 22f) * textScale
                 setTextColor(Color.WHITE)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = if (stacked) LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    else LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                maxWidth = (300 * dp).toInt()
             })
             // Filled badge with the label spelled out: color alone isn't enough in direct
             // sunlight or for color-blind drivers
@@ -212,44 +241,32 @@ class OverlayManager(private val context: Context) {
                 }
             })
             // Close hint: the whole card is tappable, this just tells the driver it can be closed
+            // 1.50.0: at least 48 dp, so it can be hit with a glove; the whole card closes too
             addView(TextView(context).apply {
                 text = "✕"
                 textSize = 18f * textScale
                 setTextColor(Color.parseColor("#AAAAAA"))
-                setPadding((12 * dp).toInt(), 0, (2 * dp).toInt(), 0)
+                gravity = Gravity.CENTER
+                minWidth = (48 * dp).toInt()
+                minHeight = (48 * dp).toInt()
+                contentDescription = "Cerrar tarjeta"
+                setOnClickListener { onTap?.invoke(); removeNow() }
             })
         })
 
-        // km · min
-        card.addView(TextView(context).apply {
-            text = "%.1f km · %d min".format(analysis.totalKm, analysis.totalMin)
-            textSize = 14f * textScale
-            setTextColor(Color.parseColor("#CCCCCC"))
-            setPadding(0, marginSm, 0, 0)
-        })
-
-        // RD$/km rate
-        card.addView(TextView(context).apply {
-            text = "RD$%.2f/km".format(analysis.rdpPerKm)
-            textSize = 14f * textScale
-            setTextColor(Color.parseColor("#CCCCCC"))
-            setPadding(0, marginSm, 0, 0)
-        })
-
-        // Fase 8F: where from and where to, as Uber wrote them (one line each, cut with "…")
-        listOfNotNull(
-            analysis.offer.pickupAddress?.let { "▲ $it" },
-            analysis.offer.dropoffAddress?.let { "▼ $it" }
-        ).forEach { line ->
-            card.addView(TextView(context).apply {
-                text = line
-                textSize = 13f * textScale
-                setTextColor(Color.WHITE)
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                maxWidth = (280 * dp).toInt()
-                setPadding(0, marginSm, 0, 0)
-            })
+        // 1.50.0: the other chosen figures, in the chosen order (addresses one line each, cut with "…")
+        fields.drop(1).forEach { f ->
+            f.text(analysis).forEach { line ->
+                card.addView(TextView(context).apply {
+                    text = line
+                    textSize = (if (f == com.ubers.observador.domain.OverlayField.ADDRESSES) 13f else 14f) * textScale
+                    setTextColor(Color.parseColor(if (f == com.ubers.observador.domain.OverlayField.ADDRESSES) "#FFFFFF" else "#CCCCCC"))
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    maxWidth = (300 * dp).toInt()
+                    setPadding(0, marginSm, 0, 0)
+                })
+            }
         }
 
         // Score bar

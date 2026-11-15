@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
 
 private const val ROUTE_HEALTH = "health"
 private const val ROUTE_LAB = "lab"
-private const val ROUTE_TRIPS = "trips"
+private const val ROUTE_EXPENSES = "expenses"
 private const val ROUTE_TRIP = "trip"
 private const val ROUTE_EFFICIENCY = "efficiency"
 
@@ -187,7 +187,8 @@ private const val ROUTE_EFFICIENCY = "efficiency"
 private enum class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int, @param:DrawableRes val selectedIcon: Int) {
     HOME("dashboard", "Inicio", R.drawable.ic_home, R.drawable.ic_home_fill),
     EARNINGS("earnings", "Ganancias", R.drawable.ic_savings, R.drawable.ic_savings_fill),
-    EXPENSES("expenses", "Gastos", R.drawable.ic_receipt_long, R.drawable.ic_receipt_long_fill),
+    // 1.50.0: Viajes takes the place of Gastos, which now opens from Ganancias
+    TRIPS("trips", "Viajes", R.drawable.ic_two_wheeler, R.drawable.ic_two_wheeler),
     ANALYSIS("intelligence", "Análisis", R.drawable.ic_analytics, R.drawable.ic_analytics_fill),
     SETTINGS("settings", "Ajustes", R.drawable.ic_settings, R.drawable.ic_settings_fill)
 }
@@ -207,7 +208,8 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         ReportsNavigation.preset.value = preset
         navController.navigate(ReportsNavigation.ROUTE) { launchSingleTop = true }
     }
-    fun openTrips() = navController.navigate(ROUTE_TRIPS) { launchSingleTop = true }
+    fun openTrips() = open(Tab.TRIPS)
+    fun openExpenses() = navController.navigate(ROUTE_EXPENSES) { launchSingleTop = true }
     // A notification asked for a screen: switch tab; the screen itself consumes the request
     val pendingOpen by com.ubers.observador.ui.AppNavigation.pending.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pendingOpen) {
@@ -218,14 +220,17 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
         // 1.27.0, Violeta: the + in the middle opens the quick actions
         floatingActionButton = {
             if (com.ubers.observador.ui.theme.LocalPastelBackground.current) {
-                QuickActionsButton(onExpenses = { open(Tab.EXPENSES) }, onReports = { openReports(null) }, onTrips = { openTrips() })
+                QuickActionsButton(onExpenses = { openExpenses() }, onReports = { openReports(null) }, onTrips = { openTrips() })
             }
         },
         floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { tab ->
-                    val selected = current == tab.route
+                    // Screens opened from a tab keep that tab lit
+                    val selected = current == tab.route ||
+                        (tab == Tab.EARNINGS && current == ROUTE_EXPENSES) ||
+                        (tab == Tab.TRIPS && current?.startsWith("$ROUTE_TRIP/") == true)
                     NavigationBarItem(
                         selected = selected,
                         onClick = { open(tab) },
@@ -255,11 +260,13 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
             composable(Tab.EARNINGS.route) {
                 com.ubers.observador.ui.earnings.EarningsScreen(
                     onOpenReports = { w -> openReports(w?.let(ReportsNavigation::forWindow)) },
-                    onOpenTrips = { openTrips() }
+                    onOpenTrips = { openTrips() },
+                    onOpenExpenses = { openExpenses() }
                 )
             }
-            composable(Tab.EXPENSES.route) {
+            composable(ROUTE_EXPENSES) {
                 com.ubers.observador.ui.expenses.ExpensesScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenReports = { thisMonth ->
                         openReports(com.ubers.observador.domain.reports.ReportPreset(if (thisMonth) ReportPeriod.THIS_MONTH else ReportPeriod.LAST_MONTH))
                     }
@@ -290,9 +297,9 @@ private fun ObservadorNavHost(accessibilityEnabled: Boolean) {
                 com.ubers.observador.ui.health.HealthScreen(onBack = { navController.popBackStack() })
             }
             // 1.40.0: Centro de Viajes (list) and one trip (its detail is loaded only when opened)
-            composable(ROUTE_TRIPS) {
+            composable(Tab.TRIPS.route) {
                 com.ubers.observador.ui.trips.TripCenterScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = null,
                     onOpenTrip = { id -> navController.navigate("$ROUTE_TRIP/${android.net.Uri.encode(id)}") }
                 )
             }

@@ -158,8 +158,8 @@ fun IntelligenceScreen(
             ZonesCard()
             val report = state.report
             when {
-                state.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                state.failed || report == null -> Body("No se pudo calcular el análisis. Tus datos no se tocaron.")
+                state.loading -> com.ubers.observador.ui.components.LoadingState("Calculando el análisis…")
+                state.failed || report == null -> com.ubers.observador.ui.components.ErrorState("no se pudo calcular el análisis.")
                 else -> {
                     if (com.ubers.observador.ui.theme.LocalPastelBackground.current) AnalysisHeroCard(report)
                     state.waits?.let { WaitsCard(it) }

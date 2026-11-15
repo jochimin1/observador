@@ -8,6 +8,7 @@ La única etiqueta original sin un changelog propio es 1.0.0: el archivo se intr
 
 ## Entregas documentadas
 
+- [1.50.0](1.50.0.md) — código 61
 - [1.49.0](1.49.0.md) — código 60
 - [1.48.0](1.48.0.md) — código 59
 - [1.47.0](1.47.0.md) — código 58

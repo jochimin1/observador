@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.intelligence
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.app.Application
 import android.util.Log
 import androidx.compose.foundation.Canvas
@@ -211,11 +212,11 @@ fun ZonesCard(viewModel: ZonesViewModel = viewModel()) {
                 }
             }
             when {
-                state.loading -> Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                state.failed || report == null -> Text("No se pudieron calcular las zonas. Tus datos no se tocaron.", style = MaterialTheme.typography.bodyMedium)
-                report.zones.isEmpty() -> Text(
-                    "Todavía no hay viajes terminados con recorrido GPS en este período. Para medirlas, activa «Recorrido de los viajes» en Ajustes.",
-                    style = MaterialTheme.typography.bodyMedium
+                state.loading -> com.ubers.observador.ui.components.LoadingState("Calculando zonas…")
+                state.failed || report == null -> com.ubers.observador.ui.components.ErrorState("no se pudieron calcular las zonas.")
+                report.zones.isEmpty() -> com.ubers.observador.ui.components.EmptyState(
+                    "Todavía no hay viajes terminados con recorrido GPS en este período.",
+                    hint = "Para medirlas, activa «Recorrido de los viajes» en Ajustes › Vehículo y gastos."
                 )
                 else -> {
                     ZoneMap(report.zones, selected = open?.key)
@@ -348,7 +349,7 @@ private fun details(z: ZoneSummary): String = listOfNotNull(
 
 @Composable
 private fun ZoneDialog(zone: ZoneSummary, onName: (String) -> Unit, onHide: () -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf(zone.name ?: "") }
+    var name by rememberSaveable { mutableStateOf(zone.name ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(zone.label) },

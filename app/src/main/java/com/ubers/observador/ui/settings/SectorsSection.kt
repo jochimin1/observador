@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.settings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -62,9 +63,12 @@ private val AVOID_COLOR = Color(0xFFC62828)
 @Composable
 fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
-    var dialogFor by remember { mutableStateOf<CareSector?>(null) }
-    var adding by remember { mutableStateOf(false) }
-    var testing by remember { mutableStateOf(false) }
+    var dialogFor by rememberSaveable(stateSaver = androidx.compose.runtime.saveable.Saver<CareSector?, String>(
+        save = { it?.let { sector -> com.ubers.observador.domain.sectors.CareSectorCodec.encode(listOf(sector)) } ?: "" },
+        restore = { com.ubers.observador.domain.sectors.CareSectorCodec.decode(it)?.firstOrNull() }
+    )) { mutableStateOf<CareSector?>(null) }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var testing by rememberSaveable { mutableStateOf(false) }
 
     IconSectionHeader("Sectores de cuidado", R.drawable.ic_warning)
     SectionCard(
@@ -189,17 +193,17 @@ private fun SectorDialog(
     onSave: (CareSector) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember { mutableStateOf(initial?.name ?: "") }
-    var where by remember { mutableStateOf(initial?.where ?: SectorWhere.BOTH) }
-    var level by remember { mutableStateOf(initial?.level ?: SectorLevel.WARN) }
-    var aliases by remember { mutableStateOf(initial?.aliases?.joinToString("; ") ?: "") }
-    var exceptions by remember { mutableStateOf(initial?.exceptions?.joinToString("; ") ?: "") }
-    var scheduled by remember { mutableStateOf(initial?.schedule != null) }
-    var days by remember { mutableStateOf(initial?.schedule?.days ?: emptySet()) }
-    var from by remember { mutableStateOf(initial?.schedule?.fromMin?.let { SectorSchedule.hhmm(it) } ?: "20:00") }
-    var to by remember { mutableStateOf(initial?.schedule?.toMin?.let { SectorSchedule.hhmm(it) } ?: "05:00") }
-    var product by remember { mutableStateOf(initial?.product) }
-    var enabled by remember { mutableStateOf(initial?.enabled ?: true) }
+    var name by rememberSaveable { mutableStateOf(initial?.name ?: "") }
+    var where by rememberSaveable { mutableStateOf(initial?.where ?: SectorWhere.BOTH) }
+    var level by rememberSaveable { mutableStateOf(initial?.level ?: SectorLevel.WARN) }
+    var aliases by rememberSaveable { mutableStateOf(initial?.aliases?.joinToString("; ") ?: "") }
+    var exceptions by rememberSaveable { mutableStateOf(initial?.exceptions?.joinToString("; ") ?: "") }
+    var scheduled by rememberSaveable { mutableStateOf(initial?.schedule != null) }
+    var days by rememberSaveable { mutableStateOf(initial?.schedule?.days ?: emptySet()) }
+    var from by rememberSaveable { mutableStateOf(initial?.schedule?.fromMin?.let { SectorSchedule.hhmm(it) } ?: "20:00") }
+    var to by rememberSaveable { mutableStateOf(initial?.schedule?.toMin?.let { SectorSchedule.hhmm(it) } ?: "05:00") }
+    var product by rememberSaveable { mutableStateOf(initial?.product) }
+    var enabled by rememberSaveable { mutableStateOf(initial?.enabled ?: true) }
     val fromMin = SectorSchedule.parseTime(from)
     val toMin = SectorSchedule.parseTime(to)
     val valid = name.isNotBlank() && (!scheduled || (fromMin != null && toMin != null))
@@ -362,9 +366,9 @@ private fun SectorDialog(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SectorTester(state: SectorsUiState, viewModel: SectorsViewModel, onDismiss: () -> Unit) {
-    var address by remember { mutableStateOf(state.recentAddresses.firstOrNull() ?: "") }
-    var place by remember { mutableStateOf(OfferPlaceKind.DROPOFF) }
-    var product by remember { mutableStateOf(state.products.firstOrNull()) }
+    var address by rememberSaveable { mutableStateOf(state.recentAddresses.firstOrNull() ?: "") }
+    var place by rememberSaveable { mutableStateOf(OfferPlaceKind.DROPOFF) }
+    var product by rememberSaveable { mutableStateOf(state.products.firstOrNull()) }
     val parts = SectorMatcher.displayParts(address)
     val results = remember(address, place, product, state.sectors) { viewModel.explain(address, place, product) }
 

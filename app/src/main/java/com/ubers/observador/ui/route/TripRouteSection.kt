@@ -151,7 +151,7 @@ private fun RouteCard(state: RouteUi, onExport: (RouteFormat, Boolean) -> Unit, 
             summary == null -> InfoLine(
                 R.drawable.ic_info,
                 when {
-                    !state.recordingOn -> "La grabación del recorrido está apagada (Ajustes › Recorrido de los viajes)."
+                    !state.recordingOn -> "La grabación del recorrido está apagada (Ajustes › Vehículo y gastos › Recorrido de los viajes)."
                     trip != null && trip.status.isOpen -> "Se empieza a grabar en cuanto llegue una posición del GPS."
                     else -> "Este viaje no tiene recorrido: es anterior a la versión 1.24.0 o se tomó con la grabación apagada."
                 }

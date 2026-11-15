@@ -1,5 +1,6 @@
 package com.ubers.observador.ui.earnings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.OutlinedTextField
 
 import androidx.compose.foundation.verticalScroll
@@ -114,6 +115,8 @@ private fun dayTime(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDef
 fun EarningsScreen(
     onOpenReports: ((com.ubers.observador.domain.earnings.EarningsWindow?) -> Unit)? = null,
     onOpenTrips: (() -> Unit)? = null,
+    /** 1.50.0: Gastos lives inside Ganancias. */
+    onOpenExpenses: (() -> Unit)? = null,
     viewModel: EarningsViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -122,7 +125,7 @@ fun EarningsScreen(
     val detail by viewModel.detail.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var rejecting by remember { mutableStateOf<FinancialObservation?>(null) }
-    var editingGoals by remember { mutableStateOf(false) }
+    var editingGoals by rememberSaveable { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
 
     com.ubers.observador.ui.components.ReportExportEffects(viewModel.exporter, snackbar)
@@ -192,9 +195,9 @@ fun EarningsScreen(
                 colors = com.ubers.observador.ui.theme.topBarColors(),
                 title = { Text("Ganancias") },
                 actions = {
-                    // 1.40.0: every trip, cancelled and interrupted ones too
-                    if (onOpenTrips != null) IconButton(onClick = onOpenTrips) {
-                        Icon(painterResource(R.drawable.ic_two_wheeler), contentDescription = "Centro de Viajes")
+                    // 1.50.0: Viajes is a tab now; Gastos opens from here
+                    if (onOpenExpenses != null) IconButton(onClick = onOpenExpenses) {
+                        Icon(painterResource(R.drawable.ic_receipt_long), contentDescription = "Gastos, moto y jornada")
                     }
                     IconButton(
                         onClick = { if (onOpenReports != null) onOpenReports(state.report?.window) else exporting = true },
@@ -213,10 +216,11 @@ fun EarningsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item { PeriodPicker(state, onRange = { viewModel.select(it) }, onPrevious = { viewModel.previous() }, onNext = { viewModel.next() }) }
+            onOpenExpenses?.let { open -> item { ExpensesEntry(open) } }
             if (!MONEY_LABELS_VALIDATED) item { ValidationNotice() }
             val report = state.report
             if (report == null) {
-                item { Text(if (state.loading) "Cargando…" else "No se pudo calcular este periodo.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { if (state.loading) com.ubers.observador.ui.components.LoadingState("Calculando el periodo…") else com.ubers.observador.ui.components.ErrorState("no se pudo calcular este periodo.") }
             } else {
                 item { IncomeCard(report) }
                 state.weekly?.let { w -> item { WeeklyCard(w) } }
@@ -474,8 +478,8 @@ private fun GoalBlock(title: String, p: GoalProgress) {
 
 @Composable
 private fun GoalDialog(dailyMinor: Long, weeklyMinor: Long, onDismiss: () -> Unit, onSave: (Long, Long) -> Unit) {
-    var daily by remember { mutableStateOf(if (dailyMinor > 0) (dailyMinor / 100).toString() else "") }
-    var weekly by remember { mutableStateOf(if (weeklyMinor > 0) (weeklyMinor / 100).toString() else "") }
+    var daily by rememberSaveable { mutableStateOf(if (dailyMinor > 0) (dailyMinor / 100).toString() else "") }
+    var weekly by rememberSaveable { mutableStateOf(if (weeklyMinor > 0) (weeklyMinor / 100).toString() else "") }
     fun parse(text: String): Long? = text.trim().replace(",", "").let { if (it.isEmpty()) 0L else it.toLongOrNull() }
         ?.takeIf { it in 0..(com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR / 100) }
     val d = parse(daily)
@@ -665,9 +669,9 @@ private fun UberCard(r: Reconciliation?, capturedAt: Long?) {
 
 @Composable
 private fun UberPeriodEditor(vm: EarningsViewModel) {
-    var open by remember { mutableStateOf(false) }
-    var start by remember { mutableStateOf("") }
-    var end by remember { mutableStateOf("") }
+    var open by rememberSaveable { mutableStateOf(false) }
+    var start by rememberSaveable { mutableStateOf("") }
+    var end by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     TextButton(onClick = { open = true }) { Text("Definir intervalo de esta referencia") }
     if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Periodo del importe de Uber") },
@@ -928,6 +932,28 @@ private fun TripDetailContent(d: TripDetail) {
             }
         } else if (d.trip != null) {
             InfoLine(R.drawable.ic_info, "Observador no vio dinero de este viaje.")
+        }
+    }
+}
+
+/** 1.50.0: Gastos left the bottom bar; this is its door, at the top of Ganancias. */
+@Composable
+private fun ExpensesEntry(onOpen: () -> Unit) {
+    androidx.compose.material3.OutlinedCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Abrir Gastos", role = androidx.compose.ui.semantics.Role.Button, onClick = onOpen)
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Decorative: the title says it
+            Icon(painterResource(R.drawable.ic_receipt_long), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f)) {
+                Text("Gastos, moto y jornada", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    "Combustible, gastos, mantenimiento, odómetro y uso laboral medido.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
