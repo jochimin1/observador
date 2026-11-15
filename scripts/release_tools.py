@@ -46,6 +46,11 @@ def app_identity(source):
     return name[1], int(code[1])
 
 
+def canonical_schema(content):
+    # Normalize formatting/key order, while preserving JSON value types and array order.
+    return json.dumps(json.loads(content), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def source_checks():
     version, code = app_identity((ROOT / "app/build.gradle.kts").read_text(encoding="utf-8"))
     catalog = json.loads((ROOT / "docs/releases/versiones.json").read_text(encoding="utf-8"))
@@ -80,7 +85,7 @@ def source_checks():
     # Compare JSON, not checkout line endings (Windows may use CRLF).
     for path in run(["git", "ls-tree", "-r", "--name-only", previous["tag"], directory]).splitlines():
         old = subprocess.check_output(["git", "show", previous["tag"] + ":" + path], cwd=ROOT)
-        if not (ROOT / path).is_file() or json.loads((ROOT / path).read_text(encoding="utf-8")) != json.loads(old):
+        if not (ROOT / path).is_file() or canonical_schema((ROOT / path).read_text(encoding="utf-8")) != canonical_schema(old):
             raise ValueError("Se modificó un esquema histórico: " + path)
     return {"versionName": version, "versionCode": code, "databaseVersion": db_version,
             "schemaIdentity": schema["database"]["identityHash"], "previousTag": previous["tag"]}

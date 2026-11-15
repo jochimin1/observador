@@ -7,12 +7,18 @@ import tempfile
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from release_tools import app_identity, certificate_hashes, check_update, instrumentation_count, parse_badging
+from release_tools import app_identity, canonical_schema, certificate_hashes, check_update, instrumentation_count, parse_badging
 import test_emulator
 import validate_release
 
 
 class ReleaseToolsTest(unittest.TestCase):
+    def test_schema_formatting_is_ignored_but_value_types_are_not(self):
+        original = '{"version":21,"notNull":true,"columns":["a","b"]}'
+        self.assertEqual(canonical_schema(original), canonical_schema('{\r\n "columns":["a","b"], "notNull":true, "version":21\r\n}'))
+        self.assertNotEqual(canonical_schema(original), canonical_schema(original.replace('true', '1')))
+        self.assertNotEqual(canonical_schema(original), canonical_schema(original.replace('["a","b"]', '["b","a"]')))
+
     def test_identity(self):
         self.assertEqual(("1.52.0", 63), app_identity('versionName = "1.52.0"\nversionCode = 63'))
         with self.assertRaises(ValueError):
