@@ -123,6 +123,6 @@ def check_update(previous, current):
 def instrumentation_count(output):
     match = re.search(r"^OK \((\d+) tests?\)\s*$", output, re.M)
     if not match or int(match[1]) == 0 or re.search(
-            r"FAILURES!!!|INSTRUMENTATION_FAILED|shortMsg=|Process crashed|INSTRUMENTATION_STATUS_CODE: -[12]\b", output):
+            r"FAILURES!!!|INSTRUMENTATION_FAILED|shortMsg=|Process crashed|INSTRUMENTATION_STATUS_CODE: -[1-4]\b", output):
         raise ValueError("La instrumentación no terminó con pruebas correctas")
     return int(match[1])

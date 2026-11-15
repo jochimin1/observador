@@ -51,7 +51,9 @@ class ReleaseToolsTest(unittest.TestCase):
     def test_exit_zero_does_not_hide_failures_or_empty_run(self):
         for output in ("", "OK (0 tests)", "FAILURES!!!\nTests run: 2, Failures: 1",
                        "INSTRUMENTATION_FAILED: runner", "shortMsg=Process crashed",
-                       "OK (2 tests)\nINSTRUMENTATION_STATUS_CODE: -2"):
+                       "OK (2 tests)\nINSTRUMENTATION_STATUS_CODE: -2",
+                       "OK (2 tests)\nINSTRUMENTATION_STATUS_CODE: -3",
+                       "OK (2 tests)\nINSTRUMENTATION_STATUS_CODE: -4"):
             with self.subTest(output=output), self.assertRaises(ValueError):
                 instrumentation_count(output)
 

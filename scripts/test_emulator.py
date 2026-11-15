@@ -21,8 +21,8 @@ def main():
         parser.error("Solo se permite un serial emulator-N; nunca el teléfono del conductor")
     adb = sdk_tool("adb")
 
-    def device(*parts):
-        return run([adb, "-s", args.serial, *parts])
+    def device(*parts, timeout=120):
+        return run([adb, "-s", args.serial, *parts], timeout=timeout)
 
     if device("shell", "getprop", "ro.kernel.qemu") != "1":
         raise ValueError("El dispositivo no acredita ser un emulador")
@@ -43,7 +43,7 @@ def main():
 
     def instrument(classes, label):
         output = device("shell", "am", "instrument", "-w", "-r", "-e", "class", classes,
-                        PACKAGE + ".test/androidx.test.runner.AndroidJUnitRunner")
+                        PACKAGE + ".test/androidx.test.runner.AndroidJUnitRunner", timeout=900)
         (args.output / (label + ".txt")).write_text(output, encoding="utf-8")
         count = instrumentation_count(output)
         print(f"{label}: OK ({count} tests)", flush=True)
@@ -74,5 +74,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (ValueError, RuntimeError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         sys.exit(str(exc))
