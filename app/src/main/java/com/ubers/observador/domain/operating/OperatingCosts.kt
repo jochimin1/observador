@@ -11,7 +11,6 @@ import com.ubers.observador.domain.trips.Trip
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.RoundingMode
-import java.time.LocalDate
 
 enum class FixedCostBasis(val label: String) { WORKDAY("Por jornada"), HOUR("Por hora en línea"), UNKNOWN("Desconocido") }
 

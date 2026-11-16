@@ -22,7 +22,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -67,7 +66,6 @@ import com.ubers.observador.domain.money.MoneyFormat
 import com.ubers.observador.ui.components.InfoLine
 import com.ubers.observador.ui.components.LegendDot
 import com.ubers.observador.ui.components.SectionCard
-import com.ubers.observador.ui.components.SplitBar
 import com.ubers.observador.ui.components.StackedBar
 import com.ubers.observador.ui.components.StatTile
 import com.ubers.observador.ui.components.SwipeToDelete

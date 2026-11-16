@@ -12,10 +12,8 @@ import com.ubers.observador.data.export.ReportOutput
 import com.ubers.observador.domain.CategoryFilter
 import com.ubers.observador.domain.TakenFilter
 import com.ubers.observador.domain.WorkdayClock
-import com.ubers.observador.domain.earnings.EarningsFormat
 import com.ubers.observador.domain.earnings.EarningsRange
 import com.ubers.observador.domain.earnings.EarningsWindow
-import com.ubers.observador.domain.earnings.EarningsWindows
 import com.ubers.observador.domain.expenses.ExpenseRules
 import com.ubers.observador.domain.reports.ButtonFilter
 import com.ubers.observador.domain.reports.ExpenseExport
@@ -44,7 +42,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 

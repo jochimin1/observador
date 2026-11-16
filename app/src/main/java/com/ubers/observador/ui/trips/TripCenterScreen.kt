@@ -44,10 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.R
 import com.ubers.observador.domain.StatsPeriod
 import com.ubers.observador.domain.distance.DistanceFormat
-import com.ubers.observador.domain.earnings.EarningsFormat
 import com.ubers.observador.domain.finance.FinancialCompleteness
-import com.ubers.observador.domain.finance.FinancialObservationType
-import com.ubers.observador.domain.finance.FinancialSource
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.money.MoneyFormat
 import com.ubers.observador.domain.route.TripSheets

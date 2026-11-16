@@ -12,10 +12,8 @@ import com.ubers.observador.data.DistanceRepository
 import com.ubers.observador.data.ExpenseRepository
 import com.ubers.observador.data.db.AppDatabase
 import com.ubers.observador.domain.expenses.ExpenseFormat
-import com.ubers.observador.domain.expenses.MaintenanceReminders
 import com.ubers.observador.domain.expenses.Odometer
 import com.ubers.observador.domain.expenses.ReminderLevel
-import com.ubers.observador.domain.distance.DistanceTotals
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

@@ -18,7 +18,6 @@ import com.ubers.observador.domain.ProfitEngine
 import com.ubers.observador.domain.lifecycle.OfferParseCheck
 import com.ubers.observador.domain.lifecycle.OfferParseStep
 import com.ubers.observador.domain.lifecycle.OfferPlaces
-import com.ubers.observador.domain.lifecycle.OfferPlacesReader
 import com.ubers.observador.domain.lifecycle.ScreenSnapshot
 import com.ubers.observador.domain.models.OfferAnalysis
 import com.ubers.observador.domain.models.UberOffer

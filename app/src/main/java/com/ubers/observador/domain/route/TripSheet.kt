@@ -3,7 +3,6 @@ package com.ubers.observador.domain.route
 import com.ubers.observador.domain.distance.DistanceFormat
 import com.ubers.observador.domain.distance.TripDistance
 import com.ubers.observador.domain.trips.Trip
-import com.ubers.observador.domain.trips.TripOutcome
 import com.ubers.observador.domain.trips.TripStatus
 import java.time.Instant
 import java.time.ZoneId

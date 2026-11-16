@@ -14,7 +14,6 @@ import com.ubers.observador.domain.money.Currencies
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.trips.Trip
 import com.ubers.observador.domain.trips.TripOutcome
-import com.ubers.observador.domain.trips.TripStatus
 import java.security.MessageDigest
 
 /** Why an amount cannot go to a trip. */

@@ -6,7 +6,6 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 /** 1.55.0: the driver's own limits for the tyres (they were fixed in 1.53.0/1.54.0). */
 enum class TemperatureUnit(val storageKey: String, val label: String) {
