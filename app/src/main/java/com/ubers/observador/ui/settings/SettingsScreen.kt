@@ -377,6 +377,8 @@ fun SettingsScreen(
                 onEnabled = { viewModel.setRouteEnabled(it) },
                 onDeleteAll = { viewModel.deleteAllRoutes() }
             )
+            // 1.58.0
+            com.ubers.observador.ui.route.OfflineMapCard()
 
             }
 

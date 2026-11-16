@@ -98,31 +98,10 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
         val displayRuns = remember(points) { com.ubers.observador.domain.route.RouteGeometry.displayRuns(points) }
         val fitted = remember(points, w, h) { MapMath.fit(points, w, h, tilePx, padding) }
         var view by remember(fitted) { mutableStateOf(fitted) }
-        val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
-        var missing by remember { mutableIntStateOf(0) }
         val current = view
         val placements = remember(current, w, h) { current?.let { MapMath.tiles(it, w, h, tilePx) }.orEmpty() }
-        val keys = placements.map { it.key }.toSet()
-
-        // Loads outlive a change of view (no tile is fetched twice); old tiles are let go
-        val scope = rememberCoroutineScope()
-        val requested = remember { mutableSetOf<String>() }
-        LaunchedEffect(keys) {
-            if (tiles.size > 40) tiles.keys.filter { it !in keys }.forEach { tiles.remove(it); requested.remove(it) }
-            placements.forEach { t ->
-                if (t.key in tiles || !requested.add(t.key)) return@forEach
-                TileStore.cached(t.key)?.let { tiles[t.key] = it; return@forEach }
-                scope.launch {
-                    val bmp = TileStore.load(context, t.z, t.x, t.y)
-                    if (bmp != null) {
-                        tiles[t.key] = bmp
-                    } else {
-                        missing++
-                        requested.remove(t.key)
-                    }
-                }
-            }
-        }
+        // 1.58.0: saved tiles, and a wider saved tile enlarged where one is missing
+        val mapTiles = rememberMapTiles(placements)
 
         Canvas(
             Modifier
@@ -134,15 +113,7 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
                     }
                 }
         ) {
-            placements.forEach { t ->
-                val img = tiles[t.key] ?: return@forEach
-                drawImage(
-                    image = img,
-                    dstOffset = IntOffset(t.left.roundToInt(), t.top.roundToInt()),
-                    // One pixel more, so no seam shows between scaled tiles
-                    dstSize = IntSize(t.size.roundToInt() + 1, t.size.roundToInt() + 1)
-                )
-            }
+            drawMapTiles(placements, mapTiles)
             val v = current ?: return@Canvas
             fun at(p: RoutePoint): Offset {
                 val (x, y) = MapMath.toScreen(p.longitude, p.latitude, v, w, h, tilePx)
@@ -190,8 +161,18 @@ fun RouteMap(points: List<RoutePoint>, modifier: Modifier = Modifier) {
                 Text("Ver todo", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
             }
         }
+        // 1.58.0: keep this area for use without internet (within OpenStreetMap's limit)
+        SaveZoneButton(placements, Modifier.align(Alignment.BottomStart).padding(8.dp))
         Column(Modifier.align(Alignment.BottomEnd), horizontalAlignment = Alignment.End) {
-            if (missing > 0 && tiles.isEmpty()) {
+            if (mapTiles.wider) {
+                Text(
+                    "Sin esta parte guardada: mapa ampliado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF333333),
+                    modifier = Modifier.background(Color.White.copy(alpha = 0.8f)).padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            if (mapTiles.missing > 0 && mapTiles.tiles.isEmpty()) {
                 Text(
                     "Sin internet: solo el trazo",
                     style = MaterialTheme.typography.labelSmall,

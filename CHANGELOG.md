@@ -14,6 +14,19 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.58.0] — 2026-11-16
+
+### Añadido
+
+- Mapa sin internet: las partes del mapa vistas se guardan en el almacenamiento de la app (ya no en la caché que Android puede vaciar), hasta 50, 100, 200 o 500 MB a elegir; al llenarse salen primero las menos usadas.
+- Sin una parte del mapa, se dibuja ampliada la de un zoom más lejano que sí esté guardada.
+- «Guardar esta zona» en el mapa del viaje y en el de zonas: descarga la zona visible en ese zoom y hasta dos más cercanos, sin pasar de 250 partes (límite de OpenStreetMap); si no cabe, pide acercar el mapa.
+- Ajustes › «Mapa sin internet»: espacio, partes guardadas y «Vaciar mapa guardado».
+
+### Validación
+
+`OfflineMapTest` (3) correcta en el entorno del agente. Gradle, lint, instrumentación y prueba sin datos en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.57.0] — 2026-11-16
 
 ### Añadido
