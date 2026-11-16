@@ -58,7 +58,7 @@ class TireHistoryTest {
     @Test fun exportCarriesEveryColumnAndBothUnits() {
         val data = TireData(listOf(front), listOf(ev("c1", TireEventKind.CHECK, t0, null).copy(note = "Antes de salir, \"en frío\"")))
         val ev = TireExport.events(data, emptyList(), zone)
-        assertTrue(ev.startsWith("﻿id,tire_id,position,kind,source"))
+        assertTrue(ev.startsWith("\uFEFFid,tire_id,position,kind,source"))
         val line = ev.lines()[1]
         assertTrue(line, line.contains(",FRONT,CHECK,MANUAL,") && line.contains(",28,PSI,193053,28,193.053,") && line.contains("\"Antes de salir, \"\"en frío\"\"\""))
         assertTrue(TireExport.tires(data, zone).contains("Pirelli"))

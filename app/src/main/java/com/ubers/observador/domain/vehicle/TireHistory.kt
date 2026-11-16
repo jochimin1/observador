@@ -158,7 +158,7 @@ object TireExport {
     private fun psi(pa: Int?) = pa?.let { TirePressure.format(it, PressureUnit.PSI).removeSuffix(" psi") }
     private fun kpa(pa: Int?) = pa?.let { BigDecimal(it).divide(BigDecimal(1000), 3, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() }
 
-    fun tires(data: TireData, zone: ZoneId): String = "﻿" + row("id", "vehicle_id", "position", "brand", "model", "size",
+    fun tires(data: TireData, zone: ZoneId): String = "\uFEFF" + row("id", "vehicle_id", "position", "brand", "model", "size",
         "target_entered", "target_unit", "target_pa", "target_psi", "target_kpa", "installed_at_ms", "installed_at", "installed_odometer_km",
         "removed_at_ms", "removed_at", "removed_odometer_km", "zone", "created_at_ms", "updated_at_ms") +
         data.tires.sortedBy { it.installedAt }.joinToString("") { t ->
@@ -170,7 +170,7 @@ object TireExport {
     fun events(data: TireData, expenses: List<ExpenseEntry>, zone: ZoneId): String {
         val byId = expenses.associateBy { it.id }
         val tires = data.tires.associateBy { it.id }
-        return "﻿" + row("id", "tire_id", "position", "kind", "source", "at_ms", "at", "zone", "pressure_entered", "pressure_unit", "pressure_pa",
+        return "\uFEFF" + row("id", "tire_id", "position", "kind", "source", "at_ms", "at", "zone", "pressure_entered", "pressure_unit", "pressure_pa",
             "pressure_psi", "pressure_kpa", "temperature", "odometer_km", "expense_id", "expense_amount_minor", "expense_currency", "note",
             "created_at_ms", "updated_at_ms") +
             data.events.sortedBy { it.atMs }.joinToString("") { e ->
@@ -181,7 +181,7 @@ object TireExport {
             }
     }
 
-    fun sensors(bindings: List<SensorBinding>, zone: ZoneId): String = "﻿" + row("id", "vehicle_id", "position", "sensor_id", "family",
+    fun sensors(bindings: List<SensorBinding>, zone: ZoneId): String = "\uFEFF" + row("id", "vehicle_id", "position", "sensor_id", "family",
         "bound_at_ms", "bound_at", "unbound_at_ms", "unbound_at", "zone") +
         bindings.sortedBy { it.boundAt }.joinToString("") { b ->
             row(b.id, b.vehicleId, b.position.storageKey, SensorIds.shown(b.sensorId), b.family, b.boundAt, iso(b.boundAt, zone), b.unboundAt, iso(b.unboundAt, zone), zone.id)

@@ -23,6 +23,10 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 - Notificación del servicio con «Hoy: RD$… · viajes · tiempo», actualizada cada minuto.
 - Meta de horas en línea por jornada, con aviso único al alcanzarla (con el aviso de metas activado).
 
+### Corregido
+
+- Lint: la exportación de neumáticos (1.55.0) tenía la marca BOM escrita como carácter dentro del código; ahora usa el escape `\uFEFF`, como el resto de exportaciones.
+
 ### Validación
 
 `TodayTest` (3) correcta en el entorno del agente. Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
