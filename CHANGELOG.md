@@ -22,10 +22,14 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 - Costo por km de cada goma: gastos enlazados (instalación y reparaciones) entre los km del odómetro, desde 500 km; sin dinero enlazado u odómetro coherente se explica por qué no se calcula.
 - «Exportar neumáticos»: un .zip con gomas, registros, sensores y todos los anuncios grabados; presión tal como se escribió y en Pa, psi y kPa, fechas con zona, origen e IDs completos.
 - Ajustes de neumáticos: plazo de revisión (1–90 días), margen de presión (3–30 %) y °C/°F.
+- Gráficos de presión y temperatura por rueda: revisiones manuales como puntos, sensor como línea que se corta en los huecos, objetivo con su margen; descripción para el lector de pantalla.
+- Alertas de neumáticos listas: se guardan con inicio y fin, se avisan una vez con notificación y vibración, voz en español opcional sin repeticiones y «Silenciar 1 h» que sigue registrando. Se activan al confirmar la presión del sensor con un manómetro.
+- Accesibilidad: estado de cada rueda como encabezado con texto (el color nunca es la única señal).
+- Room 24: tabla `tire_alerts`, solo creación.
 
 ### Validación
 
-Pruebas JVM de neumáticos, sensores, alertas e historial (23) correctas en el entorno del agente. Gradle, lint e instrumentación pendientes; sin cambio de esquema (Room 23).
+Pruebas JVM de neumáticos, sensores, alertas, historial y gráficos (25) correctas en el entorno del agente. Gradle, lint, instrumentación (migración 23→24, cadena 4–23→24) y esquema 24 pendientes.
 
 ## [1.54.0] — 2026-11-15
 

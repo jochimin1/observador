@@ -34,9 +34,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripRoutePointEntity::class, TripRouteEntity::class, ReadingAuditEntity::class,
         TripCorrectionEntity::class, OperatingCostModelEntity::class, VehicleEntity::class, ComponentPlanEntity::class, ObservationLog::class,
         WorkShiftEntity::class, ClosureEntity::class, TireEntity::class, TireEventEntity::class,
-        TireSensorEntity::class, TireSensorFrameEntity::class
+        TireSensorEntity::class, TireSensorFrameEntity::class, TireAlertEntity::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -66,9 +66,18 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workShiftDao(): WorkShiftDao
     abstract fun tireDao(): TireDao
     abstract fun tireSensorDao(): TireSensorDao
+    abstract fun tireAlertDao(): TireAlertDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        /** 1.55.0: tyre sensor alerts with their start and end. Only a new table. */
+        internal val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `tire_alerts` (`id` TEXT NOT NULL, `vehicle_id` TEXT NOT NULL, `position` TEXT NOT NULL, `kind` TEXT NOT NULL, `sensor_id` TEXT, `started_at` INTEGER NOT NULL, `ended_at` INTEGER, `value` INTEGER NOT NULL, `limit_value` INTEGER NOT NULL, `parser_version` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tire_alerts_started_at` ON `tire_alerts` (`started_at`)")
+            }
+        }
 
         /** 1.54.0 «TPMS compatible»: sensor associations and recorded advertisements. Only new tables. */
         internal val MIGRATION_22_23 = object : Migration(22, 23) {
@@ -504,7 +513,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     name
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                 .build()
     }
 }

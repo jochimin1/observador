@@ -48,6 +48,7 @@ object TireSensorBackground {
     @Volatile private var ids: Set<String> = emptySet()
     private var callback: ScanCallback? = null
     private var job: Job? = null
+    @Volatile private var appContext: Context? = null
 
     /** Starts, updates or stops listening for [sensorIds] (empty or [on] false stops). */
     @Synchronized
@@ -60,6 +61,7 @@ object TireSensorBackground {
     private fun start(context: Context) {
         if (callback != null) return
         val app = context.applicationContext
+        appContext = app
         TireSensorScanner.problem(app)?.let { _problem.value = it; return }
         val scanner = app.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: run { _problem.value = "Bluetooth no disponible."; return }
         val cb = object : ScanCallback() {
@@ -94,8 +96,17 @@ object TireSensorBackground {
 
     private suspend fun flush(repo: TireSensorRepository) {
         val batch = synchronized(buffer) { ArrayList(buffer).also { buffer.clear() } }
-        if (batch.isEmpty()) return
-        try { repo.saveFrames("fondo-" + LocalDate.now(), batch, ids) } catch (e: Exception) {
+        if (batch.isEmpty()) {
+            // Silence is information too: «sin señal» needs the clock to tick (no-op until validated)
+            appContext?.let { runCatching { TireAlertMonitor.onFrames(it, emptyList(), _listening.value) } }
+            return
+        }
+        try {
+            val session = "fondo-" + LocalDate.now()
+            repo.saveFrames(session, batch, ids)
+            // 1.55.0: alerts, only once the sensor format is validated (does nothing until then)
+            appContext?.let { TireAlertMonitor.onFrames(it, batch.map { f -> TireSensorRepository.toEntity(session, f, ids) }, _listening.value) }
+        } catch (e: Exception) {
             Log.w(TAG, "Could not save frames", e)
             synchronized(buffer) { buffer.addAll(0, batch) }
         }

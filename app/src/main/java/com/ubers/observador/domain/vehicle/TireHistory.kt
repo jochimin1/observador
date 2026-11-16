@@ -56,6 +56,7 @@ sealed interface TireHistoryItem {
     data class SensorOn(override val position: WheelPosition, val binding: SensorBinding) : TireHistoryItem { override val atMs get() = binding.boundAt }
     data class SensorOff(override val position: WheelPosition, val binding: SensorBinding) : TireHistoryItem { override val atMs get() = binding.unboundAt!! }
     data class Sensor(override val position: WheelPosition, val day: SensorDay) : TireHistoryItem { override val atMs get() = day.lastAt }
+    data class Alert(override val position: WheelPosition, val alert: TpmsAlertEvent) : TireHistoryItem { override val atMs get() = alert.startedAt }
     /** A stretch longer than the check period with no manual check (shown as a gap, never as «correct»). */
     data class Gap(override val position: WheelPosition, val fromMs: Long, val toMs: Long, val days: Long) : TireHistoryItem { override val atMs get() = toMs }
 }
@@ -75,7 +76,7 @@ object TireHistory {
      * (null = both) and the window [fromMs, toMs].
      */
     fun build(data: TireData, bindings: List<SensorBinding>, days: List<SensorDay>, vehicleId: String, position: WheelPosition?,
-        fromMs: Long, toMs: Long, settings: TireSettings, now: Long): List<TireHistoryItem> {
+        fromMs: Long, toMs: Long, settings: TireSettings, now: Long, alerts: List<TpmsAlertEvent> = emptyList()): List<TireHistoryItem> {
         val out = ArrayList<TireHistoryItem>()
         val wheels = position?.let { listOf(it) } ?: WheelPosition.entries
         for (w in wheels) {
@@ -100,6 +101,7 @@ object TireHistory {
                     .forEach { out += TireHistoryItem.Sensor(w, it) }
             }
         }
+        alerts.filter { position == null || it.position == position }.forEach { out += TireHistoryItem.Alert(it.position, it) }
         return out.filter { it.atMs in fromMs..toMs }.sortedByDescending { it.atMs }
     }
 }

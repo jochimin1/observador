@@ -75,6 +75,7 @@ class AppSettings(private val context: Context) {
         private val KEY_TIRE_CHECK_DAYS = androidx.datastore.preferences.core.intPreferencesKey("tire_check_days")
         private val KEY_TIRE_TOLERANCE = androidx.datastore.preferences.core.intPreferencesKey("tire_tolerance_pct")
         private val KEY_TEMPERATURE_UNIT = stringPreferencesKey("temperature_unit")
+        private val KEY_TPMS_VOICE = androidx.datastore.preferences.core.booleanPreferencesKey("tpms_voice")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         // 1.46.0: measured work share the driver answered «Ahora no» to; reminders already sent
@@ -409,6 +410,10 @@ class AppSettings(private val context: Context) {
     val tpmsBackground: Flow<Boolean> = context.dataStore.data.map { it[KEY_TPMS_BACKGROUND] ?: false }
 
     suspend fun updateTpmsBackground(value: Boolean) = editSettings { it[KEY_TPMS_BACKGROUND] = value }
+
+    /** 1.55.0: say tyre alerts aloud (off by default). */
+    val tpmsVoice: Flow<Boolean> = context.dataStore.data.map { it[KEY_TPMS_VOICE] ?: false }
+    suspend fun updateTpmsVoice(value: Boolean) = editSettings { it[KEY_TPMS_VOICE] = value }
 
     /** 1.55.0: check period, pressure tolerance and temperature unit of «Neumáticos». */
     val tireSettings: Flow<com.ubers.observador.domain.vehicle.TireSettings> = context.dataStore.data.map {

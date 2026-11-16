@@ -132,3 +132,33 @@ fun TireSensorEntity.toDomain(): SensorBinding? {
 }
 
 fun SensorBinding.toEntity() = TireSensorEntity(id, vehicleId, position.storageKey, sensorId, family, boundAt, unboundAt, createdAt, updatedAt)
+
+/** 1.55.0: a tyre sensor alert, from start to end. Kept forever; never an expense. */
+@Entity(tableName = "tire_alerts", indices = [Index(value = ["started_at"])])
+data class TireAlertEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "vehicle_id") val vehicleId: String,
+    val position: String,
+    val kind: String,
+    @ColumnInfo(name = "sensor_id") val sensorId: String?,
+    @ColumnInfo(name = "started_at") val startedAt: Long,
+    @ColumnInfo(name = "ended_at") val endedAt: Long?,
+    val value: Long,
+    @ColumnInfo(name = "limit_value") val limitValue: Long,
+    @ColumnInfo(name = "parser_version") val parserVersion: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+@Dao
+interface TireAlertDao {
+    @Query("SELECT * FROM tire_alerts ORDER BY started_at, id") fun observe(): Flow<List<TireAlertEntity>>
+    @Query("SELECT * FROM tire_alerts ORDER BY started_at, id") suspend fun all(): List<TireAlertEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(alert: TireAlertEntity)
+}
+
+fun TireAlertEntity.toDomain(): TpmsAlertEvent? {
+    val pos = WheelPosition.fromStorage(position) ?: return null
+    val k = TpmsAlertKind.entries.firstOrNull { it.name == kind } ?: return null
+    return TpmsAlertEvent(pos, k, startedAt, endedAt, value, limitValue)
+}

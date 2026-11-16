@@ -38,6 +38,19 @@ class TireSensorRepositoryTest {
         context.deleteDatabase(name)
     }
 
+    @Test fun migrationAddsTheAlertTableAndKeepsSensors() {
+        val name = "alerts-${UUID.randomUUID()}"
+        helper.createDatabase(name, 23).apply {
+            execSQL("INSERT INTO tire_sensors (id,vehicle_id,position,sensor_id,family,bound_at,unbound_at,created_at,updated_at) VALUES ('TEST-s','vehicle-initial','REAR','23a434','LEEPEE_MOTORCARE',1000,NULL,1000,1000)")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 24, true, AppDatabase.MIGRATION_23_24).use { sql ->
+            sql.query("SELECT sensor_id FROM tire_sensors WHERE id='TEST-s'").use { assertTrue(it.moveToFirst()); assertEquals("23a434", it.getString(0)) }
+            sql.query("SELECT COUNT(*) FROM tire_alerts").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
+        }
+        context.deleteDatabase(name)
+    }
+
     @Test fun pairCardBindsBothWheelsAndOneSensorNeverGoesOnBoth() = runBlocking {
         assertNull(repo.bindPair(v, "13ae32", "23a434", 1_000))
         var b = repo.observeBindings().first()

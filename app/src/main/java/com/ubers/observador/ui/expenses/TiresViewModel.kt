@@ -64,6 +64,12 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
     val tpmsBackground: StateFlow<Boolean> = settings.tpmsBackground.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     fun setTpmsBackground(on: Boolean) { viewModelScope.launch { settings.updateTpmsBackground(on) } }
 
+    /** 1.55.0: alerts aloud, and a temporary silence that still records them. */
+    val tpmsVoice: StateFlow<Boolean> = settings.tpmsVoice.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    fun setTpmsVoice(on: Boolean) { viewModelScope.launch { settings.updateTpmsVoice(on) } }
+    fun silenceAlerts(hours: Int) = com.ubers.observador.service.TireAlertMonitor.silence(getApplication(), hours * 3_600_000L)
+    fun silencedUntil(): Long? = com.ubers.observador.service.TireAlertMonitor.silencedUntil(getApplication())
+
     fun startListening(): String? = com.ubers.observador.service.TireSensorScanner.start(getApplication(), activeIds())
     fun stopListening() = com.ubers.observador.service.TireSensorScanner.stop(getApplication())
 
@@ -122,7 +128,23 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
         val st = state.value
         val zone = ZoneId.systemDefault()
         val frames = sensorRepo.sensorFrames().map { f -> Triple(f.sensorId!!, f.receivedAt, Triple(f.pressurePa, f.temperatureCenti, f.batteryPct)) }
-        return TireHistory.build(st.data, sensorRepo.bindings(), TireHistory.sensorDays(frames, zone), st.vehicle.id, position, fromMs, toMs, st.limits, System.currentTimeMillis())
+        val alerts = com.ubers.observador.service.TireAlertMonitor.all(getApplication())
+        return TireHistory.build(st.data, sensorRepo.bindings(), TireHistory.sensorDays(frames, zone), st.vehicle.id, position, fromMs, toMs, st.limits,
+            System.currentTimeMillis(), alerts)
+    }
+
+    /** 1.55.0: pressure and temperature series of [position] in the window (manual and sensor apart). */
+    suspend fun charts(position: WheelPosition, fromMs: Long, toMs: Long): Pair<ChartSeries, ChartSeries> {
+        val st = state.value
+        val tire = TireRules.active(st.data, st.vehicle.id, position)
+        val tireIds = st.data.tires.filter { it.vehicleId == st.vehicle.id && it.position == position }.map { it.id }.toSet()
+        val bindings = sensorRepo.bindings().filter { it.vehicleId == st.vehicle.id && it.position == position }
+        val frames = sensorRepo.sensorFrames().filter { f -> f.parsedId == f.sensorId &&
+            bindings.any { b -> b.sensorId == f.sensorId && f.receivedAt >= b.boundAt && (b.unboundAt == null || f.receivedAt <= b.unboundAt) } }
+        val pressure = TireChart.pressure(st.data.events.filter { it.tireId in tireIds }, frames.mapNotNull { f -> f.pressurePa?.let { f.receivedAt to it } },
+            tire?.target, st.limits.tolerancePct, st.unit, fromMs, toMs)
+        val temperature = TireChart.temperature(frames.mapNotNull { f -> f.temperatureCenti?.let { f.receivedAt to it } }, st.limits.temperature, fromMs, toMs)
+        return pressure to temperature
     }
 
     /** 1.55.0: «Exportar neumáticos»: one .zip with every row of the section, nothing left out. */

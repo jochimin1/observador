@@ -31,7 +31,7 @@ class ReleaseUpgradeTest {
         assertEquals(PAYLOAD, row?.payload)
         assertEquals(1234L, row?.atMs)
         assertEquals(AppTheme.NIGHT, AppSettings(context).themeSettings.first().theme)
-        assertEquals(23, db.openHelper.readableDatabase.version)
+        assertEquals(24, db.openHelper.readableDatabase.version)
         db.openHelper.readableDatabase.query("PRAGMA quick_check").use {
             assertTrue(it.moveToFirst()); assertEquals("ok", it.getString(0))
         }

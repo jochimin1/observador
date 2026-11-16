@@ -28,6 +28,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.ubers.observador.service.TireSensorScanner
 import java.math.BigDecimal
 import java.time.Instant
@@ -155,8 +158,10 @@ private fun WheelBlock(w: WheelStatus, state: TiresUiState, onInstall: () -> Uni
     onEvent: (Tire, TireEventKind, TireEvent?) -> Unit, onDelete: (Any) -> Unit) {
     var history by rememberSaveable(w.position.storageKey) { mutableStateOf(false) }
     val tire = w.tire
+    // 1.55.0: a heading for TalkBack, and the state said in words (colour is never the only signal)
     Text("${w.position.label} · ${w.level.label}", style = MaterialTheme.typography.titleSmall,
-        color = if (w.level.problem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+        color = if (w.level.problem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.semantics { heading(); contentDescription = "Rueda ${w.position.label.lowercase()}: ${w.level.label}" + if (w.level.problem) ", problema detectado" else "" })
     if (tire != null) {
         Text(listOfNotNull(tire.title, tire.size).joinToString(" · ") + " · instalada ${day(tire.installedAt)}", style = MaterialTheme.typography.bodyMedium)
         tire.target?.let { Text("Presión objetivo: ${it.shown(state.unit)}", style = MaterialTheme.typography.bodySmall) }
@@ -439,6 +444,22 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
             ". Se detiene sola a los ${TireSensorScanner.MAX_MS / 60_000} min."
         else "Pon la moto cerca y escucha unos minutos: se guardan todos los anuncios recibidos (${sensors.frameCount} hasta ahora) para validar el formato de tus sensores. Los sensores pueden tardar en emitir; rodar o mover la rueda ayuda.",
         style = MaterialTheme.typography.bodySmall)
+    // 1.55.0: alert options (alerts start once the sensor pressure is confirmed with a gauge)
+    val voice by viewModel.tpmsVoice.collectAsState()
+    var silenced by remember { mutableStateOf(viewModel.silencedUntil()) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Decir las alertas en voz alta", style = MaterialTheme.typography.bodyMedium)
+            Text(if (TpmsParser.VALIDATED) "Notificación y vibración siempre; la voz, solo si la activas."
+                else "Las alertas del sensor se activan cuando confirmes su presión con un manómetro.", style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = voice, onCheckedChange = { viewModel.setTpmsVoice(it) })
+    }
+    if (TpmsParser.VALIDATED) Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(silenced?.let { "Alertas en silencio hasta ${java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalTime().withNano(0)}; se siguen registrando." }
+            ?: "Alertas con sonido.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        TextButton(onClick = { viewModel.silenceAlerts(1); silenced = viewModel.silencedUntil() }) { Text("Silenciar 1 h") }
+    }
     (message ?: scan.problem)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (scan.listening) OutlinedButton(onClick = { viewModel.stopListening() }) { Text("Detener") }
@@ -518,6 +539,20 @@ private fun TireHistoryDialog(viewModel: TiresViewModel, state: TiresUiState, on
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HistoryRange.entries.forEach { r -> AppFilterChip(selected = range == r, onClick = { range = r }, label = { Text(r.label) }) }
             }
+            // Charts need one wheel: with «Las dos» each wheel gets its own
+            (wheel?.let { listOf(it) } ?: WheelPosition.entries).forEach { w ->
+                var charts by remember(w, range, state.data) { mutableStateOf<Pair<ChartSeries, ChartSeries>?>(null) }
+                LaunchedEffect(w, range, state.data) {
+                    val now = System.currentTimeMillis()
+                    val from = range.days?.let { now - it * 86_400_000L }
+                        ?: (state.data.tires.filter { it.position == w }.minOfOrNull { it.installedAt } ?: (now - 30 * 86_400_000L))
+                    charts = withContext(Dispatchers.IO) { viewModel.charts(w, from, now) }
+                }
+                charts?.let { (p, t) ->
+                    TireChartView(p, "Presión ${w.label.lowercase()}")
+                    if (!t.empty) TireChartView(t, "Temperatura ${w.label.lowercase()} (sensor)")
+                }
+            }
             Text("Costo por km", style = MaterialTheme.typography.titleSmall)
             val costs = state.costs.filter { wheel == null || it.tire.position == wheel }
             if (costs.isEmpty()) Text("Sin gomas registradas.", style = MaterialTheme.typography.bodySmall)
@@ -529,7 +564,7 @@ private fun TireHistoryDialog(viewModel: TiresViewModel, state: TiresUiState, on
                 null -> Text("Cargando…", style = MaterialTheme.typography.bodySmall)
                 else -> if (list.isEmpty()) Text("Nada en este periodo.", style = MaterialTheme.typography.bodySmall)
                 else list.forEach { item -> Text(historyLine(item, unit, temp), style = MaterialTheme.typography.bodySmall,
-                    color = if (item is TireHistoryItem.Gap) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
+                    color = if (item is TireHistoryItem.Gap || item is TireHistoryItem.Alert) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
             }
         } },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } })
@@ -555,5 +590,51 @@ private fun historyLine(item: TireHistoryItem, unit: PressureUnit, temp: Tempera
             "${day(d.dayStartMs)} · $w · Sensor ${SensorIds.shown(d.sensorId)}: ${d.frames} anuncios$p$t" + (d.battery?.let { " · batería $it %" } ?: "")
         }
         is TireHistoryItem.Gap -> "${day(item.fromMs)} → ${day(item.toMs)} · $w · ${item.days} días sin revisión de presión"
+        is TireHistoryItem.Alert -> "${day(item.atMs)} · $w · Alerta: " + TpmsAlertNotice.text(item.alert, unit).substringAfter(": ") +
+            " (${item.alert.kind.label.lowercase()}" + (item.alert.endedAt?.let { ", terminó ${SensorFreshness.ago(it, item.alert.startedAt).removePrefix("hace ")} después" } ?: ", sigue activa") + ")"
     }
 }
+
+
+/**
+ * 1.55.0: a small line chart. Manual checks are dots, sensor readings a line that breaks at gaps,
+ * the target a dashed line with its margin shaded. TalkBack reads [TireChart.description] instead.
+ */
+@Composable
+private fun TireChartView(series: ChartSeries, title: String) {
+    val manualColor = MaterialTheme.colorScheme.primary
+    val sensorColor = MaterialTheme.colorScheme.tertiary
+    val band = MaterialTheme.colorScheme.secondaryContainer
+    val targetColor = MaterialTheme.colorScheme.secondary
+    val description = TireChart.description(series, title)
+    Text(title + if (series.sensorProvisional && series.sensorRuns.any { it.isNotEmpty() }) " · sensor por confirmar" else "",
+        style = MaterialTheme.typography.labelLarge)
+    if (series.empty) { Text("Sin datos en este periodo.", style = MaterialTheme.typography.bodySmall); return }
+    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(140.dp)
+        .androidx_semantics(description)) {
+        val w = size.width; val h = size.height
+        fun px(at: Long) = TireChart.x(series, at) * w
+        fun py(v: Double) = h - TireChart.y(series, v) * h
+        if (series.low != null && series.high != null) {
+            val top = py(series.high); val bottom = py(series.low)
+            drawRect(band, topLeft = androidx.compose.ui.geometry.Offset(0f, top), size = androidx.compose.ui.geometry.Size(w, bottom - top))
+        }
+        series.target?.let { t ->
+            drawLine(targetColor, androidx.compose.ui.geometry.Offset(0f, py(t)), androidx.compose.ui.geometry.Offset(w, py(t)), strokeWidth = 2f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 8f)))
+        }
+        series.sensorRuns.forEach { run ->
+            run.zipWithNext().forEach { (a, b) ->
+                drawLine(sensorColor, androidx.compose.ui.geometry.Offset(px(a.atMs), py(a.value)), androidx.compose.ui.geometry.Offset(px(b.atMs), py(b.value)), strokeWidth = 4f)
+            }
+            if (run.size == 1) drawCircle(sensorColor, 4f, androidx.compose.ui.geometry.Offset(px(run[0].atMs), py(run[0].value)))
+        }
+        series.manual.forEach { p -> drawCircle(manualColor, 8f, androidx.compose.ui.geometry.Offset(px(p.atMs), py(p.value))) }
+    }
+    Text("${TireChart.fmt(series.minY)}–${TireChart.fmt(series.maxY)} ${series.unitLabel} · ${day(series.fromMs)} → ${day(series.toMs)}" +
+        (if (series.manual.isNotEmpty()) " · puntos: revisiones" else "") + (if (series.sensorRuns.any { it.isNotEmpty() }) " · línea: sensor" else ""),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+private fun Modifier.androidx_semantics(description: String): Modifier =
+    this.then(Modifier.semantics { contentDescription = description })
