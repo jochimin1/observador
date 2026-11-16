@@ -69,6 +69,8 @@ class AppSettings(private val context: Context) {
         private val KEY_ROUTE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("route_enabled")
         // 1.53.0: unit in which tyre pressures are shown (each reading keeps the unit it was written in)
         private val KEY_TIRE_PRESSURE_UNIT = stringPreferencesKey("tire_pressure_unit")
+        // 1.54.0: listen to the tyre sensors while the service runs (screen off included)
+        private val KEY_TPMS_BACKGROUND = androidx.datastore.preferences.core.booleanPreferencesKey("tpms_background")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         // 1.46.0: measured work share the driver answered «Ahora no» to; reminders already sent
@@ -398,6 +400,11 @@ class AppSettings(private val context: Context) {
     /** 1.53.0: «Mi moto y neumáticos». */
     val tirePressureUnit: Flow<com.ubers.observador.domain.vehicle.PressureUnit> =
         context.dataStore.data.map { com.ubers.observador.domain.vehicle.PressureUnit.fromStorage(it[KEY_TIRE_PRESSURE_UNIT]) }
+
+    /** 1.54.0: «Escuchar sensores mientras trabajas» (off until the driver turns it on: its battery cost is not measured yet). */
+    val tpmsBackground: Flow<Boolean> = context.dataStore.data.map { it[KEY_TPMS_BACKGROUND] ?: false }
+
+    suspend fun updateTpmsBackground(value: Boolean) = editSettings { it[KEY_TPMS_BACKGROUND] = value }
 
     suspend fun updateTirePressureUnit(value: com.ubers.observador.domain.vehicle.PressureUnit) =
         editSettings { it[KEY_TIRE_PRESSURE_UNIT] = value.storageKey }

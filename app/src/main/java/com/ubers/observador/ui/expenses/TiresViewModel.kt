@@ -57,6 +57,10 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
     /** IDs of the sensors associated with the active motorbike, for the recorder to recognise. */
     private fun activeIds(): Set<String> = sensors.value.bindings.filter { it.active && it.vehicleId == state.value.vehicle.id }.map { it.sensorId }.toSet()
 
+    /** 1.54.0: «Escuchar sensores mientras trabajas». */
+    val tpmsBackground: StateFlow<Boolean> = settings.tpmsBackground.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    fun setTpmsBackground(on: Boolean) { viewModelScope.launch { settings.updateTpmsBackground(on) } }
+
     fun startListening(): String? = com.ubers.observador.service.TireSensorScanner.start(getApplication(), activeIds())
     fun stopListening() = com.ubers.observador.service.TireSensorScanner.stop(getApplication())
 

@@ -143,41 +143,62 @@ sealed interface TpmsParse {
 }
 
 /**
- * Provisional reader for the LEEPEE / MotorCare family, from the APK study (REVISION_Y_PROPUESTA.md
- * §5): over the hex of the whole advertisement, pattern «0001» at 18–21, ID at 28–33, pressure at
- * 34–41 (little endian, ÷1000), temperature at 42–49 (little endian, signed, ÷100) and battery at
- * 50–51. These are observations of one app, not a specification: every guard below refuses a
- * frame rather than guess, and nothing is marked validated until real frames confirm it.
+ * Reader for the LEEPEE / MotorCare sensors, confirmed with the driver's own rear sensor (23A434,
+ * three advertisements recorded on 2026-11-15, see docs/releases/1.54.0.md). Each advertisement has:
+ *
+ * - flags; 16-bit service UUID 0xFBB0; name «TPMS<n>_<ID>» (n = 1 front, 2 rear on this kit);
+ * - manufacturer data (AD 0xFF), 18 bytes: 00 01 · 6 bytes «address» ending in the sensor ID ·
+ *   pressure uint32 little endian in pascals · temperature int32 little endian in hundredths of °C ·
+ *   battery % · status byte.
+ *
+ * Read through the AD structures (not fixed text positions). Confirmed: layout, ID, temperature
+ * (33.4 °C, the day's heat) and battery. NOT confirmed: whether the pressure is absolute or gauge
+ * ([PRESSURE_REFERENCE_CONFIRMED]); until a gauge reading settles it, the pressure does not decide
+ * a wheel's state and alerts stay off ([VALIDATED]). The status byte's non-zero meanings are unknown:
+ * 00 is read as «no leak», anything else as unknown, never as a leak.
  */
 object TpmsParser {
     const val FAMILY = "LEEPEE_MOTORCARE"
-    const val VERSION = "motorcare-hex-v1-provisional"
-    /** Turned true only after the driver's own sensors were recorded and compared with a gauge. */
-    const val VALIDATED = false
+    const val VERSION = "fbb0-v1"
+    /** The 16-bit service these sensors announce; lets Android listen with the screen off. */
+    const val SERVICE_UUID = "0000fbb0-0000-1000-8000-00805f9b34fb"
+    const val FORMAT_CONFIRMED = true
+    const val PRESSURE_REFERENCE_CONFIRMED = false
+    /** Pressure used for the wheel's state and alerts only when this is true. */
+    const val VALIDATED = FORMAT_CONFIRMED && PRESSURE_REFERENCE_CONFIRMED
+    /** Standard atmosphere, for showing an absolute reading as gauge (what a tyre gauge says). */
+    const val ATMOSPHERE_PA = 101_325
     /** Pressures outside this are impossible for a motorcycle tyre sensor: refused. 0 is kept (flat tyre). */
     const val MAX_PA = 1_000_000
+    private val NAME = Regex("TPMS(\\d)_([0-9A-Fa-f]{6})")
 
-    private fun le(hex: String): Long {
-        var v = 0L
-        for (i in hex.length / 2 - 1 downTo 0) v = (v shl 8) or hex.substring(i * 2, i * 2 + 2).toLong(16)
-        return v
-    }
+    private fun u32(d: ByteArray, i: Int): Long =
+        (d[i].toLong() and 0xff) or ((d[i + 1].toLong() and 0xff) shl 8) or ((d[i + 2].toLong() and 0xff) shl 16) or ((d[i + 3].toLong() and 0xff) shl 24)
+
+    /** «TPMS2_23A434» → (2, "23a434"); null for any other name. */
+    fun nameParts(name: String?): Pair<Int, String>? =
+        name?.let { NAME.matchEntire(it.trim()) }?.let { it.groupValues[1].toInt() to it.groupValues[2].lowercase() }
 
     fun parse(frame: BleFrame): TpmsParse {
-        if (Advertisement.structures(frame.raw) == null) return TpmsParse.Rejected("Anuncio dañado: una longitud no cuadra")
-        val h = frame.hex
-        if (h.length < 52) return TpmsParse.Rejected("Anuncio corto (${h.length / 2} bytes)")
-        if (h.substring(18, 22) != "0001") return TpmsParse.Rejected("Sin el patrón de esta familia")
-        val id = h.substring(28, 34)
-        val pressure = le(h.substring(34, 42))
-        val tempRaw = le(h.substring(42, 50)).toInt() // two's complement over 32 bits
-        val battery = h.substring(50, 52).toInt(16)
-        val pa = pressure // value ÷ 1000 = kPa ⇒ the raw value is in pascals
+        val ads = Advertisement.structures(frame.raw) ?: return TpmsParse.Rejected("Anuncio dañado: una longitud no cuadra")
+        val m = ads.firstOrNull { it.type == 0xFF && it.data.size == 18 && it.data[0] == 0.toByte() && it.data[1] == 1.toByte() }
+            ?: return TpmsParse.Rejected("Sin datos de sensor de esta familia")
+        val d = m.data
+        val id = Hex.of(d.copyOfRange(5, 8))
+        // The advertised name, when present, must name the same sensor
+        val fromName = nameParts(frame.name) ?: ads.firstOrNull { it.type == 0x09 || it.type == 0x08 }?.let { nameParts(String(it.data, Charsets.US_ASCII)) }
+        if (fromName != null && fromName.second != id) return TpmsParse.Rejected("El nombre (${fromName.second}) no coincide con el ID ($id)")
+        val pa = u32(d, 8)
+        val temp = u32(d, 12).toInt() // two's complement
+        val battery = d[16].toInt() and 0xff
+        val status = d[17].toInt() and 0xff
         if (pa > MAX_PA) return TpmsParse.Rejected("Presión imposible ($pa Pa)")
-        if (tempRaw !in -4_000..15_000) return TpmsParse.Rejected("Temperatura imposible (${tempRaw / 100.0} °C)")
-        val leak = if (h.length >= 54) when (h.substring(52, 54)) { "00" -> false; "01" -> true; else -> null } else null
-        return TpmsParse.Ok(TpmsReading(id, pa.toInt(), tempRaw, battery.takeIf { it in 0..100 }, leak, VERSION, VALIDATED))
+        if (temp !in -4_000..15_000) return TpmsParse.Rejected("Temperatura imposible (${temp / 100.0} °C)")
+        return TpmsParse.Ok(TpmsReading(id, pa.toInt(), temp, battery.takeIf { it in 0..100 }, if (status == 0) false else null, VERSION, VALIDATED))
     }
+
+    /** Gauge pressure if [pa] is absolute (never below 0). */
+    fun gaugeIfAbsolute(pa: Int): Int = (pa - ATMOSPHERE_PA).coerceAtLeast(0)
 }
 
 /** How fresh the sensor of a wheel is, from when its frames arrived (never from when it measured). */
@@ -190,8 +211,8 @@ enum class SensorState(val label: String) {
 }
 
 object SensorFreshness {
-    /** A frame younger than this is «recibiendo». The kit warns that sensors may wait to transmit. */
-    const val RECEIVING_MS = 2 * 60_000L
+    /** A frame younger than this is «recibiendo». Parked, the rear sensor sent one every ~100 s (2026-11-15). */
+    const val RECEIVING_MS = 4 * 60_000L
 
     fun state(binding: SensorBinding?, lastFrameAt: Long?, listening: Boolean, now: Long): SensorState = when {
         binding == null -> SensorState.NO_SENSOR

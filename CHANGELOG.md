@@ -21,6 +21,8 @@ El detalle retrospectivo por versión, con commits y límites de validación, es
 - Sensores de presión Bluetooth (en prueba) en «Neumáticos»: grabadora que escucha hasta 5 minutos, en primer plano, y guarda todos los anuncios recibidos tal cual, con exportación CSV.
 - Asociación de sensores por ID (13AE32) o con el código doble de la tarjeta del kit (13AE32&23A434); un sensor nunca puede estar en las dos ruedas y el historial de asociaciones se conserva.
 - Por rueda: sensor, estado de recepción («recibiendo», «esperando emisión», «lectura antigua»…) y hora de lo último recibido. La lectura del formato es provisional: se muestra marcada «sin validar» y no decide el estado de la rueda.
+- Formato de los sensores confirmado con el sensor trasero real (servicio 0xFBB0, presión en Pa, temperatura en centésimas de °C, batería); falta confirmar si la presión es absoluta o manométrica.
+- «Escuchar sensores mientras trabajas»: escucha filtrada de bajo consumo con la pantalla apagada (apagada por defecto).
 - Escáner con la cámara para la tarjeta del kit (Code 128 de cada sensor y QR doble).
 - Reglas de alertas por rueda (presión baja/alta con confirmación e histéresis, temperatura, batería, fuga informada, pérdida de señal) listas y probadas; se activan solo cuando el formato de los sensores quede validado.
 - Room 23: tablas `tire_sensors` y `tire_sensor_frames`, solo creación. Permiso de búsqueda Bluetooth.

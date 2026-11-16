@@ -38,44 +38,42 @@ class TpmsTest {
         assertEquals("aaaaaa", SensorBindings.active(written, v, WheelPosition.FRONT)!!.sensorId)
     }
 
-    /** A frame laid out as the study describes: flags AD, then a manufacturer AD carrying the fields. */
-    private fun frame(id: String = "13ae32", pressurePa: Long = 225_000, tempCenti: Int = 3_150, battery: Int = 95, leak: String = "00", pattern: String = "0001"): BleFrame {
-        fun le(v: Long, bytes: Int) = (0 until bytes).joinToString("") { "%02x".format((v shr (8 * it)) and 0xff) }
-        // positions in hex chars: 0..17 header, 18..21 pattern, 22..27 filler, 28..33 id, 34..41 p, 42..49 t, 50..51 bat, 52..53 leak
-        val payload = "ffaaaa" + "000000" + pattern + "000000" + id + le(pressurePa, 4) + le(tempCenti.toLong() and 0xffffffffL, 4) + "%02x".format(battery) + leak
-        // header: 02 01 06 (flags) then <len> ff ... ; build so the pattern lands at char 18
-        val body = "aabbccdd" + payload.substring(12) // manufacturer data after type
-        val ad = "%02x".format(1 + body.length / 2) + "ff" + body
-        val hex = "020106" + ad
-        return BleFrame(t0, "AA:BB:CC:DD:EE:FF", null, -60, Hex.bytes(hex)!!)
-    }
+    /** Real advertisements of the driver's rear sensor, recorded on 2026-11-15 (Observador 1.54.0 recorder). */
+    private val real = listOf(
+        "0201050303b0fb13ff000181eaca23a434e19a04000f0d000064000d0954504d53325f323341343334000000000000000000000000000000000000000000",
+        "0201050303b0fb13ff000181eaca23a43452960400fc0c000064000d0954504d53325f323341343334000000000000000000000000000000000000000000",
+        "0201050303b0fb13ff000181eaca23a43432920400db0c000064000d0954504d53325f323341343334000000000000000000000000000000000000000000")
+    private fun rec(hex: String, name: String? = "TPMS2_23A434") = BleFrame(t0, "81:EA:CA:23:A4:34", name, -60, Hex.bytes(hex)!!)
 
-    @Test fun theProvisionalParserReadsTheStudiedLayout() {
-        val f = frame()
-        assertEquals("0001", f.hex.substring(18, 22))
-        val r = (TpmsParser.parse(f) as TpmsParse.Ok).reading
-        assertEquals("13ae32", r.sensorId)
-        assertEquals(225_000, r.pressurePa)
-        assertEquals(3_150, r.temperatureCenti)
-        assertEquals(95, r.batteryPct)
-        assertEquals(false, r.leak)
-        assertFalse(r.validated)
-        assertTrue(Advertisement.mentions(f, "13AE32"))
-        // Negative temperature and a flat tyre (0 Pa) are real values
-        val cold = (TpmsParser.parse(frame(tempCenti = -550, pressurePa = 0)) as TpmsParse.Ok).reading
-        assertEquals(-550, cold.temperatureCenti)
-        assertEquals(0, cold.pressurePa)
-        // Unknown leak flag stays unknown; impossible battery is dropped, not invented
-        assertNull((TpmsParser.parse(frame(leak = "7f", battery = 200)) as TpmsParse.Ok).reading.leak)
-        assertNull((TpmsParser.parse(frame(battery = 200)) as TpmsParse.Ok).reading.batteryPct)
+    @Test fun theRearSensorsRealAdvertisementsAreRead() {
+        val r = real.map { (TpmsParser.parse(rec(it)) as TpmsParse.Ok).reading }
+        assertTrue(r.all { it.sensorId == "23a434" && it.batteryPct == 100 && it.leak == false && it.parserVersion == "fbb0-v1" })
+        assertEquals(listOf(301_793, 300_626, 299_570), r.map { it.pressurePa })
+        assertEquals(listOf(3_343, 3_324, 3_291), r.map { it.temperatureCenti })
+        // 301.8 kPa absolute is 29.1 psi on a gauge; gauge or absolute is still to be confirmed
+        assertEquals(200_468, TpmsParser.gaugeIfAbsolute(301_793))
+        assertFalse(r.first().validated)
+        assertEquals(2 to "23a434", TpmsParser.nameParts("TPMS2_23A434"))
+        assertTrue(Advertisement.mentions(rec(real[0]), "23A434"))
+        // Without the name from Android the name AD inside the advertisement is used
+        assertTrue(TpmsParser.parse(rec(real[0], name = null)) is TpmsParse.Ok)
     }
 
     @Test fun badFramesAreRefusedNotGuessed() {
-        assertTrue(TpmsParser.parse(frame(pattern = "0002")) is TpmsParse.Rejected)
-        assertTrue(TpmsParser.parse(frame(pressurePa = 5_000_000)) is TpmsParse.Rejected)
-        assertTrue(TpmsParser.parse(frame(tempCenti = 30_000)) is TpmsParse.Rejected)
+        // A name that names another sensor
+        assertTrue(TpmsParser.parse(rec(real[0], name = "TPMS1_13AE32")) is TpmsParse.Rejected)
+        // Impossible pressure (0xFFFFFFFF) and temperature
+        assertTrue(TpmsParser.parse(rec(real[0].replace("e19a0400", "ffffffff"))) is TpmsParse.Rejected)
+        assertTrue(TpmsParser.parse(rec(real[0].replace("0f0d0000", "ffff0000"))) is TpmsParse.Rejected)
+        // Negative temperature (-5.5 °C) and a flat tyre are real values
+        val cold = (TpmsParser.parse(rec(real[0].replace("e19a0400", "00000000").replace("0f0d0000", "dafdffff"))) as TpmsParse.Ok).reading
+        assertEquals(-550, cold.temperatureCenti); assertEquals(0, cold.pressurePa)
+        // Unknown status stays unknown, never a leak; impossible battery is dropped
+        assertNull((TpmsParser.parse(rec(real[0].replace("0f0d00006400", "0f0d00006401"))) as TpmsParse.Ok).reading.leak)
+        assertNull((TpmsParser.parse(rec(real[0].replace("0f0d00006400", "0f0d0000c800"))) as TpmsParse.Ok).reading.batteryPct)
+        // Other devices, short or damaged records
+        assertTrue(TpmsParser.parse(BleFrame(t0, "x", "43\" Crystal UHD", -85, Hex.bytes("0201181bff75004204010167746dfae86c85766dfae86c84245c190a3a11321008343322204372797374616c20554844")!!)) is TpmsParse.Rejected)
         assertTrue(TpmsParser.parse(BleFrame(t0, "x", null, -50, Hex.bytes("020106")!!)) is TpmsParse.Rejected)
-        // A length running past the end
         assertTrue(TpmsParser.parse(BleFrame(t0, "x", null, -50, Hex.bytes("0201060aff0102")!!)) is TpmsParse.Rejected)
         assertNull(Advertisement.structures(Hex.bytes("05ff01")!!))
         assertEquals(2, Advertisement.structures(Hex.bytes("02010603ff0102000000")!!)!!.size)
@@ -88,7 +86,7 @@ class TpmsTest {
         assertEquals(SensorState.NO_SENSOR, SensorFreshness.state(null, null, true, t0))
         assertEquals(SensorState.NOT_LISTENING, SensorFreshness.state(b, null, false, t0))
         assertEquals(SensorState.WAITING, SensorFreshness.state(b, null, true, t0))
-        assertEquals(SensorState.RECEIVING, SensorFreshness.state(b, t0 + 10_000, true, t0 + 60_000))
+        assertEquals(SensorState.RECEIVING, SensorFreshness.state(b, t0 + 10_000, true, t0 + 3 * 60_000))
         assertEquals(SensorState.STALE, SensorFreshness.state(b, t0 + 10_000, true, t0 + 10 * 60_000))
         // A frame from before the association does not count for it
         assertEquals(SensorState.WAITING, SensorFreshness.state(b, t0 - 1, true, t0 + 1))
@@ -97,11 +95,11 @@ class TpmsTest {
 
     @Test fun recordingKeepsChangesAndDropsImmediateRepeats() {
         val d = FrameDeduper()
-        val f = frame()
+        val f = rec(real[0])
         assertTrue(d.accept(f))
         assertFalse(d.accept(f.copy(receivedAt = t0 + 500)))
         assertTrue(d.accept(f.copy(receivedAt = t0 + 2_500)))
-        assertTrue(d.accept(frame(pressurePa = 230_000).copy(receivedAt = t0 + 2_600)))
+        assertTrue(d.accept(rec(real[1]).copy(receivedAt = t0 + 2_600)))
         assertTrue(d.accept(f.copy(address = "other", receivedAt = t0 + 2_600)))
     }
 }

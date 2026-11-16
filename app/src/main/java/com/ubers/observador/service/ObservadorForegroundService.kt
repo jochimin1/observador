@@ -148,6 +148,13 @@ class ObservadorForegroundService : Service() {
             combine(online.observeRecent(1), ticker.map { it / 60_000 }.distinctUntilChanged()) { recent, _ -> recent.firstOrNull() }
                 .collect { ShiftReminderNotifier.check(applicationContext, it, System.currentTimeMillis()) }
         }
+        // 1.54.0: tyre sensors while working (filtered, low power), only if the driver turned it on
+        scope.launch {
+            val sensors = com.ubers.observador.data.TireSensorRepository(AppDatabase.getInstance(applicationContext))
+            combine(settings.tpmsBackground, sensors.observeBindings(), ticker.map { it / 60_000 }.distinctUntilChanged()) { on, b, _ ->
+                on to b.filter { it.active }.map { it.sensorId }.toSet()
+            }.collect { (on, ids) -> TireSensorBackground.apply(applicationContext, on, ids) }
+        }
         // Fase 8K: «Grabar recorrido» in Ajustes
         scope.launch { settings.routeEnabled.collect { RouteMonitor.setEnabled(it) } }
         // Whether to measure: switch, permission, pause, mode, online, button
@@ -217,6 +224,7 @@ class ObservadorForegroundService : Service() {
         }
         setGps(false)
         RouteMonitor.stop()
+        TireSensorBackground.stop(applicationContext)
         scope.cancel()
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)

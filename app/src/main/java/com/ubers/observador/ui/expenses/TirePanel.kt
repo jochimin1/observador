@@ -354,10 +354,14 @@ private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: Se
     Text("${position.label} · sensor ${SensorIds.shown(b.sensorId)} · ${st.label}" +
         (frame?.let { " · recibido ${SensorFreshness.ago(now, it.receivedAt)}" } ?: ""), style = MaterialTheme.typography.bodySmall)
     if (frame?.pressurePa != null && frame.parsedId == b.sensorId) {
-        val p = TirePressure.format(frame.pressurePa, state.unit)
+        val raw = frame.pressurePa
         val t = frame.temperatureCenti?.let { " · " + java.math.BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() + " °C" } ?: ""
         val bat = frame.batteryPct?.let { " · batería del sensor $it %" } ?: ""
-        Text("Lectura provisional, sin validar: $p$t$bat. No se usa para el estado de la rueda hasta comprobarla con un manómetro.",
+        Text("Temperatura y batería: ${t.removePrefix(" · ")}$bat.", style = MaterialTheme.typography.bodySmall)
+        if (TpmsParser.VALIDATED) Text("Presión: ${TirePressure.format(raw, state.unit)}", style = MaterialTheme.typography.bodySmall)
+        else Text("Presión por confirmar: el sensor envía ${TirePressure.format(raw, PressureUnit.KPA)}. Si es absoluta, el manómetro marcaría " +
+            "${TirePressure.format(TpmsParser.gaugeIfAbsolute(raw), state.unit)}; si ya es manométrica, ${TirePressure.format(raw, state.unit)}. " +
+            "Mide con un manómetro, anótalo en «Revisar presión» y con eso se confirma. Mientras tanto no decide el estado de la rueda.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Row {
@@ -373,8 +377,14 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     val scan = sensors.scan
+    var startAfterGrant by remember { mutableStateOf(false) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        message = if (granted.values.all { it }) viewModel.startListening() else "Sin el permiso no se pueden escuchar los sensores."
+        message = when {
+            !granted.values.all { it } -> "Sin el permiso no se pueden escuchar los sensores."
+            startAfterGrant -> viewModel.startListening()
+            else -> null
+        }
+        startAfterGrant = false
     }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) scope.launch {
@@ -384,7 +394,25 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
             }
         }
     }
+    val background by viewModel.tpmsBackground.collectAsState()
+    val backgroundOn by com.ubers.observador.service.TireSensorBackground.listening.collectAsState()
+    val backgroundProblem by com.ubers.observador.service.TireSensorBackground.problem.collectAsState()
     Text("Sensores Bluetooth (en prueba)", style = MaterialTheme.typography.titleSmall)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Escuchar sensores mientras trabajas", style = MaterialTheme.typography.bodyMedium)
+            Text(when {
+                !background -> "Apagado. Escucha con poco consumo y la pantalla apagada mientras Observador está activo; guarda solo tus sensores. Su consumo de batería aún no está medido."
+                backgroundOn -> "Escuchando en segundo plano."
+                else -> backgroundProblem ?: "Se activa cuando Observador está en marcha y hay un sensor asociado."
+            }, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = background, onCheckedChange = { on ->
+            val missing = TireSensorScanner.missingPermissions(context)
+            if (on && missing.isNotEmpty()) permissions.launch(missing.toTypedArray())
+            viewModel.setTpmsBackground(on)
+        })
+    }
     Text(if (scan.listening) "Escuchando: ${scan.devices} equipos cerca · ${scan.frames} anuncios · ${scan.mine} de tus sensores" +
             (scan.lastMineAt?.let { " (último ${SensorFreshness.ago(System.currentTimeMillis(), it)})" } ?: "") +
             ". Se detiene sola a los ${TireSensorScanner.MAX_MS / 60_000} min."
@@ -396,7 +424,7 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
         else Button(onClick = {
             message = null
             val missing = TireSensorScanner.missingPermissions(context)
-            if (missing.isNotEmpty()) { permissions.launch(missing.toTypedArray()) } else { message = viewModel.startListening() }
+            if (missing.isNotEmpty()) { startAfterGrant = true; permissions.launch(missing.toTypedArray()) } else { message = viewModel.startListening() }
         }) { Text("Escuchar sensores") }
         if (sensors.frameCount > 0) TextButton(onClick = { exporter.launch("observador-sensores-${java.time.LocalDate.now()}.csv") }) { Text("Exportar anuncios") }
     }

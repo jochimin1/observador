@@ -54,22 +54,22 @@ class TireSensorRepositoryTest {
     }
 
     @Test fun framesAreKeptRawWithTheirProvisionalReading() = runBlocking {
-        fun le(x: Long, n: Int) = (0 until n).joinToString("") { "%02x".format((x shr (8 * it)) and 0xff) }
-        val body = "aabbccdd" + "0001" + "000000" + "13ae32" + le(225_000, 4) + le(3_150, 4) + "5f" + "00"
-        val hex = "020106" + "%02x".format(1 + body.length / 2) + "ff" + body
-        val frame = BleFrame(5_000, "AA:BB", "TPMS", -55, Hex.bytes(hex)!!)
+        // A real advertisement of the rear sensor (2026-11-15)
+        val hex = "0201050303b0fb13ff000181eaca23a434e19a04000f0d000064000d0954504d53325f323341343334"
+        val frame = BleFrame(5_000, "AA:BB", "TPMS2_23A434", -55, Hex.bytes(hex)!!)
         val other = BleFrame(5_100, "CC:DD", null, -80, Hex.bytes("0201060303aafe")!!)
-        repo.saveFrames("TEST-session", listOf(frame, other), setOf("13ae32"))
+        repo.saveFrames("TEST-session", listOf(frame, other), setOf("23a434"))
         val all = repo.frames()
         assertEquals(2, all.size)
         val mine = all.single { it.address == "AA:BB" }
-        assertEquals("13ae32", mine.sensorId)
+        assertEquals("23a434", mine.sensorId)
         assertEquals(hex, mine.rawHex)
-        assertEquals(225_000, mine.pressurePa)
+        assertEquals(301_793, mine.pressurePa)
+        assertEquals(3_343, mine.temperatureCenti)
         assertEquals(TpmsParser.VERSION, mine.parserVersion)
         val stranger = all.single { it.address == "CC:DD" }
         assertNull(stranger.sensorId)
         assertNotNull(stranger.problem)
-        assertEquals("13ae32", repo.observeLatest().first().single().sensorId)
+        assertEquals("23a434", repo.observeLatest().first().single().sensorId)
     }
 }
