@@ -36,7 +36,6 @@ data class EarningsWindow(
     val startMs: Long,
     val endMs: Long
 ) {
-    val isCurrent: Boolean get() = offset == 0
     val days: List<LocalDate>
         get() = generateSequence(firstDay) { it.plusDays(1) }.takeWhile { !it.isAfter(lastDay) }.toList()
 }

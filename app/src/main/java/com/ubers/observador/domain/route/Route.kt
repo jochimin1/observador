@@ -126,11 +126,6 @@ data class TripRouteSummary(
 ) {
     val isOpen: Boolean get() = status == RouteStatus.OPEN
     val hasPoints: Boolean get() = pointsKept > 0 && status != RouteStatus.DELETED
-
-    /** Places still to be named from the GPS (needs internet). */
-    val needsPlaces: Boolean
-        get() = status != RouteStatus.OPEN && status != RouteStatus.DELETED &&
-            ((startPlace == null && startLatE7 != null) || (endPlace == null && endLatE7 != null))
 }
 
 /** The rules of Fase 8K, adjustable in tests. The filters are 8E's own. */

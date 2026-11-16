@@ -10,17 +10,9 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
- * 1.48.0, Horarios y eficiencia. Every hour of the period is one of three states: connected to Uber
- * and reading, connected but not read (the gaps of a session and its uncertain end), or offline.
- * Only reading time is split into uses, and the uses add up to it exactly: pauses are not told
+ * 1.48.0, Horarios y eficiencia: the uses of reading time (connected to Uber and reading). Only reading time is split into uses, and the uses add up to it exactly: pauses are not told
  * apart (the driver's choice, 2026-11-14), so time without a trip is «buscando».
  */
-enum class TimeState(val label: String) {
-    READING("Conectado y leyendo"),
-    UNREAD("Conectado sin lectura"),
-    OFFLINE("Desconectado")
-}
-
 enum class TimeUse(val label: String) {
     SEARCHING("Buscando"),
     PICKUP("Yendo a recoger"),

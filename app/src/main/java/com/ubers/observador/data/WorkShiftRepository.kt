@@ -110,6 +110,4 @@ class WorkShiftRepository(private val db: AppDatabase) {
 
     /** A reading used by a shift is edited or deleted from the shift, not from the list of Gastos. */
     suspend fun isShiftReading(readingId: String): Boolean = MaintenanceGate.shared.access { dao.usingReading(readingId) > 0 }
-
-    suspend fun hasOpen(): Boolean = MaintenanceGate.shared.access { dao.open() != null }
 }

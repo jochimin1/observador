@@ -152,7 +152,6 @@ object OfferPlacesReader {
     fun read(texts: List<String>): OfferPlaces {
         val pickupAt = texts.indexOfFirst { OfferPatterns.PICKUP.containsMatchIn(it) }
         if (pickupAt < 0) return OfferPlaces(null, null)
-        val pickupKey = OfferPatterns.PICKUP.find(texts[pickupAt])!!.let { it.groupValues[1] to it.groupValues[2] }
         val tripAt = (pickupAt + 1 until texts.size).firstOrNull { i ->
             OfferPatterns.TRIP_TIME_KM.findAll(texts[i]).any { trip ->
                 OfferPatterns.PICKUP.findAll(texts[i]).none { trip.range.first >= it.range.first && trip.range.last <= it.range.last }

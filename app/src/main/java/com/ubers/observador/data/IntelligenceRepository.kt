@@ -66,10 +66,6 @@ class IntelligenceRepository(private val db: AppDatabase) {
                 .toMap()
     }
 
-    suspend fun acceptedOfferHashesSince(from: Long): Set<String> = MaintenanceGate.shared.access {
-        trips.getAcceptedOfferHashesSince(from).toSet()
-    }
-
     suspend fun offersSince(from: Long) = MaintenanceGate.shared.access {
         com.ubers.observador.domain.ReadingEligibility.offers(db.offerDao().getSince(from))
     }

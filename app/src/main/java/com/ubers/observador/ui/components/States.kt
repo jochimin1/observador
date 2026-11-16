@@ -56,14 +56,3 @@ fun ErrorState(text: String, modifier: Modifier = Modifier, onRetry: (() -> Unit
         onRetry?.let { TextButton(onClick = it) { Text("Reintentar") } }
     }
 }
-
-/** A one-line warning above figures that are real but not complete («Parcial: 6 de 9 viajes con dinero confirmado»). */
-@Composable
-fun PartialNote(text: String, modifier: Modifier = Modifier) {
-    Text(
-        "Parcial: $text",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.fillMaxWidth()
-    )
-}

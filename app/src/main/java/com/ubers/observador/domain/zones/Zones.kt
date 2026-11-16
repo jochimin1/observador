@@ -2,7 +2,6 @@ package com.ubers.observador.domain.zones
 
 import com.ubers.observador.domain.backup.MiniJson
 import com.ubers.observador.domain.distance.Geo
-import com.ubers.observador.domain.route.E7
 import com.ubers.observador.domain.route.RoutePhase
 import com.ubers.observador.domain.route.RoutePoint
 import com.ubers.observador.domain.sectors.SectorMatcher
@@ -34,8 +33,6 @@ object ZoneGrid {
     fun cellOf(latitude: Double, longitude: Double) = ZoneCell(floor(latitude / LAT_STEP).toInt(), floor(longitude / LNG_STEP).toInt())
 
     fun cellOf(p: RoutePoint) = cellOf(p.latitude, p.longitude)
-
-    fun cellOfE7(latE7: Int, lngE7: Int) = cellOf(E7.degrees(latE7), E7.degrees(lngE7))
 
     fun parse(id: String): ZoneCell? {
         val parts = id.split(':')

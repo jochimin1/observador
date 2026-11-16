@@ -67,9 +67,6 @@ interface FinancialDao {
     @Query("SELECT * FROM trip_financial_summaries WHERE trip_id IN (:tripIds)")
     suspend fun getSummaries(tripIds: List<String>): List<TripFinancialSummaryEntity>
 
-    @Query("DELETE FROM trip_financial_summaries WHERE trip_id = :tripId")
-    suspend fun deleteSummary(tripId: String): Int
-
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSnapshot(snapshot: PlatformEarningsSnapshotEntity)
 
