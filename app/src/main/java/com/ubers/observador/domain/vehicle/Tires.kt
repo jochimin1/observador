@@ -159,7 +159,7 @@ data class WheelStatus(
 )
 
 object TireRules {
-    /** A check older than this no longer says how the tyre is: «Falta revisar». */
+    /** A check older than this no longer says how the tyre is: «Falta revisar». Default; 1.55.0 makes it a setting. */
     const val CHECK_VALID_DAYS = 14L
     /** Beyond ±10 % of the target a cold reading is a problem. */
     const val TOLERANCE_PCT = 10
@@ -231,7 +231,8 @@ object TireRules {
         return (end.km - start) to null
     }
 
-    fun status(data: TireData, vehicleId: String, position: WheelPosition, timeline: List<OdometerPoint>, now: Long, zone: ZoneId, unit: PressureUnit): WheelStatus {
+    fun status(data: TireData, vehicleId: String, position: WheelPosition, timeline: List<OdometerPoint>, now: Long, zone: ZoneId, unit: PressureUnit,
+        checkDays: Long = CHECK_VALID_DAYS, tolerancePct: Int = TOLERANCE_PCT): WheelStatus {
         val tire = active(data, vehicleId, position)
         val previous = data.tires.filter { it.vehicleId == vehicleId && it.position == position && it.id != tire?.id }.sortedByDescending { it.installedAt }
         if (tire == null) return WheelStatus(position, null, WheelLevel.NOT_REGISTERED, null, null, null, null,
@@ -246,11 +247,11 @@ object TireRules {
         val reading = check?.pressure
         val (level, detail) = when {
             check == null || reading == null -> WheelLevel.NEEDS_CHECK to "Sin revisión de presión registrada."
-            days!! > CHECK_VALID_DAYS -> WheelLevel.NEEDS_CHECK to "Última revisión hace $days días: ${reading.shown(unit)}. Revísala de nuevo."
+            days!! > checkDays -> WheelLevel.NEEDS_CHECK to "Última revisión hace $days días: ${reading.shown(unit)}. Revísala de nuevo."
             target == null -> WheelLevel.NO_TARGET to "Medida ${reading.shown(unit)} ${ago(days)}. Indica la presión objetivo del fabricante para compararla."
             else -> {
-                val low = target.pascals.toLong() * (100 - TOLERANCE_PCT) / 100
-                val high = target.pascals.toLong() * (100 + TOLERANCE_PCT) / 100
+                val low = target.pascals.toLong() * (100 - tolerancePct) / 100
+                val high = target.pascals.toLong() * (100 + tolerancePct) / 100
                 val hot = check.temperature == TireTemperature.HOT
                 val base = "${reading.shown(unit)} ${ago(days)} · objetivo ${target.shown(unit)}"
                 when {

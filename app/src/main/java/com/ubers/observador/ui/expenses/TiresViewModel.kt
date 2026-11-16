@@ -28,7 +28,10 @@ data class TiresUiState(
     val unit: PressureUnit = PressureUnit.DEFAULT,
     val data: TireData = TireData(),
     /** The motorbike's expenses, to offer linking and to show what an event paid. */
-    val expenses: List<ExpenseEntry> = emptyList()
+    val expenses: List<ExpenseEntry> = emptyList(),
+    /** 1.55.0 */
+    val limits: TireSettings = TireSettings(),
+    val costs: List<TireCost> = emptyList()
 )
 
 /** 1.54.0: the sensors of the active motorbike and what the recorder heard. */
@@ -91,17 +94,53 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    val state: StateFlow<TiresUiState> = combine(tires.observe(), vehicles.observe(), expenses.observeAll(), settings.tirePressureUnit) { data, care, money, unit ->
+    val state: StateFlow<TiresUiState> = combine(tires.observe(), vehicles.observe(), expenses.observeAll(), settings.tirePressureUnit, settings.tireSettings) { data, care, money, unit, limits ->
         val vehicle = care.active
         val mine = money.expenses.filter { it.vehicleId == vehicle.id }
         val timeline = Odometer.timeline(money.fuel.filter { it.vehicleId == vehicle.id }, mine, money.readings.filter { it.vehicleId == vehicle.id })
         val now = System.currentTimeMillis()
-        val wheels = WheelPosition.entries.map { TireRules.status(data, vehicle.id, it, timeline, now, ZoneId.systemDefault(), unit) }
-        TiresUiState(false, vehicle, wheels, TireRules.summary(wheels), unit, data, mine)
+        val wheels = WheelPosition.entries.map {
+            TireRules.status(data, vehicle.id, it, timeline, now, ZoneId.systemDefault(), unit, limits.checkDays.toLong(), limits.tolerancePct)
+        }
+        // 1.55.0: what each tyre of this motorbike cost per km (only with linked money and a real odometer)
+        val costs = data.tires.filter { it.vehicleId == vehicle.id }.sortedByDescending { it.installedAt }.map { TireCosts.of(it, data, mine, timeline) }
+        TiresUiState(false, vehicle, wheels, TireRules.summary(wheels), unit, data, mine, limits, costs)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TiresUiState())
 
     fun linkable(kind: TireEventKind, atMs: Long, editingEventId: String? = null): List<ExpenseEntry> = state.value.let {
         TireRules.linkable(it.expenses, it.data, it.vehicle.id, kind, atMs, editingEventId)
+    }
+
+    suspend fun saveLimits(limits: TireSettings): String? {
+        if (!limits.valid()) return "Revisión: 1 a 90 días. Margen de presión: 3 a 30 %."
+        settings.updateTireSettings(limits)
+        return null
+    }
+
+    /** 1.55.0: the wheels' full history, filtered; sensor frames summed up per day. */
+    suspend fun history(position: WheelPosition?, fromMs: Long, toMs: Long): List<TireHistoryItem> {
+        val st = state.value
+        val zone = ZoneId.systemDefault()
+        val frames = sensorRepo.sensorFrames().map { f -> Triple(f.sensorId!!, f.receivedAt, Triple(f.pressurePa, f.temperatureCenti, f.batteryPct)) }
+        return TireHistory.build(st.data, sensorRepo.bindings(), TireHistory.sensorDays(frames, zone), st.vehicle.id, position, fromMs, toMs, st.limits, System.currentTimeMillis())
+    }
+
+    /** 1.55.0: «Exportar neumáticos»: one .zip with every row of the section, nothing left out. */
+    suspend fun exportAll(out: java.io.OutputStream) {
+        val st = state.value
+        val zone = ZoneId.systemDefault()
+        val bindings = sensorRepo.bindings()
+        val frameCount = sensorRepo.frames().size
+        java.util.zip.ZipOutputStream(out.buffered()).use { zip ->
+            fun put(name: String, text: String) { zip.putNextEntry(java.util.zip.ZipEntry(name)); zip.write(text.toByteArray(Charsets.UTF_8)); zip.closeEntry() }
+            put("LEEME.txt", TireExport.readme(zone, System.currentTimeMillis(), st.data.tires.size, st.data.events.size, bindings.size, frameCount))
+            put("gomas.csv", TireExport.tires(st.data, zone))
+            put("registros.csv", TireExport.events(st.data, expenses.getAll().expenses, zone))
+            put("sensores.csv", TireExport.sensors(bindings, zone))
+            zip.putNextEntry(java.util.zip.ZipEntry("anuncios_sensores.csv"))
+            exportFrames(object : java.io.FilterOutputStream(zip) { override fun close() { flush() } })
+            zip.closeEntry()
+        }
     }
 
     fun setUnit(unit: PressureUnit) { viewModelScope.launch { settings.updateTirePressureUnit(unit) } }

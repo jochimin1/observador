@@ -65,6 +65,19 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
     val sensors by viewModel.sensors.collectAsState()
     if (state.loading) return
     var binding by remember { mutableStateOf<WheelPosition?>(null) }
+    var showHistory by remember { mutableStateOf(false) }
+    var showLimits by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+    val exportAll = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) scope.launch {
+            exportMessage = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri, "w")?.use { viewModel.exportAll(it) }; "Neumáticos exportados." }
+                    .getOrElse { "No se pudo exportar: ${it.message}" }
+            }
+        }
+    }
     var install by remember { mutableStateOf<WheelPosition?>(null) }
     var edit by remember { mutableStateOf<Tire?>(null) }
     var event by remember { mutableStateOf<Pair<Tire, TireEvent?>?>(null) }
@@ -80,6 +93,12 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
                 Text("Mostrar en", style = MaterialTheme.typography.bodySmall)
                 PressureUnit.entries.forEach { u -> AppFilterChip(selected = state.unit == u, onClick = { viewModel.setUnit(u) }, label = { Text(u.label) }) }
             }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { showHistory = true }) { Text("Historial y costos") }
+                TextButton(onClick = { exportAll.launch("observador-neumaticos-${LocalDate.now()}.zip") }) { Text("Exportar neumáticos") }
+                TextButton(onClick = { showLimits = true }) { Text("Ajustes") }
+            }
+            exportMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             SensorRecorder(viewModel, sensors)
             state.wheels.forEach { w ->
                 SensorLine(w.position, state, sensors, onBind = { binding = w.position }, onUnbind = { viewModel.unbind(w.position) })
@@ -91,11 +110,13 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
                 HorizontalDivider()
             }
             Text("Revisa la presión en frío, antes de rodar, y compárala con la que indica el fabricante para tu moto. " +
-                "Una revisión vale ${TireRules.CHECK_VALID_DAYS} días. Las revisiones son gratis: no crean gastos. Cambios y reparaciones " +
+                "Una revisión vale ${state.limits.checkDays} días y el margen frente al objetivo es ±${state.limits.tolerancePct} %. Las revisiones son gratis: no crean gastos. Cambios y reparaciones " +
                 "pueden registrar su importe en Gastos una sola vez; borrar aquí un registro no borra su gasto.",
                 style = MaterialTheme.typography.bodySmall)
         }
     }
+    if (showHistory) TireHistoryDialog(viewModel, state) { showHistory = false }
+    if (showLimits) TireLimitsDialog(state.limits, onSave = { viewModel.saveLimits(it) }) { showLimits = false }
     binding?.let { pos -> BindSensorDialog(pos, onSave = { viewModel.bindCard(pos, it) }) { binding = null } }
     install?.let { pos ->
         InstallDialog(pos, state.unit, current = state.wheels.first { it.position == pos }.tire,
@@ -355,7 +376,7 @@ private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: Se
         (frame?.let { " · recibido ${SensorFreshness.ago(now, it.receivedAt)}" } ?: ""), style = MaterialTheme.typography.bodySmall)
     if (frame?.pressurePa != null && frame.parsedId == b.sensorId) {
         val raw = frame.pressurePa
-        val t = frame.temperatureCenti?.let { " · " + java.math.BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() + " °C" } ?: ""
+        val t = frame.temperatureCenti?.let { " · " + state.limits.temperature.format(it) } ?: ""
         val bat = frame.batteryPct?.let { " · batería del sensor $it %" } ?: ""
         Text("Temperatura y batería: ${t.removePrefix(" · ")}$bat.", style = MaterialTheme.typography.bodySmall)
         if (TpmsParser.VALIDATED) Text("Presión: ${TirePressure.format(raw, state.unit)}", style = MaterialTheme.typography.bodySmall)
@@ -449,5 +470,90 @@ private fun BindSensorDialog(position: WheelPosition, onSave: suspend (String) -
                 .setOrientationLocked(false))
         }) { Text("Escanear la tarjeta con la cámara") }
         Text("Comprueba que el sensor esté puesto en esta rueda: un sensor cambiado de rueda daría datos de la otra.", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+
+/** 1.55.0: check period, pressure margin and temperature unit. */
+@Composable
+private fun TireLimitsDialog(limits: TireSettings, onSave: suspend (TireSettings) -> String?, onDismiss: () -> Unit) {
+    var days by rememberSaveable { mutableStateOf(limits.checkDays.toString()) }
+    var margin by rememberSaveable { mutableStateOf(limits.tolerancePct.toString()) }
+    var temp by rememberSaveable { mutableStateOf(limits.temperature) }
+    TireDialog("Ajustes de neumáticos", onDismiss, save = {
+        onSave(TireSettings(days.trim().toIntOrNull() ?: -1, margin.trim().toIntOrNull() ?: -1, temp))
+    }) {
+        OutlinedTextField(days, { days = it }, label = { Text("Una revisión vale (días, 1–90)") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        OutlinedTextField(margin, { margin = it }, label = { Text("Margen frente a la presión objetivo (%, 3–30)") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TemperatureUnit.entries.forEach { u -> AppFilterChip(selected = temp == u, onClick = { temp = u }, label = { Text(u.label) }) }
+        }
+        Text("Usa la presión y la tolerancia que indica el fabricante de tu moto o de tus gomas. Cambiar estos valores no modifica lo ya anotado: solo cómo se evalúa.",
+            style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private enum class HistoryRange(val label: String, val days: Long?) { WEEK("7 días", 7), MONTH("30 días", 30), QUARTER("90 días", 90), ALL("Todo", null) }
+
+/** 1.55.0: everything that happened to the wheels, with gaps and costs, filtered by wheel and period. */
+@Composable
+private fun TireHistoryDialog(viewModel: TiresViewModel, state: TiresUiState, onDismiss: () -> Unit) {
+    var wheel by rememberSaveable { mutableStateOf<WheelPosition?>(null) }
+    var range by rememberSaveable { mutableStateOf(HistoryRange.MONTH) }
+    var items by remember { mutableStateOf<List<TireHistoryItem>?>(null) }
+    LaunchedEffect(wheel, range, state.data) {
+        val now = System.currentTimeMillis()
+        items = withContext(Dispatchers.IO) { viewModel.history(wheel, range.days?.let { now - it * 86_400_000L } ?: Long.MIN_VALUE, Long.MAX_VALUE) }
+    }
+    val unit = state.unit
+    val temp = state.limits.temperature
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Historial de neumáticos") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppFilterChip(selected = wheel == null, onClick = { wheel = null }, label = { Text("Las dos") })
+                WheelPosition.entries.forEach { w -> AppFilterChip(selected = wheel == w, onClick = { wheel = w }, label = { Text(w.label) }) }
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HistoryRange.entries.forEach { r -> AppFilterChip(selected = range == r, onClick = { range = r }, label = { Text(r.label) }) }
+            }
+            Text("Costo por km", style = MaterialTheme.typography.titleSmall)
+            val costs = state.costs.filter { wheel == null || it.tire.position == wheel }
+            if (costs.isEmpty()) Text("Sin gomas registradas.", style = MaterialTheme.typography.bodySmall)
+            costs.forEach { c -> Text("${c.tire.position.label}: " + TireCosts.line(c), style = MaterialTheme.typography.bodySmall) }
+            Text("Solo cuenta gastos enlazados a la goma (instalación y reparaciones) y km del odómetro; desde ${TireCosts.MIN_KM} km.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
+            when (val list = items) {
+                null -> Text("Cargando…", style = MaterialTheme.typography.bodySmall)
+                else -> if (list.isEmpty()) Text("Nada en este periodo.", style = MaterialTheme.typography.bodySmall)
+                else list.forEach { item -> Text(historyLine(item, unit, temp), style = MaterialTheme.typography.bodySmall,
+                    color = if (item is TireHistoryItem.Gap) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
+            }
+        } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } })
+}
+
+private fun historyLine(item: TireHistoryItem, unit: PressureUnit, temp: TemperatureUnit): String {
+    val w = item.position.label
+    return when (item) {
+        is TireHistoryItem.Event -> {
+            val e = item.event
+            listOfNotNull("${day(e.atMs)} · $w · ${e.kind.label}", if (e.kind == TireEventKind.INSTALL) item.tire.title else null,
+                e.pressure?.let { p -> p.shown() + if (p.unit != unit) " (${p.shown(unit)})" else "" },
+                e.temperature.takeIf { e.kind == TireEventKind.CHECK && it != TireTemperature.UNKNOWN }?.label?.lowercase(),
+                e.odometerKm?.let { "${ExpenseFormat.km(it)} km" }, e.note).joinToString(" · ")
+        }
+        is TireHistoryItem.Removed -> "${day(item.atMs)} · $w · Cambio: sale ${item.tire.title}" + (item.tire.removedOdometerKm?.let { " a ${ExpenseFormat.km(it)} km" } ?: "")
+        is TireHistoryItem.SensorOn -> "${day(item.atMs)} · $w · Sensor ${SensorIds.shown(item.binding.sensorId)} asociado"
+        is TireHistoryItem.SensorOff -> "${day(item.atMs)} · $w · Sensor ${SensorIds.shown(item.binding.sensorId)} desvinculado"
+        is TireHistoryItem.Sensor -> {
+            val d = item.day
+            val p = if (d.minPa != null && d.maxPa != null) " · envió ${TirePressure.format(d.minPa, PressureUnit.KPA)}–${TirePressure.format(d.maxPa, PressureUnit.KPA)} (por confirmar)" else ""
+            val t = if (d.minTempCenti != null && d.maxTempCenti != null) " · ${temp.format(d.minTempCenti)}–${temp.format(d.maxTempCenti)}" else ""
+            "${day(d.dayStartMs)} · $w · Sensor ${SensorIds.shown(d.sensorId)}: ${d.frames} anuncios$p$t" + (d.battery?.let { " · batería $it %" } ?: "")
+        }
+        is TireHistoryItem.Gap -> "${day(item.fromMs)} → ${day(item.toMs)} · $w · ${item.days} días sin revisión de presión"
     }
 }

@@ -14,6 +14,19 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.55.0] — 2026-11-16
+
+### Añadido
+
+- «Historial y costos» de neumáticos: revisiones, instalaciones, reparaciones, cambios de goma, asociaciones de sensor y un resumen diario de lo recibido por Bluetooth; filtros por rueda y periodo (7, 30, 90 días o todo). Los tramos más largos que el plazo de revisión aparecen como huecos.
+- Costo por km de cada goma: gastos enlazados (instalación y reparaciones) entre los km del odómetro, desde 500 km; sin dinero enlazado u odómetro coherente se explica por qué no se calcula.
+- «Exportar neumáticos»: un .zip con gomas, registros, sensores y todos los anuncios grabados; presión tal como se escribió y en Pa, psi y kPa, fechas con zona, origen e IDs completos.
+- Ajustes de neumáticos: plazo de revisión (1–90 días), margen de presión (3–30 %) y °C/°F.
+
+### Validación
+
+Pruebas JVM de neumáticos, sensores, alertas e historial (23) correctas en el entorno del agente. Gradle, lint e instrumentación pendientes; sin cambio de esquema (Room 23).
+
 ## [1.54.0] — 2026-11-15
 
 ### Añadido

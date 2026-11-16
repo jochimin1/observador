@@ -122,6 +122,8 @@ interface TireSensorDao {
     fun observeLatest(): Flow<List<TireSensorFrameEntity>>
     @Query("SELECT COUNT(*) FROM tire_sensor_frames") fun observeCount(): Flow<Int>
     @Query("SELECT * FROM tire_sensor_frames ORDER BY received_at, id") suspend fun frames(): List<TireSensorFrameEntity>
+    /** 1.55.0: the frames of associated sensors, for the history. */
+    @Query("SELECT * FROM tire_sensor_frames WHERE sensor_id IS NOT NULL ORDER BY received_at") suspend fun sensorFrames(): List<TireSensorFrameEntity>
 }
 
 fun TireSensorEntity.toDomain(): SensorBinding? {

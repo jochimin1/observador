@@ -71,6 +71,10 @@ class AppSettings(private val context: Context) {
         private val KEY_TIRE_PRESSURE_UNIT = stringPreferencesKey("tire_pressure_unit")
         // 1.54.0: listen to the tyre sensors while the service runs (screen off included)
         private val KEY_TPMS_BACKGROUND = androidx.datastore.preferences.core.booleanPreferencesKey("tpms_background")
+        // 1.55.0: the driver's tyre limits
+        private val KEY_TIRE_CHECK_DAYS = androidx.datastore.preferences.core.intPreferencesKey("tire_check_days")
+        private val KEY_TIRE_TOLERANCE = androidx.datastore.preferences.core.intPreferencesKey("tire_tolerance_pct")
+        private val KEY_TEMPERATURE_UNIT = stringPreferencesKey("temperature_unit")
         // Fase 8B: expenses. Not part of profiles
         private val KEY_WORK_SHARE = intPreferencesKey("work_share_pct")
         // 1.46.0: measured work share the driver answered «Ahora no» to; reminders already sent
@@ -405,6 +409,21 @@ class AppSettings(private val context: Context) {
     val tpmsBackground: Flow<Boolean> = context.dataStore.data.map { it[KEY_TPMS_BACKGROUND] ?: false }
 
     suspend fun updateTpmsBackground(value: Boolean) = editSettings { it[KEY_TPMS_BACKGROUND] = value }
+
+    /** 1.55.0: check period, pressure tolerance and temperature unit of «Neumáticos». */
+    val tireSettings: Flow<com.ubers.observador.domain.vehicle.TireSettings> = context.dataStore.data.map {
+        val d = com.ubers.observador.domain.vehicle.TireSettings()
+        com.ubers.observador.domain.vehicle.TireSettings(
+            (it[KEY_TIRE_CHECK_DAYS] ?: d.checkDays).coerceIn(com.ubers.observador.domain.vehicle.TireSettings.CHECK_DAYS),
+            (it[KEY_TIRE_TOLERANCE] ?: d.tolerancePct).coerceIn(com.ubers.observador.domain.vehicle.TireSettings.TOLERANCE),
+            com.ubers.observador.domain.vehicle.TemperatureUnit.fromStorage(it[KEY_TEMPERATURE_UNIT]))
+    }
+
+    suspend fun updateTireSettings(value: com.ubers.observador.domain.vehicle.TireSettings) = editSettings {
+        it[KEY_TIRE_CHECK_DAYS] = value.checkDays
+        it[KEY_TIRE_TOLERANCE] = value.tolerancePct
+        it[KEY_TEMPERATURE_UNIT] = value.temperature.storageKey
+    }
 
     suspend fun updateTirePressureUnit(value: com.ubers.observador.domain.vehicle.PressureUnit) =
         editSettings { it[KEY_TIRE_PRESSURE_UNIT] = value.storageKey }

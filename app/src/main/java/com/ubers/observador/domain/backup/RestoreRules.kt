@@ -110,6 +110,10 @@ object RestoreRules {
         // 1.53.0
         "tire_pressure_unit" to Str(setOf("PSI", "BAR", "KPA")),
         "tpms_background" to Bool,
+        // 1.55.0
+        "tire_check_days" to IntR(1, 90),
+        "tire_tolerance_pct" to IntR(3, 30),
+        "temperature_unit" to Str(setOf("C", "F")),
         "auto_night" to Bool,
         "daily_goal_minor" to LongR(0, 100_000_000L),
         "weekly_goal_minor" to LongR(0, 100_000_000L),
