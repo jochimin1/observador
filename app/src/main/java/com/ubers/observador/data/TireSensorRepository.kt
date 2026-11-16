@@ -62,6 +62,7 @@ class TireSensorRepository(private val db: AppDatabase) {
 
     suspend fun frames(): List<TireSensorFrameEntity> = MaintenanceGate.shared.access { dao.frames() }
     suspend fun sensorFrames(): List<TireSensorFrameEntity> = MaintenanceGate.shared.access { dao.sensorFrames() }
+    suspend fun framesSince(from: Long): List<TireSensorFrameEntity> = MaintenanceGate.shared.access { dao.framesSince(from) }
     suspend fun bindings(): List<SensorBinding> = MaintenanceGate.shared.access { dao.sensors().mapNotNull { it.toDomain() } }
 
     companion object {

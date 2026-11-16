@@ -124,6 +124,8 @@ interface TireSensorDao {
     @Query("SELECT * FROM tire_sensor_frames ORDER BY received_at, id") suspend fun frames(): List<TireSensorFrameEntity>
     /** 1.55.0: the frames of associated sensors, for the history. */
     @Query("SELECT * FROM tire_sensor_frames WHERE sensor_id IS NOT NULL ORDER BY received_at") suspend fun sensorFrames(): List<TireSensorFrameEntity>
+    /** 1.60.0: the last day of frames, for the reception diagnosis. */
+    @Query("SELECT * FROM tire_sensor_frames WHERE received_at >= :from ORDER BY received_at") suspend fun framesSince(from: Long): List<TireSensorFrameEntity>
 }
 
 fun TireSensorEntity.toDomain(): SensorBinding? {

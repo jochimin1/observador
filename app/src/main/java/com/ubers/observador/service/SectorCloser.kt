@@ -270,6 +270,16 @@ object CloseLogStore {
         }
     }
 
+    /** 1.60.0: every close line of the last [days] days (today included), oldest first. */
+    fun linesOfDays(context: Context, days: Int, now: Long = System.currentTimeMillis()): List<String> {
+        val zone = ZoneId.systemDefault()
+        return (days - 1 downTo 0).flatMap { back ->
+            val at = java.time.Instant.ofEpochMilli(now).atZone(zone).minusDays(back.toLong()).toInstant().toEpochMilli()
+            try { File(dir(context), CloseLog.fileName(at, zone)).takeIf { it.isFile }?.readLines()?.filter { it.isNotBlank() }.orEmpty() }
+            catch (e: Exception) { emptyList() }
+        }
+    }
+
     fun todayLines(context: Context): List<String> =
         try {
             today(context).takeIf { it.exists() }?.readLines()?.filter { it.isNotBlank() }.orEmpty()

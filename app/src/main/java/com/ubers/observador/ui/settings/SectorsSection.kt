@@ -466,10 +466,15 @@ private fun CloseEvidenceBlock() {
     var message by remember { mutableStateOf<String?>(null) }
     var confirmForget by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
+    var today by remember { mutableStateOf<com.ubers.observador.domain.sectors.CloseSummary?>(null) }
+    var week by remember { mutableStateOf<com.ubers.observador.domain.sectors.CloseSummary?>(null) }
     androidx.compose.runtime.LaunchedEffect(refresh) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             count = com.ubers.observador.service.CloseLogStore.evidenceCount(context)
             learned = com.ubers.observador.service.LearnedXStore.state(context)
+            // 1.60.0: what the «Cerrar» sectors did today and in the last 7 days
+            today = com.ubers.observador.domain.sectors.CloseSummaries.of(com.ubers.observador.service.CloseLogStore.linesOfDays(context, 1))
+            week = com.ubers.observador.domain.sectors.CloseSummaries.of(com.ubers.observador.service.CloseLogStore.linesOfDays(context, 7))
         }
     }
     val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -489,6 +494,14 @@ private fun CloseEvidenceBlock() {
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     learned?.let { Text(com.ubers.observador.domain.sectors.LearnedX.describe(it), style = MaterialTheme.typography.bodySmall) }
+    today?.let { Text(com.ubers.observador.domain.sectors.CloseSummaries.line("Hoy", it), style = MaterialTheme.typography.bodySmall) }
+    week?.let { w ->
+        Text(com.ubers.observador.domain.sectors.CloseSummaries.line("Últimos 7 días", w), style = MaterialTheme.typography.bodySmall)
+        com.ubers.observador.domain.sectors.CloseSummaries.reasons(w)?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    TextButton(onClick = { refresh++ }) { Text("Actualizar") }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("${count ?: "…"} ofertas grabadas", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
         TextButton(enabled = (count ?: 0) > 0 || learned != null, onClick = { exporter.launch("observador-evidencia-cierres-${java.time.LocalDate.now()}.zip") }) { Text("Exportar evidencia") }

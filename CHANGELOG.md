@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.60.0] — 2026-11-16
+
+### Añadido
+
+- Neumáticos: «Calibrar con manómetro». Cada «Revisar presión» anotada con el sensor recibiendo (menos de 10 min) compara el manómetro con el sensor; con 2 que coinciden, la app confirma sola si el sensor da presión absoluta o manométrica, muestra la presión como la marcaría el manómetro y activa las alertas de presión. Si una medición dice lo contrario, no se activa nada hasta corregirla.
+- Diagnóstico de cada sensor: última señal, intensidad, anuncios en 24 h, cada cuánto emite y batería, con el motivo probable cuando no se recibe; y aviso de sensores TPMS cercanos con otro ID (un ID mal escrito).
+- «Exportar neumáticos» incluye `calibraciones_manometro.csv`.
+- Ganancias: «¿Coincide con Uber?» en los últimos viajes con total leído de Uber. «Coincide» lo anota; «No coincide» guarda el total de Uber como importe tuyo. Con 3 seguidos que coinciden, las lecturas quedan confirmadas y el aviso desaparece.
+- Ajustes › Sectores: cierres de hoy y de los últimos 7 días (cerradas, en simulación, impedidas por ti, sin cerrar con su motivo y cerradas a mano).
+
+### Validación
+
+`TpmsCalibrationTest` (4), `MoneyChecksTest` (3), `CloseSummaryTest` (1) y las de neumáticos, TPMS y cierres correctas en el entorno del agente. Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.59.0] — 2026-11-16
 
 ### Añadido

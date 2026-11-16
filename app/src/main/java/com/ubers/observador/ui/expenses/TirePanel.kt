@@ -66,6 +66,7 @@ private fun parseKm(text: String): Result<Long?> {
 fun TirePanel(viewModel: TiresViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val sensors by viewModel.sensors.collectAsState()
+    val tpms by viewModel.tpms.collectAsState()
     if (state.loading) return
     var binding by remember { mutableStateOf<WheelPosition?>(null) }
     var showHistory by remember { mutableStateOf(false) }
@@ -102,9 +103,11 @@ fun TirePanel(viewModel: TiresViewModel = viewModel()) {
                 TextButton(onClick = { showLimits = true }) { Text("Ajustes") }
             }
             exportMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            SensorRecorder(viewModel, sensors)
+            SensorRecorder(viewModel, sensors, tpms.state is CalibrationState.Confirmed)
+            CalibrationBlock(tpms, state.unit)
             state.wheels.forEach { w ->
-                SensorLine(w.position, state, sensors, onBind = { binding = w.position }, onUnbind = { viewModel.unbind(w.position) })
+                SensorLine(w.position, state, sensors, tpms, onBind = { binding = w.position }, onUnbind = { viewModel.unbind(w.position) },
+                    onCalibrate = w.tire?.let { t -> { eventKind = TireEventKind.CHECK; event = t to null } })
                 WheelBlock(w, state,
                     onInstall = { install = w.position },
                     onEdit = { edit = it },
@@ -364,7 +367,8 @@ private fun TireDialog(title: String, onDismiss: () -> Unit, save: suspend () ->
 
 /** 1.54.0: the sensor of one wheel: its ID, when its last advertisement arrived and what it seems to say. */
 @Composable
-private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: SensorUi, onBind: () -> Unit, onUnbind: suspend () -> Unit) {
+private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: SensorUi, tpms: TpmsUi, onBind: () -> Unit, onUnbind: suspend () -> Unit,
+    onCalibrate: (() -> Unit)?) {
     val scope = rememberCoroutineScope()
     val b = SensorBindings.active(sensors.bindings, state.vehicle.id, position)
     val frame = b?.let { sensors.latest[it.sensorId] }?.takeIf { b != null && it.receivedAt >= b.boundAt }
@@ -384,11 +388,22 @@ private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: Se
         val t = frame.temperatureCenti?.let { " · " + state.limits.temperature.format(it) } ?: ""
         val bat = frame.batteryPct?.let { " · batería del sensor $it %" } ?: ""
         Text("Temperatura y batería: ${t.removePrefix(" · ")}$bat.", style = MaterialTheme.typography.bodySmall)
-        if (TpmsParser.VALIDATED) Text("Presión: ${TirePressure.format(raw, state.unit)}", style = MaterialTheme.typography.bodySmall)
+        val confirmed = (tpms.state as? CalibrationState.Confirmed)?.reference
+        if (confirmed != null) Text("Presión: ${TirePressure.format(TpmsReference.gauge(raw, confirmed), state.unit)} (como la marcaría el manómetro)",
+            style = MaterialTheme.typography.bodySmall)
         else Text("Presión por confirmar: el sensor envía ${TirePressure.format(raw, PressureUnit.KPA)}. Si es absoluta, el manómetro marcaría " +
             "${TirePressure.format(TpmsParser.gaugeIfAbsolute(raw), state.unit)}; si ya es manométrica, ${TirePressure.format(raw, state.unit)}. " +
-            "Mide con un manómetro, anótalo en «Revisar presión» y con eso se confirma. Mientras tanto no decide el estado de la rueda.",
+            "Calíbralo con un manómetro. Mientras tanto no decide nada.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    // 1.60.0: why it is or is not received
+    tpms.reports[position]?.let { r -> Text(r.verdict, style = MaterialTheme.typography.bodySmall,
+        color = if (r.lastAtMs == null || now - r.lastAtMs > TpmsDiagnosis.DAY_MS) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
+    val fresh = frame != null && frame.parsedId == b.sensorId && frame.pressurePa != null && now - frame.receivedAt <= TpmsCalibrations.WINDOW_MS
+    if (onCalibrate != null) {
+        if (fresh) Button(onClick = onCalibrate) { Text("Calibrar con manómetro") }
+        else Text("Para calibrar, el sensor debe haberse recibido en los últimos ${TpmsCalibrations.WINDOW_MS / 60_000} min: escucha los sensores, " +
+            "mide con el manómetro y toca «Calibrar con manómetro».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Row {
         TextButton(onClick = onBind) { Text("Cambiar sensor") }
@@ -398,7 +413,7 @@ private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: Se
 
 /** 1.54.0: listen for a few minutes and keep every advertisement, to validate the sensors' format. */
 @Composable
-private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
+private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi, confirmed: Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
@@ -450,12 +465,12 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Decir las alertas en voz alta", style = MaterialTheme.typography.bodyMedium)
-            Text(if (TpmsParser.VALIDATED) "Notificación y vibración siempre; la voz, solo si la activas."
-                else "Las alertas del sensor se activan cuando confirmes su presión con un manómetro.", style = MaterialTheme.typography.bodySmall)
+            Text(if (confirmed) "Notificación y vibración siempre; la voz, solo si la activas."
+                else "Las alertas del sensor se activan cuando confirmes su presión con un manómetro (${TpmsCalibrations.REQUIRED} mediciones).", style = MaterialTheme.typography.bodySmall)
         }
         Switch(checked = voice, onCheckedChange = { viewModel.setTpmsVoice(it) })
     }
-    if (TpmsParser.VALIDATED) Row(verticalAlignment = Alignment.CenterVertically) {
+    if (confirmed) Row(verticalAlignment = Alignment.CenterVertically) {
         Text(silenced?.let { "Alertas en silencio hasta ${java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalTime().withNano(0)}; se siguen registrando." }
             ?: "Alertas con sonido.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
         TextButton(onClick = { viewModel.silenceAlerts(1); silenced = viewModel.silencedUntil() }) { Text("Silenciar 1 h") }
@@ -469,6 +484,29 @@ private fun SensorRecorder(viewModel: TiresViewModel, sensors: SensorUi) {
             if (missing.isNotEmpty()) { startAfterGrant = true; permissions.launch(missing.toTypedArray()) } else { message = viewModel.startListening() }
         }) { Text("Escuchar sensores") }
         if (sensors.frameCount > 0) TextButton(onClick = { exporter.launch("observador-sensores-${java.time.LocalDate.now()}.csv") }) { Text("Exportar anuncios") }
+    }
+}
+
+/** 1.60.0: the sensor pressure confirmed (or not) with the driver's gauge, and sensors heard but not associated. */
+@Composable
+private fun CalibrationBlock(tpms: TpmsUi, unit: PressureUnit) {
+    if (tpms.reports.isEmpty() && tpms.calibrations.isEmpty()) return
+    val bad = tpms.state is CalibrationState.Conflict
+    Text(TpmsCalibrations.describe(tpms.state, unit), style = MaterialTheme.typography.bodySmall,
+        color = if (bad) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+    var all by rememberSaveable { mutableStateOf(false) }
+    if (tpms.calibrations.isNotEmpty()) {
+        TextButton(onClick = { all = !all }) { Text(if (all) "Ocultar mediciones" else "Ver mediciones con manómetro (${tpms.calibrations.size})") }
+        if (all) tpms.calibrations.asReversed().forEach { c ->
+            Text("${day(c.atMs)} · " + TpmsCalibrations.line(c, unit), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    val now = System.currentTimeMillis()
+    tpms.strangers.take(3).forEach { s ->
+        Text("Se oye otro sensor: ${SensorIds.shown(s.id)}" + (s.wheel?.let { " (TPMS$it)" } ?: "") +
+            ", ${s.count} anuncios, último ${SensorFreshness.ago(now, s.lastAtMs)}, señal ${TpmsDiagnosis.signal(s.rssi)}. " +
+            "Si es uno de los tuyos, el ID asociado está mal escrito: usa «Cambiar sensor».",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

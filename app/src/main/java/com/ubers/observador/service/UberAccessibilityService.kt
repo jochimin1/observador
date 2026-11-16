@@ -206,7 +206,7 @@ class UberAccessibilityService : AccessibilityService() {
             if (!observing) return@postDelayed
             if (runCatching { sectorCloser.cardGone(offer, windowId) }.getOrDefault(false) && LearnedXStore.add(this, observation)) {
                 val state = com.ubers.observador.domain.sectors.LearnedX.describe(LearnedXStore.state(this))
-                CloseLogStore.append(this, "X DE UBER TOCADA A MANO · $state", "Recogida: ${offer.pickupAddress ?: "?"} · Destino: ${offer.dropoffAddress ?: "?"}", offer.price)
+                CloseLogStore.append(this, "${com.ubers.observador.domain.sectors.CloseSummaries.BY_HAND} · $state", "Recogida: ${offer.pickupAddress ?: "?"} · Destino: ${offer.dropoffAddress ?: "?"}", offer.price)
             }
         }, LEARN_CHECK_MS)
     }

@@ -16,6 +16,7 @@ import com.ubers.observador.domain.vehicle.*
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -41,6 +42,14 @@ data class SensorUi(
     val latest: Map<String, com.ubers.observador.data.db.TireSensorFrameEntity> = emptyMap(),
     val frameCount: Int = 0,
     val scan: com.ubers.observador.service.SensorScanState = com.ubers.observador.service.SensorScanState()
+)
+
+/** 1.60.0: gauge calibration of the sensors and why each one is or is not received. */
+data class TpmsUi(
+    val calibrations: List<TpmsCalibration> = emptyList(),
+    val state: CalibrationState = CalibrationState.Pending(0, null, 0),
+    val reports: Map<WheelPosition, SensorReport> = emptyMap(),
+    val strangers: List<StrangerSensor> = emptyList()
 )
 
 /** 1.53.0 «Mi moto y neumáticos». Recomputed from what is written; writes go through TireRepository. */
@@ -113,6 +122,23 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
         TiresUiState(false, vehicle, wheels, TireRules.summary(wheels), unit, data, mine, limits, costs)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TiresUiState())
 
+    /** 1.60.0: recomputed whenever a check, a sensor or a received frame changes. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val tpms: StateFlow<TpmsUi> = combine(state, sensors) { st, se -> st to se }
+        .mapLatest { (st, se) ->
+            if (st.loading) return@mapLatest TpmsUi()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val check = com.ubers.observador.service.TpmsCheck.refresh(getApplication())
+                val now = System.currentTimeMillis()
+                fun seen(f: com.ubers.observador.data.db.TireSensorFrameEntity) = FrameSeen(f.receivedAt, f.rssi, f.name, f.parsedId, f.sensorId, f.batteryPct)
+                val day = sensorRepo.framesSince(now - TpmsDiagnosis.DAY_MS).map(::seen)
+                val active = se.bindings.filter { it.active && it.vehicleId == st.vehicle.id }
+                val reports = active.associate { b -> b.position to TpmsDiagnosis.report(b, day, se.latest[b.sensorId]?.let(::seen), now) }
+                val strangers = TpmsDiagnosis.strangers(se.bindings.filter { it.active }.map { it.sensorId }.toSet(), day)
+                TpmsUi(check.calibrations.filter { c -> st.data.tires.any { it.vehicleId == st.vehicle.id && it.position == c.position } }, check.state, reports, strangers)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TpmsUi())
+
     fun linkable(kind: TireEventKind, atMs: Long, editingEventId: String? = null): List<ExpenseEntry> = state.value.let {
         TireRules.linkable(it.expenses, it.data, it.vehicle.id, kind, atMs, editingEventId)
     }
@@ -141,7 +167,8 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
         val bindings = sensorRepo.bindings().filter { it.vehicleId == st.vehicle.id && it.position == position }
         val frames = sensorRepo.sensorFrames().filter { f -> f.parsedId == f.sensorId &&
             bindings.any { b -> b.sensorId == f.sensorId && f.receivedAt >= b.boundAt && (b.unboundAt == null || f.receivedAt <= b.unboundAt) } }
-        val pressure = TireChart.pressure(st.data.events.filter { it.tireId in tireIds }, frames.mapNotNull { f -> f.pressurePa?.let { f.receivedAt to it } },
+        // 1.60.0: once the gauge confirmed the reference, the sensor line is what a gauge would say
+        val pressure = TireChart.pressure(st.data.events.filter { it.tireId in tireIds }, frames.mapNotNull { f -> f.pressurePa?.let { f.receivedAt to TpmsReference.gauge(it) } },
             tire?.target, st.limits.tolerancePct, st.unit, fromMs, toMs)
         val temperature = TireChart.temperature(frames.mapNotNull { f -> f.temperatureCenti?.let { f.receivedAt to it } }, st.limits.temperature, fromMs, toMs)
         return pressure to temperature
@@ -159,6 +186,14 @@ class TiresViewModel(app: Application) : AndroidViewModel(app) {
             put("gomas.csv", TireExport.tires(st.data, zone))
             put("registros.csv", TireExport.events(st.data, expenses.getAll().expenses, zone))
             put("sensores.csv", TireExport.sensors(bindings, zone))
+            // 1.60.0: every check paired with its sensor reading, and what it says about the reference
+            val cal = com.ubers.observador.service.TpmsCheck.refresh(getApplication())
+            put("calibraciones_manometro.csv", "\uFEFFrevision_id,fecha,rueda,sensor_id,manometro_pa,sensor_pa,sensor_recibido,temperatura_centi,referencia\r\n" +
+                cal.calibrations.joinToString("") { c ->
+                    listOf(c.eventId, java.time.Instant.ofEpochMilli(c.atMs).atZone(zone).toOffsetDateTime(), c.position.storageKey, c.sensorId, c.gaugePa, c.sensorPa,
+                        java.time.Instant.ofEpochMilli(c.frameAtMs).atZone(zone).toOffsetDateTime(), c.temperatureCenti ?: "", c.reference?.name ?: "NO_CUADRA")
+                        .joinToString(",") + "\r\n"
+                } + "\"# " + TpmsCalibrations.describe(cal.state, st.unit).replace("\"", "'") + "\"\r\n")
             zip.putNextEntry(java.util.zip.ZipEntry("anuncios_sensores.csv"))
             exportFrames(object : java.io.FilterOutputStream(zip) { override fun close() { flush() } })
             zip.closeEntry()

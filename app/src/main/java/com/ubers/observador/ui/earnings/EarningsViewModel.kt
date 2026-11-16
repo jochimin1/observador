@@ -60,10 +60,13 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 /**
- * Uber's money labels are confirmed with a real trip on the phone (Fase 7C validation). Until
- * then Ganancias says so at the top. Turned to true only after that check, never before.
+ * 1.60.0: Uber's money labels are confirmed on the phone by the driver, trip by trip (MoneyChecks):
+ * until the last 3 checked trips match, Ganancias says so at the top and asks about recent trips.
  */
-const val MONEY_LABELS_VALIDATED = false
+data class MoneyChecksUi(
+    val state: com.ubers.observador.domain.earnings.MoneyCheckState,
+    val candidates: List<TripMoneyRow>
+)
 
 /** The goals as shown: always today and this week, whatever period is being browsed. */
 data class GoalsUi(
@@ -405,6 +408,56 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeTrip() {
         _detail.value = null
+    }
+
+    // ---- 1.60.0: confirming what was read from Uber ----
+
+    private val checksVersion = MutableStateFlow(0)
+
+    val moneyChecks: StateFlow<MoneyChecksUi?> = combine(state, checksVersion) { s, _ -> s }
+        .mapLatest { s ->
+            val app = getApplication<Application>()
+            val st = com.ubers.observador.domain.earnings.MoneyChecks.state(com.ubers.observador.data.MoneyCheckStore.all(app))
+            val rows = s.report?.trips.orEmpty().filter { it.real != null && !it.cancelled && it.tripId !in st.checkedTrips }.take(15)
+            // Only totals read from Uber's screen are worth checking: a manual one is already the driver's
+            val fromUber = rows.filter { row ->
+                val history = try { money.tripObservations(row.tripId) } catch (e: Exception) { emptyList() }
+                history.any { it.source == com.ubers.observador.domain.finance.FinancialSource.UBER_SCREEN &&
+                    it.semantics == com.ubers.observador.domain.finance.AmountSemantics.ABSOLUTE_TOTAL } &&
+                    history.none { it.source == com.ubers.observador.domain.finance.FinancialSource.MANUAL }
+            }.map { it.tripId }.toSet()
+            MoneyChecksUi(st, com.ubers.observador.domain.earnings.MoneyChecks.candidates(rows, fromUber, st))
+        }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** «Coincide»: what was read equals Uber's own app. */
+    fun confirmMoney(row: TripMoneyRow) = viewModelScope.launch(Dispatchers.IO) {
+        val real = row.real ?: return@launch
+        val ok = com.ubers.observador.data.MoneyCheckStore.add(getApplication(), com.ubers.observador.domain.earnings.MoneyCheck(
+            System.currentTimeMillis(), row.tripId, real.minorUnits, real.currencyCode, com.ubers.observador.domain.earnings.MoneyVerdict.MATCH))
+        _messages.tryEmit(if (ok) "Anotado: coincide con Uber." else "No se pudo guardar. Inténtalo de nuevo.")
+        checksVersion.value++
+    }
+
+    /** «No coincide»: Uber's total goes into the ledger as a manual amount and the answer is kept. Null when saved. */
+    suspend fun correctMoney(row: TripMoneyRow, text: String): String? {
+        val real = row.real ?: return "Este viaje no tiene total leído."
+        val now = System.currentTimeMillis()
+        val request = com.ubers.observador.domain.finance.ManualMoneyRequest(
+            java.util.UUID.randomUUID().toString(), com.ubers.observador.domain.finance.FinancialObservationType.TRIP_TOTAL,
+            com.ubers.observador.domain.finance.AmountSemantics.ABSOLUTE_TOTAL, text.trim())
+        val result = try { money.recordManualMoney(row.tripId, request, now) } catch (e: Exception) {
+            return "No se pudo guardar: ${e.message ?: "error"}."
+        }
+        if (result is com.ubers.observador.domain.finance.MoneyEditResult.Rejected) return result.reason
+        val corrected = try { money.getStoredSummary(row.tripId)?.effectiveEarnings?.minorUnits } catch (e: Exception) { null }
+        val saved = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            com.ubers.observador.data.MoneyCheckStore.add(getApplication(), com.ubers.observador.domain.earnings.MoneyCheck(
+                now, row.tripId, real.minorUnits, real.currencyCode, com.ubers.observador.domain.earnings.MoneyVerdict.CORRECTED, corrected))
+        }
+        checksVersion.value++
+        return if (saved) null else "El importe quedó corregido, pero la respuesta no se pudo anotar."
     }
 
     private companion object {

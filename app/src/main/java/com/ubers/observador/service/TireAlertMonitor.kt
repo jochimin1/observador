@@ -24,7 +24,8 @@ import java.util.UUID
 /**
  * 1.55.0: turns the tyre sensors' frames into alerts — stored with start and end, notified once,
  * with vibration and (if the driver turned it on) a short spoken line. Fed ONLY when the sensor
- * format is validated ([TpmsParser.VALIDATED]); until then it does nothing. An alert never creates
+ * format is validated ([TpmsParser.VALIDATED], 1.60.0: once the driver's gauge confirmed the pressure
+ * reference, see [TpmsCheck]); until then it does nothing. An alert never creates
  * an expense and never touches an offer.
  */
 object TireAlertMonitor {
@@ -51,8 +52,9 @@ object TireAlertMonitor {
 
     /** Frames just saved by the listener, in time order. */
     suspend fun onFrames(context: Context, frames: List<TireSensorFrameEntity>, listening: Boolean) {
-        if (!TpmsParser.VALIDATED) return
         val app = context.applicationContext
+        TpmsCheck.ensure(app)
+        if (!TpmsParser.VALIDATED) return
         val db = AppDatabase.getInstance(app)
         val bindings = db.tireSensorDao().sensors().mapNotNull { it.toDomain() }.filter { it.active }
         val tires = db.tireDao().tires().mapNotNull { it.toDomain() }
@@ -61,7 +63,7 @@ object TireAlertMonitor {
             for (f in frames.sortedBy { it.receivedAt }) {
                 val b = bindings.firstOrNull { it.sensorId == f.sensorId && f.parsedId == it.sensorId } ?: continue
                 val target = TireRules.active(TireData(tires), b.vehicleId, b.position)?.target
-                tracker.onSample(TpmsSample(b.position, f.receivedAt, f.pressurePa, f.temperatureCenti, f.batteryPct, f.leak?.let { it == 1 }), target)
+                tracker.onSample(TpmsSample(b.position, f.receivedAt, f.pressurePa?.let { TpmsReference.gauge(it) }, f.temperatureCenti, f.batteryPct, f.leak?.let { it == 1 }), target)
                     .forEach { events += it to b }
             }
             tracker.onTick(System.currentTimeMillis(), listening, bindings.map { it.position }.toSet()).forEach { e ->
@@ -135,4 +137,37 @@ object TireAlertMonitor {
     /** History screen: every stored alert. */
     suspend fun all(context: Context): List<TpmsAlertEvent> =
         MaintenanceGate.shared.access { AppDatabase.getInstance(context.applicationContext).tireAlertDao().all().mapNotNull { it.toDomain() } }
+}
+
+/**
+ * 1.60.0: the gauge calibrations (TpmsCalibrations), read from the pressure checks and sensor
+ * frames already stored, and the reference they confirm, set in [TpmsReference] for the alerts,
+ * the charts and the screens. Read again at most every few minutes, or at once after a check.
+ */
+object TpmsCheck {
+    private const val MAX_AGE_MS = 5 * 60_000L
+    @Volatile private var loadedAt = 0L
+
+    data class Result(val calibrations: List<TpmsCalibration>, val state: CalibrationState)
+
+    suspend fun refresh(context: Context): Result {
+        val db = AppDatabase.getInstance(context.applicationContext)
+        val result = MaintenanceGate.shared.access {
+            val data = TireData(db.tireDao().tires().mapNotNull { it.toDomain() }, db.tireDao().events().mapNotNull { it.toDomain() })
+            val bindings = db.tireSensorDao().sensors().mapNotNull { it.toDomain() }
+            val samples = db.tireSensorDao().sensorFrames().mapNotNull { f ->
+                val id = f.sensorId ?: return@mapNotNull null
+                if (f.parsedId != id) null else f.pressurePa?.let { SensorPressure(id, f.receivedAt, it, f.temperatureCenti) }
+            }
+            val list = TpmsCalibrations.pair(data, bindings, samples)
+            Result(list, TpmsCalibrations.state(list))
+        }
+        TpmsReference.current = (result.state as? CalibrationState.Confirmed)?.reference
+        loadedAt = System.currentTimeMillis()
+        return result
+    }
+
+    suspend fun ensure(context: Context) {
+        if (System.currentTimeMillis() - loadedAt > MAX_AGE_MS) runCatching { refresh(context) }.onFailure { Log.w("TpmsCheck", "Could not read calibrations", it) }
+    }
 }

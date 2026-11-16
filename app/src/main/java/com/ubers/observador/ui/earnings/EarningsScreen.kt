@@ -83,6 +83,7 @@ import com.ubers.observador.domain.finance.Reconciliation
 import com.ubers.observador.domain.finance.ReconciliationStatus
 import com.ubers.observador.domain.money.MoneyAmount
 import com.ubers.observador.domain.money.MoneyFormat
+import kotlinx.coroutines.launch
 import com.ubers.observador.domain.online.OnlineFormat
 import com.ubers.observador.domain.online.OnlineSummary
 import com.ubers.observador.domain.trips.Trip
@@ -123,6 +124,7 @@ fun EarningsScreen(
     val assign by viewModel.assign.collectAsState()
     val confirm by viewModel.confirm.collectAsState()
     val detail by viewModel.detail.collectAsState()
+    val moneyChecks by viewModel.moneyChecks.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var rejecting by remember { mutableStateOf<FinancialObservation?>(null) }
     var editingGoals by rememberSaveable { mutableStateOf(false) }
@@ -217,7 +219,8 @@ fun EarningsScreen(
         ) {
             item { PeriodPicker(state, onRange = { viewModel.select(it) }, onPrevious = { viewModel.previous() }, onNext = { viewModel.next() }) }
             onOpenExpenses?.let { open -> item { ExpensesEntry(open) } }
-            if (!MONEY_LABELS_VALIDATED) item { ValidationNotice() }
+            // 1.60.0: the warning stays until the driver confirmed 3 trips in a row against Uber's app
+            moneyChecks?.let { mc -> if (!mc.state.validated || mc.candidates.isNotEmpty()) item { MoneyCheckCard(mc, viewModel) } }
             val report = state.report
             if (report == null) {
                 item { if (state.loading) com.ubers.observador.ui.components.LoadingState("Calculando el periodo…") else com.ubers.observador.ui.components.ErrorState("no se pudo calcular este periodo.") }
@@ -296,18 +299,70 @@ private fun PeriodPicker(state: EarningsUiState, onRange: (EarningsRange) -> Uni
     }
 }
 
+/**
+ * 1.60.0: «¿Coincide con Uber?» for the newest trips with a total read from Uber's screen. Three
+ * matches in a row confirm the readings; «No coincide» writes Uber's figure as a manual amount.
+ */
 @Composable
-private fun ValidationNotice() {
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Icon(painterResource(R.drawable.ic_science), contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.size(20.dp))
-            Text(
-                "Las etiquetas de dinero de Uber aún no se han confirmado con un viaje real. Compara estas cifras con la app de Uber " +
-                    "hasta que lo estén.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
-            )
+private fun MoneyCheckCard(mc: MoneyChecksUi, viewModel: EarningsViewModel) {
+    var correcting by remember { mutableStateOf<TripMoneyRow?>(null) }
+    val container = if (mc.state.validated) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer
+    val content = if (mc.state.validated) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
+    Surface(shape = RoundedCornerShape(16.dp), color = container) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Icon(painterResource(R.drawable.ic_science), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
+                Text(com.ubers.observador.domain.earnings.MoneyChecks.describe(mc.state), style = MaterialTheme.typography.bodySmall, color = content)
+            }
+            if (mc.candidates.isEmpty() && !mc.state.validated) {
+                Text("Cuando termines un viaje y Observador lea su total de Uber, aparecerá aquí para que lo compares.",
+                    style = MaterialTheme.typography.bodySmall, color = content)
+            }
+            mc.candidates.forEach { row ->
+                HorizontalDivider()
+                val places = listOfNotNull(row.pickupAddress, row.dropoffAddress).joinToString(" → ")
+                Text("Viaje de las ${time(row.completedAt)}" + (if (places.isNotBlank()) " · $places" else ""),
+                    style = MaterialTheme.typography.bodyMedium, color = content)
+                Text("Observador leyó ${row.real?.let { MoneyFormat.format(it) } ?: "—"}" +
+                    (if (row.tipMinor > 0) " (incluye propina)" else "") + ". ¿Es lo mismo que dice Uber para este viaje?",
+                    style = MaterialTheme.typography.bodySmall, color = content)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { viewModel.confirmMoney(row) }) { Text("Coincide") }
+                    OutlinedButton(onClick = { correcting = row }) { Text("No coincide") }
+                }
+            }
         }
+    }
+    correcting?.let { row ->
+        var text by rememberSaveable(row.tripId) { mutableStateOf("") }
+        var error by remember(row.tripId) { mutableStateOf<String?>(null) }
+        var busy by remember(row.tripId) { mutableStateOf(false) }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        AlertDialog(
+            onDismissRequest = { if (!busy) correcting = null },
+            title = { Text("¿Cuánto dice Uber?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Observador leyó ${row.real?.let { MoneyFormat.format(it) } ?: "—"}. Escribe el total del viaje que muestra Uber " +
+                        "(lo que ganaste, con propina si la hubo). Queda como importe tuyo; lo leído se conserva en el historial.",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(text, { text = it; error = null }, label = { Text("Total en RD$") }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !busy && text.isNotBlank(), onClick = {
+                    scope.launch {
+                        busy = true
+                        error = viewModel.correctMoney(row, text)
+                        busy = false
+                        if (error == null) correcting = null
+                    }
+                }) { Text("Guardar") }
+            },
+            dismissButton = { TextButton(enabled = !busy, onClick = { correcting = null }) { Text("Cancelar") } }
+        )
     }
 }
 

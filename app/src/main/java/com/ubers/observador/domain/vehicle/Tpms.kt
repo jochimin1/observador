@@ -163,9 +163,10 @@ object TpmsParser {
     /** The 16-bit service these sensors announce; lets Android listen with the screen off. */
     const val SERVICE_UUID = "0000fbb0-0000-1000-8000-00805f9b34fb"
     const val FORMAT_CONFIRMED = true
-    const val PRESSURE_REFERENCE_CONFIRMED = false
-    /** Pressure used for the wheel's state and alerts only when this is true. */
-    const val VALIDATED = FORMAT_CONFIRMED && PRESSURE_REFERENCE_CONFIRMED
+    /** 1.60.0: confirmed on the phone with the driver's gauge (TpmsCalibrations), not in the code. */
+    val PRESSURE_REFERENCE_CONFIRMED: Boolean get() = TpmsReference.current != null
+    /** Pressure used for alerts only when this is true. */
+    val VALIDATED: Boolean get() = FORMAT_CONFIRMED && PRESSURE_REFERENCE_CONFIRMED
     /** Standard atmosphere, for showing an absolute reading as gauge (what a tyre gauge says). */
     const val ATMOSPHERE_PA = 101_325
     /** Pressures outside this are impossible for a motorcycle tyre sensor: refused. 0 is kept (flat tyre). */

@@ -92,3 +92,30 @@ class LearnedXTest {
         assertNull(LearnedX.decode("x1;roto"))
     }
 }
+
+class CloseSummaryTest {
+    @Test fun closeLogLinesAreCountedByResult() {
+        val lines = listOf(
+            "14:03:12 · CERRADA · Destino: Engombe · RD$294.67",
+            "14:10:00 · SIMULADA (botón «Cerrar») · Destino: Engombe · RD$150.00",
+            "14:12:00 · NO CERRADA (Cancelado por ti) · Recogida: Los Ríos · Destino: Engombe · RD$120.00",
+            "14:20:00 · NO CERRADA (La tarjeta cambió) · Destino: Engombe · RD$99.00",
+            "14:21:00 · NO CERRADA (La tarjeta cambió) · Destino: Engombe · RD$98.00",
+            "14:22:00 · NO CERRADA (Límite diario o registro no disponible) · Destino: Engombe · RD$97.00",
+            "14:23:00 · TOQUE SOLICITADO · Destino: Engombe · RD$96.00",
+            "14:30:00 · X DE UBER TOCADA A MANO · Aprendiendo: 1 de 3 cierres a mano con la X · Recogida: A · Destino: B · RD$80.00",
+            "basura"
+        )
+        val s = com.ubers.observador.domain.sectors.CloseSummaries.of(lines)
+        assertEquals(1, s.closed)
+        assertEquals(1, s.simulated)
+        assertEquals(1, s.stoppedByDriver)
+        assertEquals(1, s.byHand)
+        assertEquals(mapOf("La tarjeta cambió" to 2, "Límite diario o registro no disponible" to 1), s.notClosed)
+        assertEquals("Hoy: 1 cerradas, 1 en simulación, 1 impedidas por ti, 3 sin cerrar, 1 cerradas a mano.",
+            com.ubers.observador.domain.sectors.CloseSummaries.line("Hoy", s))
+        assertEquals("Sin cerrar: La tarjeta cambió (2); Límite diario o registro no disponible (1)",
+            com.ubers.observador.domain.sectors.CloseSummaries.reasons(s))
+        assertTrue(com.ubers.observador.domain.sectors.CloseSummaries.of(emptyList()).isEmpty)
+    }
+}
