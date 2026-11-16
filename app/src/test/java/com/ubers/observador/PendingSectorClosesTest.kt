@@ -23,7 +23,7 @@ class PendingSectorClosesTest {
             val ticket = r.add(offer, 7, "Destino", r.revision)!!
             assertEquals(listOf(ticket), r.configure(changed))
             assertNull(r.take(ticket))
-            assertEquals(CloseOutcome.NONE, r.outcome(ticket, 0, true))
+            assertEquals(CloseOutcome.NONE, r.outcome(ticket, 0, true, false))
         }
     }
 
@@ -44,7 +44,7 @@ class PendingSectorClosesTest {
         val ticket = schedule()
         assertEquals(listOf(ticket), registry.observe(listOf(offer.copy(appearanceId = "OFFER-V2-b")), 7))
         assertNull(registry.take(ticket))
-        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, true))
+        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, true, false))
     }
 
     @Test fun radarReorderingKeepsTheCorrectPendingTicket() {
@@ -53,7 +53,7 @@ class PendingSectorClosesTest {
         val ticket = schedule()
         assertTrue(registry.observe(listOf(other, offer), 7).isEmpty())
         assertEquals(ticket, registry.take(ticket))
-        assertEquals(CloseOutcome.SIMULATE, registry.outcome(ticket, 0, true))
+        assertEquals(CloseOutcome.SIMULATE, registry.outcome(ticket, 0, true, false))
     }
 
     @Test fun duplicateCardsAndDifferentWindowsAreRefused() {
@@ -65,10 +65,11 @@ class PendingSectorClosesTest {
 
     @Test fun currentBudgetAndVisibleCancelControlAreRequiredAtExecution() {
         val ticket = schedule()
-        assertEquals(CloseOutcome.SIMULATE, registry.outcome(ticket, 29, true))
-        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 30, true))
-        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, false))
-        assertFalse(CloseTarget.VALIDATED)
+        assertEquals(CloseOutcome.SIMULATE, registry.outcome(ticket, 29, true, false))
+        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 30, true, false))
+        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, false, false))
+        assertEquals(CloseOutcome.CLOSE, registry.outcome(ticket, 29, true, true))
+        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 30, true, true))
     }
 
     @Test fun ticketIsConsumedOnceAndCannotReturnAfterClear() {
@@ -76,7 +77,7 @@ class PendingSectorClosesTest {
         assertEquals(ticket, registry.take(ticket))
         assertNull(registry.take(ticket))
         registry.clear()
-        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, true))
+        assertEquals(CloseOutcome.NONE, registry.outcome(ticket, 0, true, false))
     }
 
     private fun card(destination: String = "Engombe", price: String = "DOP224.10", product: String = "Moto") = listOf(

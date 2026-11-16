@@ -454,17 +454,23 @@ private fun verdictText(v: SectorMatcher.Verdict): String = when (v) {
 
 
 /**
- * 1.56.0: every «Cerrar» countdown writes Uber's whole screen and what Observador decided. With a
- * few of them exported, the real X can be confirmed and the close stops being a simulation.
+ * 1.56.0: every «Cerrar» countdown writes Uber's whole screen and what Observador decided.
+ * 1.59.0: the X is learned from the driver's own closes; the close is real once it is learned.
  */
 @Composable
 private fun CloseEvidenceBlock() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var count by remember { mutableStateOf<Int?>(null) }
+    var learned by remember { mutableStateOf<com.ubers.observador.domain.sectors.LearnedX.State?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        count = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ubers.observador.service.CloseLogStore.evidenceCount(context) }
+    var confirmForget by remember { mutableStateOf(false) }
+    var refresh by remember { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(refresh) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            count = com.ubers.observador.service.CloseLogStore.evidenceCount(context)
+            learned = com.ubers.observador.service.LearnedXStore.state(context)
+        }
     }
     val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) scope.launch {
@@ -474,14 +480,41 @@ private fun CloseEvidenceBlock() {
             }
         }
     }
-    Text("Cierre con la X: ${if (com.ubers.observador.domain.sectors.CloseTarget.VALIDATED) "activo" else "en simulación"}", style = MaterialTheme.typography.labelLarge)
-    Text(if (com.ubers.observador.domain.sectors.CloseTarget.VALIDATED) "Observador toca la X de Uber en las ofertas de sectores «Cerrar» en modo Automático."
-        else "Para activarlo hace falta confirmar dónde está la X de Uber. Con el modo Automático y un sector en «Cerrar», cada oferta de ese sector guarda aquí la pantalla de Uber y lo que Observador habría hecho, sin tocar nada. " +
-            "Cuando tengas 3 o más, exporta la evidencia y envíamela.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val active = learned is com.ubers.observador.domain.sectors.LearnedX.State.Learned
+    Text("Cierre con la X: ${if (active) "activo" else "en simulación"}", style = MaterialTheme.typography.labelLarge)
+    Text(
+        if (active) "Observador toca la X de Uber en las ofertas de sectores «Cerrar» en modo Automático, con 3 segundos para impedirlo. Nunca acepta viajes."
+        else "Observador aprende cuál es la X mirando cómo cierras tú: cierra a mano con la X de Uber ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} ofertas " +
+            "(cualquier oferta, con Observador encendido). Cuando las ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} coinciden en el mismo botón, el cierre deja de ser simulación.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    learned?.let { Text(com.ubers.observador.domain.sectors.LearnedX.describe(it), style = MaterialTheme.typography.bodySmall) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("${count ?: "…"} ofertas grabadas", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        TextButton(enabled = (count ?: 0) > 0, onClick = { exporter.launch("observador-evidencia-cierres-${java.time.LocalDate.now()}.zip") }) { Text("Exportar evidencia") }
+        TextButton(enabled = (count ?: 0) > 0 || learned != null, onClick = { exporter.launch("observador-evidencia-cierres-${java.time.LocalDate.now()}.zip") }) { Text("Exportar evidencia") }
+    }
+    if (learned is com.ubers.observador.domain.sectors.LearnedX.State.Learned ||
+        (learned as? com.ubers.observador.domain.sectors.LearnedX.State.Learning)?.total?.let { it > 0 } == true
+    ) {
+        TextButton(onClick = { confirmForget = true }) { Text("Olvidar la X aprendida") }
+    }
+    if (confirmForget) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmForget = false },
+            title = { Text("¿Olvidar la X aprendida?") },
+            text = { Text("El cierre vuelve a simulación hasta que cierres a mano otras ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} ofertas. Lo aprendido se conserva en el registro y en la evidencia exportada.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmForget = false
+                    scope.launch {
+                        val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ubers.observador.service.LearnedXStore.forget(context) }
+                        message = if (ok) "La X se aprenderá de nuevo." else "No se pudo guardar. Inténtalo de nuevo."
+                        refresh++
+                    }
+                }) { Text("Olvidar") }
+            },
+            dismissButton = { TextButton(onClick = { confirmForget = false }) { Text("Cancelar") } }
+        )
     }
     message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }

@@ -14,6 +14,23 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.59.0] — 2026-11-16
+
+### Añadido
+
+- El cierre automático con la X de Uber funciona de verdad: Observador aprende cuál es la X mirando cómo cierras tú. Tras 3 cierres a mano con la X que coinciden en el mismo botón (con la versión de Uber instalada), el modo Automático toca esa X en las ofertas de sectores «Cerrar», con 3 segundos para impedirlo. Hasta entonces sigue en simulación.
+- Solo cuenta un cierre a mano si la tarjeta desaparece y Uber vuelve a buscar viajes; nunca se aprende el botón de aceptar ni palabras como «Aceptar», «Confirmar» o «Llamar».
+- Cuando Uber se actualiza, la X se aprende otra vez. Ajustes › Sectores muestra el avance («Aprendiendo: 2 de 3…») y permite «Olvidar la X aprendida» sin borrar el registro.
+- Cada cierre a mano aprendido queda en el registro de cierres con la recogida, el destino y el precio, y en la evidencia exportada.
+
+### Cambiado
+
+- Limpieza de código sin cambios de comportamiento: 56 imports, recursos de plantilla y 11 declaraciones sin uso.
+
+### Validación
+
+`LearnedXTest` (6), `PendingSectorClosesTest` y `CloseEvidenceTest` correctas en el entorno del agente. Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.58.0] — 2026-11-16
 
 ### Añadido

@@ -11,7 +11,7 @@ import java.time.ZoneId
  * with its class, text, description, id, whether it can be touched and where it is — together with
  * what Observador decided (the X it found, or why it found none) and which nodes could be the X
  * by shape (touchable, no words, small and square, inside the card). The driver exports it from
- * Ajustes › Sectores; with a few of these, the real X is confirmed and [CloseTarget.VALIDATED] set.
+ * Ajustes › Sectores. 1.59.0: the X itself is learned from the driver's own closes ([LearnedX]).
  */
 object CloseEvidence {
 

@@ -14,6 +14,7 @@ import com.ubers.observador.domain.sectors.CloseLog
 import com.ubers.observador.domain.sectors.CloseOutcome
 import com.ubers.observador.domain.sectors.CloseRules
 import com.ubers.observador.domain.sectors.CloseTarget
+import com.ubers.observador.domain.sectors.LearnedX
 import com.ubers.observador.domain.sectors.PendingSectorCloses
 import com.ubers.observador.domain.sectors.DailyCloseBudget
 import kotlinx.coroutines.CancellationException
@@ -28,7 +29,8 @@ import java.time.ZoneId
 /**
  * Main-thread timers backed by the tested pending registry. Settings are read atomically again
  * before execution. The live card must match the appearance's full content and original window.
- * Actual touches remain disabled while CloseTarget.VALIDATED is false.
+ * 1.59.0: real touches only on the X learned from the driver's own closes (LearnedX) for the Uber
+ * installed now; without it the close stays a simulation.
  */
 class SectorCloser(
     private val service: AccessibilityService,
@@ -40,6 +42,10 @@ class SectorCloser(
     private val registry = PendingSectorCloses()
     private val timers = LinkedHashMap<String, Runnable>()
     val revision: Long get() = registry.revision
+
+    /** 1.59.0: when Observador itself last touched Uber, so its own click is not learned as the driver's. */
+    var ownTouchAtMs = 0L
+        private set
 
     fun configure(configuration: CloseConfiguration) {
         cancel(registry.configure(configuration), "Cambió la configuración")
@@ -81,11 +87,12 @@ class SectorCloser(
                     configure(latest)
                     if (registry.take(ticket) == null) return@withContext
                     timers.remove(ticket.offer.offerHash())
-                    val outcome = registry.outcome(ticket, CloseLogStore.usedToday(service), overlayVisible())
+                    val learned = LearnedXStore.signature(service)
+                    val outcome = registry.outcome(ticket, CloseLogStore.usedToday(service), overlayVisible(), learned != null)
                     val result = if (outcome == CloseOutcome.NONE) {
                         "${CloseLog.NOT_CLOSED} (Las condiciones ya no permiten cerrar)"
                     } else {
-                        attempt(ticket, simulate = outcome == CloseOutcome.SIMULATE)
+                        attempt(ticket, simulate = outcome == CloseOutcome.SIMULATE, learned = learned)
                     }
                     CloseLogStore.append(service, result, ticket.places, ticket.offer.price)
                     if (result == CloseLog.REQUESTED) verifyLater(ticket)
@@ -104,7 +111,7 @@ class SectorCloser(
     }
 
     @Suppress("DEPRECATION")
-    private fun attempt(ticket: PendingSectorCloses.Ticket, simulate: Boolean): String {
+    private fun attempt(ticket: PendingSectorCloses.Ticket, simulate: Boolean, learned: LearnedX.Signature?): String {
         // Do not act on a background Uber window while another app is in front.
         val active = service.rootInActiveWindow ?: return "${CloseLog.NOT_CLOSED} (Sin ventana activa)"
         try {
@@ -118,7 +125,7 @@ class SectorCloser(
                 ?: return "${CloseLog.NOT_CLOSED} (La ventana cambió)"
             if (!root.refresh()) return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
             val snapshot = ScreenSnapshotFactory.from(root, System.currentTimeMillis())
-            val found = CloseTarget.find(snapshot, ticket.offer, ticket.windowId)
+            val found = CloseTarget.find(snapshot, ticket.offer, ticket.windowId, learned)
             // 1.56.0: the whole screen and the decision, to confirm where Uber's X is
             CloseLogStore.evidence(service, snapshot, ticket.offer.price, ticket.places, when (found) {
                 is CloseTarget.Result.Found -> "X encontrada «${found.label}» en el nodo ${found.index}" + if (simulate) " (simulación)" else ""
@@ -127,8 +134,8 @@ class SectorCloser(
             if (found is CloseTarget.Result.Refused) return "${CloseLog.NOT_CLOSED} (${found.reason})"
             found as CloseTarget.Result.Found
             if (simulate) return "${CloseLog.SIMULATED} (botón «${found.label}»)"
-            // Even an accidental direct call cannot bypass the global validation gate.
-            if (!CloseTarget.VALIDATED) return "${CloseLog.NOT_CLOSED} (X sin validar)"
+            // Even an accidental direct call cannot touch a button that was not learned from the driver.
+            if (learned == null) return "${CloseLog.NOT_CLOSED} (X sin aprender)"
             val node = ScreenSnapshotFactory.nodeAt(root, found.index)
                 ?: return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
             try {
@@ -141,7 +148,7 @@ class SectorCloser(
                 ) return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
                 if (!root.refresh()) return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
                 val finalCheck = CloseTarget.find(
-                    ScreenSnapshotFactory.from(root, System.currentTimeMillis()), ticket.offer, ticket.windowId
+                    ScreenSnapshotFactory.from(root, System.currentTimeMillis()), ticket.offer, ticket.windowId, learned
                 )
                 if (finalCheck !is CloseTarget.Result.Found || finalCheck.index != found.index) {
                     return "${CloseLog.NOT_CLOSED} (La tarjeta cambió antes del toque)"
@@ -149,7 +156,7 @@ class SectorCloser(
                 // Main-thread serialized, durably reserved BEFORE touching; a failed log cannot bypass the cap.
                 return com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess {
                     if (!CloseLogStore.reserve(service)) "${CloseLog.NOT_CLOSED} (Límite diario o registro no disponible)"
-                    else if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) CloseLog.REQUESTED
+                    else if (run { ownTouchAtMs = System.currentTimeMillis(); node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }) CloseLog.REQUESTED
                     else "${CloseLog.NOT_CLOSED} (Android no aceptó el toque)"
                 } ?: "${CloseLog.NOT_CLOSED} (Datos en mantenimiento)"
             } finally {
@@ -164,7 +171,7 @@ class SectorCloser(
     private fun verifyLater(ticket: PendingSectorCloses.Ticket) {
         val verify = Runnable {
             timers.remove(ticket.offer.offerHash())
-            val gone = runCatching { verifyGone(ticket) }.getOrDefault(false)
+            val gone = runCatching { cardGone(ticket.offer, ticket.windowId) }.getOrDefault(false)
             CloseLogStore.append(
                 service, if (gone) CloseLog.CLOSED else "${CloseLog.NOT_CLOSED} (Toque solicitado; cierre no verificado)",
                 ticket.places, ticket.offer.price
@@ -174,14 +181,18 @@ class SectorCloser(
         handler.postDelayed(verify, 500L)
     }
 
+    /**
+     * Whether [offer] left the screen with Uber back to searching (or other cards still there): a
+     * card that was closed, not accepted. Also used to learn the X from the driver's own closes.
+     */
     @Suppress("DEPRECATION")
-    private fun verifyGone(ticket: PendingSectorCloses.Ticket): Boolean {
+    fun cardGone(offer: UberOffer, windowId: Int?): Boolean {
         val root = service.rootInActiveWindow ?: return false
         try {
-            if (root.packageName?.toString() != UBER || root.windowId != ticket.windowId) return false
+            if (root.packageName?.toString() != UBER || root.windowId != windowId) return false
             val snapshot = ScreenSnapshotFactory.from(root, System.currentTimeMillis())
             val offers = OfferParser.parseAll(snapshot.texts)
-            if (offers.isNotEmpty()) return offers.none { it.contentFingerprint() == ticket.offer.contentFingerprint() }
+            if (offers.isNotEmpty()) return offers.none { it.contentFingerprint() == offer.contentFingerprint() }
             return UberScreenClassifier.spanish(UBER).classify(snapshot).type == UberScreenType.SEARCHING
         } finally {
             root.recycle()
@@ -280,4 +291,47 @@ object CloseLogStore {
         Log.w("CloseLogStore", "Could not reserve the daily budget", e)
         false
     } } ?: false
+}
+
+/**
+ * 1.59.0: the X learned from the driver's own closes (see [LearnedX]), in cierres/x-aprendida.txt.
+ * Lines are only added: «Olvidar» writes a line too. The file travels in backups and in the
+ * evidence export with the rest of cierres/.
+ */
+object LearnedXStore {
+    private fun file(context: Context) = File(File(context.applicationContext.filesDir, "cierres"), LearnedX.FILE)
+
+    @Volatile private var cached: Pair<String?, LearnedX.State>? = null
+
+    fun uberVersion(context: Context): String? =
+        runCatching { context.applicationContext.packageManager.getPackageInfo("com.ubercab.driver", 0).versionName }.getOrNull()
+
+    @Synchronized
+    fun state(context: Context): LearnedX.State {
+        val version = uberVersion(context)
+        cached?.let { (v, s) -> if (v == version) return s }
+        val text = try { file(context).takeIf { it.isFile }?.readText().orEmpty() } catch (e: Exception) { "" }
+        return LearnedX.state(text, version).also { cached = version to it }
+    }
+
+    fun signature(context: Context): LearnedX.Signature? = (state(context) as? LearnedX.State.Learned)?.signature
+
+    @Synchronized
+    fun add(context: Context, observation: LearnedX.Observation): Boolean = write(context, LearnedX.encode(observation))
+
+    @Synchronized
+    fun forget(context: Context): Boolean = write(context, LearnedX.forgetLine(System.currentTimeMillis()))
+
+    private fun write(context: Context, line: String): Boolean =
+        com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess {
+            try {
+                file(context).parentFile?.mkdirs()
+                file(context).appendText(line + "\n")
+                cached = null
+                true
+            } catch (e: Exception) {
+                Log.w("LearnedXStore", "Could not write the learned X", e)
+                false
+            }
+        } ?: false
 }

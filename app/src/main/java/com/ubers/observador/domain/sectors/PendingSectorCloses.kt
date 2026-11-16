@@ -60,9 +60,10 @@ class PendingSectorCloses {
         return ticket
     }
 
-    fun outcome(ticket: Ticket, usedToday: Int, overlayVisible: Boolean): CloseOutcome =
+    /** 1.59.0: [validated] is whether Uber's X has been learned for the Uber installed now. */
+    fun outcome(ticket: Ticket, usedToday: Int, overlayVisible: Boolean, validated: Boolean): CloseOutcome =
         if (ticket.revision != revision || !isVisible(ticket) || !overlayVisible) CloseOutcome.NONE
-        else CloseRules.decide(true, configuration.level(ticket.offer), CloseTarget.VALIDATED, usedToday)
+        else CloseRules.decide(true, configuration.level(ticket.offer), validated, usedToday)
 
     fun cancelAll(): List<Ticket> = pending.values.toList().also {
         cancelled += visible.keys

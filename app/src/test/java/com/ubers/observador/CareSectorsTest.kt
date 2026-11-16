@@ -382,8 +382,6 @@ class SectorCloseTest {
         assertEquals(CloseOutcome.NONE, r.decide(true, SectorLevel.CLOSE, true, 30))
         assertEquals(CloseOutcome.SIMULATE, r.decide(true, SectorLevel.CLOSE, false, 0))
         assertEquals(CloseOutcome.CLOSE, r.decide(true, SectorLevel.CLOSE, true, 29))
-        // Uber's X is not confirmed with a real capture yet: nothing is touched
-        assertFalse(com.ubers.observador.domain.sectors.CloseTarget.VALIDATED)
     }
 
     @Test fun bandWhileTheSecondsRun() {

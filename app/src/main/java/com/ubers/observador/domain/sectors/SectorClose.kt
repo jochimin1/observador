@@ -16,13 +16,6 @@ import kotlin.math.abs
  */
 object CloseTarget {
 
-    /**
-     * False until a real capture of Uber's cards (Grabar pantallas de Uber) shows how the X is
-     * labelled. While false, the «Automático» mode only simulates: it shows and logs what it would
-     * close, and touches nothing.
-     */
-    const val VALIDATED = false
-
     private val CLOSE_WORDS = listOf("cerrar", "descartar", "rechazar", "ignorar", "omitir", "close", "dismiss", "decline")
     private val ACTION_LABELS = listOf("aceptar", "me interesa", "accept")
     private val NEVER_WORDS = listOf("aceptar", "interesa", "accept", "confirmar", "llegue", "iniciar", "finalizar", "llamar")
@@ -55,6 +48,9 @@ object CloseTarget {
         return out
     }
 
+    /** 1.59.0: a node whose words say accept, confirm, call… is never touched, learned or not. */
+    fun forbidden(n: ScreenNode): Boolean = words(n).any { word -> NEVER_WORDS.any { word == it } }
+
     private fun isCloseCandidate(n: ScreenNode): Boolean {
         if (!n.clickable || !n.enabled || !n.visibleToUser) return false
         val w = words(n)
@@ -81,16 +77,20 @@ object CloseTarget {
         }
     }
 
-    /** Full content and window identity, in addition to the conservative price/unique-X check. */
+    /**
+     * Full content and window identity, in addition to the conservative price/unique-X check.
+     * 1.59.0: with [learned], only the X learned from the driver's own closes is accepted.
+     */
     fun find(
         snapshot: ScreenSnapshot,
         expected: com.ubers.observador.domain.models.UberOffer,
-        windowId: Int
+        windowId: Int,
+        learned: LearnedX.Signature? = null
     ): Result {
         if (snapshot.packageName != "com.ubercab.driver" || snapshot.windowId != windowId) {
             return Result.Refused("La ventana cambió")
         }
-        val found = find(snapshot, expected.price)
+        val found = if (learned != null) LearnedX.find(snapshot, expected.price, learned) else find(snapshot, expected.price)
         if (found !is Result.Found) return found
         val actions = actionIndices(snapshot.nodes)
         val end = actions.first { it > found.index }

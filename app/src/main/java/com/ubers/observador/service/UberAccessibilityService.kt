@@ -47,6 +47,9 @@ class UberAccessibilityService : AccessibilityService() {
     private lateinit var notifier: OfferNotifier
     private lateinit var sectorCloser: SectorCloser
 
+    /** 1.59.0: the last screen that showed offer cards, to know what the driver touched (Uber's X). */
+    private var lastCards: Pair<List<UberOffer>, com.ubers.observador.domain.lifecycle.ScreenSnapshot>? = null
+
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** False until the stored switch is read, and whenever the driver pauses Observador. */
@@ -60,6 +63,12 @@ class UberAccessibilityService : AccessibilityService() {
         private const val TAG = "UberA11y"
         private const val UBER_DRIVER_PACKAGE = RideLifecycleMonitor.UBER_DRIVER_PACKAGE
         private const val DEBOUNCE_MS = 300L
+        /** 1.59.0: Observador's own touch on the X is not learned as the driver's. */
+        private const val OWN_TOUCH_MS = 2_000L
+        /** A touch is tied to cards read at most this long before. */
+        private const val CARD_MEMORY_MS = 60_000L
+        /** The card must be gone this long after the touch to count as closed. */
+        private const val LEARN_CHECK_MS = 800L
 
         /**
          * Fase 8A: while an online session is open, the screen is read again after this long without
@@ -149,6 +158,10 @@ class UberAccessibilityService : AccessibilityService() {
         if (!observing) return
         if (event.packageName != UBER_DRIVER_PACKAGE) return
         HealthMonitor.onUberEvent(System.currentTimeMillis())
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            onUberClick(event)
+            return
+        }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) return
@@ -157,6 +170,45 @@ class UberAccessibilityService : AccessibilityService() {
         val parse = Runnable { readScreen() }
         debounceRunnable = parse
         mainHandler.postDelayed(parse, DEBOUNCE_MS)
+    }
+
+    /**
+     * 1.59.0: the driver touched something in Uber. If it was a button of an offer card and the card
+     * then went away with Uber back to searching (closed, not accepted), that button is written down
+     * as Uber's X (LearnedX); after 3 that agree, «Automático» touches it for real.
+     */
+    @Suppress("DEPRECATION")
+    private fun onUberClick(event: AccessibilityEvent) {
+        val now = System.currentTimeMillis()
+        if (now - sectorCloser.ownTouchAtMs < OWN_TOUCH_MS) return
+        val (cards, before) = lastCards ?: return
+        if (now - before.timestampMs > CARD_MEMORY_MS) return
+        val source = event.source ?: return
+        val touched = try {
+            val r = android.graphics.Rect().also(source::getBoundsInScreen)
+            com.ubers.observador.domain.lifecycle.ScreenNode(
+                text = source.text?.toString(),
+                contentDescription = source.contentDescription?.toString(),
+                viewId = source.viewIdResourceName,
+                className = source.className?.toString(),
+                clickable = source.isClickable,
+                enabled = source.isEnabled,
+                left = r.left, top = r.top, right = r.right, bottom = r.bottom,
+                visibleToUser = source.isVisibleToUser
+            )
+        } finally {
+            source.recycle()
+        }
+        val observation = com.ubers.observador.domain.sectors.LearnedX.observe(before, touched, now, LearnedXStore.uberVersion(this)) ?: return
+        val offer = cards.singleOrNull { kotlin.math.abs(it.price - observation.price) < 0.005 } ?: return
+        val windowId = before.windowId
+        mainHandler.postDelayed({
+            if (!observing) return@postDelayed
+            if (runCatching { sectorCloser.cardGone(offer, windowId) }.getOrDefault(false) && LearnedXStore.add(this, observation)) {
+                val state = com.ubers.observador.domain.sectors.LearnedX.describe(LearnedXStore.state(this))
+                CloseLogStore.append(this, "X DE UBER TOCADA A MANO · $state", "Recogida: ${offer.pickupAddress ?: "?"} · Destino: ${offer.dropoffAddress ?: "?"}", offer.price)
+            }
+        }, LEARN_CHECK_MS)
     }
 
     /** 1.38.0: the unreadable card already announced, so a repaint does not show the notice again. */
@@ -193,6 +245,7 @@ class UberAccessibilityService : AccessibilityService() {
         val offer: UberOffer? = identified.firstOrNull()
         visibleOffers = identified.map { it.offerHash() }.toSet()
         sectorCloser.observe(identified, found?.second?.windowId)
+        if (found != null && identified.isNotEmpty()) lastCards = identified to found.second
         offerScreen?.let { s ->
             OfferDebug.onOfferScreen(
                 s, if (offer != null) OfferParseStep.OK else OfferParseCheck.check(s.texts),
@@ -425,7 +478,7 @@ class UberAccessibilityService : AccessibilityService() {
         return com.ubers.observador.domain.sectors.CloseRules.decide(
             automatic = config.automatic,
             level = match.level,
-            validated = com.ubers.observador.domain.sectors.CloseTarget.VALIDATED,
+            validated = LearnedXStore.signature(this) != null,
             closedToday = CloseLogStore.usedToday(this)
         )
     }
@@ -483,6 +536,7 @@ class UberAccessibilityService : AccessibilityService() {
         appearances.reset()
         visibleOffers = emptySet()
         extraCards.clear()
+        lastCards = null
         if (::sectorCloser.isInitialized) sectorCloser.clear()
         debounceRunnable?.let { mainHandler.removeCallbacks(it) }
         debounceRunnable = null
