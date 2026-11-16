@@ -115,6 +115,8 @@ object RestoreRules {
         "tire_tolerance_pct" to IntR(3, 30),
         "temperature_unit" to Str(setOf("C", "F")),
         "tpms_voice" to Bool,
+        // 1.57.0
+        "daily_goal_online_minutes" to IntR(0, 1440),
         "auto_night" to Bool,
         "daily_goal_minor" to LongR(0, 100_000_000L),
         "weekly_goal_minor" to LongR(0, 100_000_000L),

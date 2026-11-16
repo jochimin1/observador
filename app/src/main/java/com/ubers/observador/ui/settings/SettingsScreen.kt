@@ -394,6 +394,15 @@ fun SettingsScreen(
                 onValid = { viewModel.setDailyGoalPesos(it) }
             )
             IntSettingCard(
+                title = "Meta de horas en línea",
+                description = "Horas confirmadas en línea por jornada. Se ve en el widget y, con el aviso de meta activado, te avisa una vez al llegar. Pon 0 para no usarla.",
+                value = goals.dailyOnlineMinutes / 60,
+                min = 0,
+                max = 24,
+                suffix = "h",
+                onValid = { viewModel.setDailyOnlineGoalHours(it) }
+            )
+            IntSettingCard(
                 title = "Meta semanal",
                 description = "En pesos, para la semana completa. Ganancias te dice cuánto sería por jornada en los días que quedan. Pon 0 para no usarla.",
                 value = (goals.weeklyMinor / 100).toInt(),

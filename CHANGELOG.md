@@ -14,6 +14,19 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.57.0] — 2026-11-16
+
+### Añadido
+
+- Widget con el día a la vista: neto (o ingreso, si el modelo de costos no puede calcularlo), horas en línea, neto por hora, viajes con los que faltan por confirmar y progreso de las metas, además del estado, las gomas y el último respaldo.
+- Botón rápido con el dinero de hoy bajo «Leyendo».
+- Notificación del servicio con «Hoy: RD$… · viajes · tiempo», actualizada cada minuto.
+- Meta de horas en línea por jornada, con aviso único al alcanzarla (con el aviso de metas activado).
+
+### Validación
+
+`TodayTest` (3) correcta en el entorno del agente. Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.56.0] — 2026-11-16
 
 ### Añadido

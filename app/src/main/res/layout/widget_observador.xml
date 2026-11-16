@@ -24,6 +24,30 @@
         android:textSize="14sp" />
 
     <TextView
+        android:id="@+id/widget_today"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#FFFFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_today_details"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="2"
+        android:textColor="#EEFFFFFF"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/widget_goals"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#EEFFFFFF"
+        android:textSize="12sp" />
+
+    <TextView
         android:id="@+id/widget_tyres"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

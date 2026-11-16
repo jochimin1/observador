@@ -467,5 +467,12 @@
     "tag": "v1.56.0",
     "branch": "release/1.56.0",
     "source": "verified-workspace"
+  },
+  {
+    "version": "1.57.0",
+    "versionCode": 68,
+    "tag": "v1.57.0",
+    "branch": "release/1.57.0",
+    "source": "verified-workspace"
   }
 ]

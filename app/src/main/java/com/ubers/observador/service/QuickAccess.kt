@@ -28,7 +28,9 @@ import java.time.ZoneId
 
 /** 1.56.0: what the tile and the widget show, read from the same places as the app. */
 internal object QuickState {
-    data class State(val reading: Boolean, val mode: String, val tyres: String?, val lastBackup: Long?)
+    data class State(val reading: Boolean, val mode: String, val tyres: String?, val lastBackup: Long?,
+        /** 1.57.0 */
+        val today: com.ubers.observador.domain.earnings.TodayFigures? = null)
 
     suspend fun read(context: Context): State {
         val app = context.applicationContext
@@ -42,7 +44,7 @@ internal object QuickState {
                 TireRules.status(data, vehicle.id, it, emptyList(), System.currentTimeMillis(), ZoneId.systemDefault(), s.tirePressureUnit.first())
             })
         }.getOrNull()
-        return State(s.observerEnabled.first(), s.operatingMode.first(), tyres, s.lastBackupAt.first())
+        return State(s.observerEnabled.first(), s.operatingMode.first(), tyres, s.lastBackupAt.first(), TodayLoader.load(app))
     }
 
     fun modeLabel(mode: String) = when (mode) {
@@ -79,7 +81,9 @@ class ObservadorTileService : TileService() {
         val tile = qsTile ?: return
         tile.state = if (st.reading) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Observador"
-        tile.subtitle = if (st.reading) "Leyendo · ${QuickState.modeLabel(st.mode)}" else "En pausa"
+        // 1.57.0: today's money under the state
+        tile.subtitle = (if (st.reading) "Leyendo" else "En pausa") +
+            (st.today?.let { " · " + com.ubers.observador.domain.earnings.Today.tileLine(it) } ?: if (st.reading) " · ${QuickState.modeLabel(st.mode)}" else "")
         tile.contentDescription = "Observador ${if (st.reading) "leyendo, toca para pausar" else "en pausa, toca para reanudar"}"
         tile.icon = Icon.createWithResource(this, R.drawable.ic_two_wheeler)
         tile.updateTile()
@@ -108,6 +112,12 @@ class ObservadorWidget : AppWidgetProvider() {
             ids.forEach { id ->
                 val v = RemoteViews(context.packageName, R.layout.widget_observador)
                 v.setTextViewText(R.id.widget_status, if (st.reading) "Leyendo · ${QuickState.modeLabel(st.mode)}" else "En pausa")
+                // 1.57.0: the day at a glance
+                val t = st.today
+                v.setTextViewText(R.id.widget_today, t?.let { com.ubers.observador.domain.earnings.Today.headline(it) } ?: "Hoy: sin datos todavía")
+                v.setTextViewText(R.id.widget_today_details, t?.let { com.ubers.observador.domain.earnings.Today.details(it) } ?: "")
+                v.setTextViewText(R.id.widget_goals, t?.let { com.ubers.observador.domain.earnings.Today.goals(it) } ?: "")
+                v.setViewVisibility(R.id.widget_goals, if (t?.let { com.ubers.observador.domain.earnings.Today.goals(it) } == null) android.view.View.GONE else android.view.View.VISIBLE)
                 v.setTextViewText(R.id.widget_tyres, st.tyres ?: "Neumáticos sin registrar")
                 v.setTextViewText(R.id.widget_backup, backup)
                 v.setOnClickPendingIntent(R.id.widget_root, open)

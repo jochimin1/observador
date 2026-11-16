@@ -169,6 +169,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setDailyGoalPesos(pesos: Int) = viewModelScope.launch { appSettings.updateDailyGoal(pesos * 100L) }
 
+    /** 1.57.0 */
+    fun setDailyOnlineGoalHours(hours: Int) = viewModelScope.launch { appSettings.updateDailyOnlineGoal(hours * 60) }
+
     fun setWeeklyGoalPesos(pesos: Int) = viewModelScope.launch { appSettings.updateWeeklyGoal(pesos * 100L) }
 
     fun setWeekStart(day: java.time.DayOfWeek) = viewModelScope.launch {

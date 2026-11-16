@@ -91,6 +91,8 @@ class AppSettings(private val context: Context) {
 
         // Fase 8C: goals. Not part of profiles
         private val KEY_DAILY_GOAL = androidx.datastore.preferences.core.longPreferencesKey("daily_goal_minor")
+        // 1.57.0: hours online goal, in minutes
+        private val KEY_DAILY_ONLINE_GOAL = androidx.datastore.preferences.core.intPreferencesKey("daily_goal_online_minutes")
         private val KEY_WEEKLY_GOAL = androidx.datastore.preferences.core.longPreferencesKey("weekly_goal_minor")
         private val KEY_GOAL_NOTIFICATION = androidx.datastore.preferences.core.booleanPreferencesKey("goal_notification")
         private val KEY_WEEK_START = stringPreferencesKey("week_start_day")
@@ -290,11 +292,14 @@ class AppSettings(private val context: Context) {
             dailyMinor = (prefs[KEY_DAILY_GOAL] ?: 0L).coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR),
             weeklyMinor = (prefs[KEY_WEEKLY_GOAL] ?: 0L).coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR),
             notify = prefs[KEY_GOAL_NOTIFICATION] ?: false,
-            weekStart = if (prefs[KEY_WEEK_START] == java.time.DayOfWeek.SUNDAY.name) java.time.DayOfWeek.SUNDAY else java.time.DayOfWeek.MONDAY
+            weekStart = if (prefs[KEY_WEEK_START] == java.time.DayOfWeek.SUNDAY.name) java.time.DayOfWeek.SUNDAY else java.time.DayOfWeek.MONDAY,
+            dailyOnlineMinutes = (prefs[KEY_DAILY_ONLINE_GOAL] ?: 0).coerceIn(0, com.ubers.observador.domain.earnings.Today.MAX_GOAL_MINUTES)
         )
     }
 
     suspend fun updateDailyGoal(minor: Long) = editSettings { it[KEY_DAILY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
+
+    suspend fun updateDailyOnlineGoal(minutes: Int) = editSettings { it[KEY_DAILY_ONLINE_GOAL] = minutes.coerceIn(0, com.ubers.observador.domain.earnings.Today.MAX_GOAL_MINUTES) }
 
     suspend fun updateWeeklyGoal(minor: Long) = editSettings { it[KEY_WEEKLY_GOAL] = minor.coerceIn(0, com.ubers.observador.domain.earnings.Goals.MAX_GOAL_MINOR) }
 

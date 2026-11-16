@@ -9,7 +9,9 @@ data class GoalSettings(
     val weeklyMinor: Long = 0,
     /** Decision 10: the "meta alcanzada" notification is off until the driver turns it on. */
     val notify: Boolean = false,
-    val weekStart: DayOfWeek = DayOfWeek.MONDAY
+    val weekStart: DayOfWeek = DayOfWeek.MONDAY,
+    /** 1.57.0: confirmed minutes online wanted today (0 = no goal). */
+    val dailyOnlineMinutes: Int = 0
 ) {
     val hasAny: Boolean get() = dailyMinor > 0 || weeklyMinor > 0
 }

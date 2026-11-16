@@ -33,6 +33,8 @@ object GoalNotifier {
     private val lock = Mutex()
 
     suspend fun check(context: Context) = lock.withLock {
+        // 1.57.0: new money also refreshes the widget's figures
+        ObservadorWidget.refresh(context)
         try {
             val app = context.applicationContext
             val settings = AppSettings(app)

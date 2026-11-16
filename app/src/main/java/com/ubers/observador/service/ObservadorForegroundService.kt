@@ -185,10 +185,18 @@ class ObservadorForegroundService : Service() {
                 ticker.map { clock.workdayOf(it) }.distinctUntilChanged().flatMapLatest { distances.observeDay(it) }
             }
             // 1.37.0: in «Automático» the notification offers «Pasar a Asistido», which stops closing
-            combine(settings.observerEnabled, DistanceMonitor.state, today, settings.operatingMode) { active, live, day, mode ->
-                NotificationInputs(active, live.measuring != null, day, mode == AppSettings.MODE_AUTO)
-            }.distinctUntilChanged().collect { (active, measuring, day, automatic) ->
-                val built = buildNotification(active, if (measuring) measuringText(day) else null, automatic)
+            // 1.57.0: today's money and time, refreshed once a minute; the widget follows every 5 minutes
+            val money = ticker.map { it / 60_000 }.distinctUntilChanged().map { minute ->
+                val t = TodayLoader.load(applicationContext)
+                if (t != null) TodayLoader.checkHoursGoal(applicationContext, t)
+                if (minute % 5 == 0L) ObservadorWidget.refresh(applicationContext)
+                t?.let { com.ubers.observador.domain.earnings.Today.notificationLine(it) }
+            }.distinctUntilChanged()
+            combine(settings.observerEnabled, DistanceMonitor.state, today, settings.operatingMode, money) { active, live, day, mode, line ->
+                NotificationInputs(active, live.measuring != null, day, mode == AppSettings.MODE_AUTO, line)
+            }.distinctUntilChanged().collect { (active, measuring, day, automatic, line) ->
+                val text = listOfNotNull(if (measuring) measuringText(day) else null, line).joinToString(" · ").ifEmpty { null }
+                val built = buildNotification(active, text, automatic)
                 notification = built
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, built)
             }
@@ -306,7 +314,7 @@ class ObservadorForegroundService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private data class NotificationInputs(val active: Boolean, val measuring: Boolean, val day: DayDistance, val automatic: Boolean)
+    private data class NotificationInputs(val active: Boolean, val measuring: Boolean, val day: DayDistance, val automatic: Boolean, val todayLine: String?)
 
     private fun buildNotification(active: Boolean, measuringText: String?, automatic: Boolean = false): Notification {
         val openIntent = PendingIntent.getActivity(
