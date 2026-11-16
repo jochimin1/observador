@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">observador</string>
     <string name="accessibility_description">Observador lee las ofertas de Uber Moto para calcular su rentabilidad. Nunca acepta ni rechaza viajes automáticamente en modo Observador.</string>
+    <!-- 1.56.0 -->
+    <string name="widget_description">Si Observador está leyendo, el estado de tus gomas y el último respaldo</string>
+    <string name="tile_label">Observador</string>
 </resources>

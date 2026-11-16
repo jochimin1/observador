@@ -119,6 +119,11 @@ class SectorCloser(
             if (!root.refresh()) return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
             val snapshot = ScreenSnapshotFactory.from(root, System.currentTimeMillis())
             val found = CloseTarget.find(snapshot, ticket.offer, ticket.windowId)
+            // 1.56.0: the whole screen and the decision, to confirm where Uber's X is
+            CloseLogStore.evidence(service, snapshot, ticket.offer.price, ticket.places, when (found) {
+                is CloseTarget.Result.Found -> "X encontrada «${found.label}» en el nodo ${found.index}" + if (simulate) " (simulación)" else ""
+                is CloseTarget.Result.Refused -> "Sin X: ${found.reason}" + if (simulate) " (simulación)" else ""
+            })
             if (found is CloseTarget.Result.Refused) return "${CloseLog.NOT_CLOSED} (${found.reason})"
             found as CloseTarget.Result.Found
             if (simulate) return "${CloseLog.SIMULATED} (botón «${found.label}»)"
@@ -223,6 +228,35 @@ object CloseLogStore {
         } catch (e: Exception) {
             Log.w("CloseLogStore", "Could not write the close log", e)
         } }
+    }
+
+    /** 1.56.0: one evidence block per «Cerrar» countdown (see CloseEvidence), kept until the driver erases data. */
+    fun evidence(context: Context, snapshot: com.ubers.observador.domain.lifecycle.ScreenSnapshot, price: Double, places: String, decision: String) {
+        val app = context.applicationContext
+        val version = runCatching { app.packageManager.getPackageInfo("com.ubercab.driver", 0).versionName }.getOrNull()
+        val text = com.ubers.observador.domain.sectors.CloseEvidence.format(snapshot, price, places, decision, version, ZoneId.systemDefault())
+        com.ubers.observador.domain.backup.MaintenanceGate.shared.tryAccess { try {
+            dir(app).mkdirs()
+            File(dir(app), com.ubers.observador.domain.sectors.CloseEvidence.fileName(snapshot.timestampMs, ZoneId.systemDefault())).appendText(text)
+        } catch (e: Exception) {
+            Log.w("CloseLogStore", "Could not write close evidence", e)
+        } }
+    }
+
+    fun evidenceFiles(context: Context): List<File> =
+        dir(context).listFiles { f -> f.isFile && f.name.startsWith(com.ubers.observador.domain.sectors.CloseEvidence.FILE_PREFIX) }?.sortedBy { it.name }.orEmpty()
+
+    fun evidenceCount(context: Context): Int = evidenceFiles(context).sumOf { f ->
+        runCatching { com.ubers.observador.domain.sectors.CloseEvidence.count(f.readText()) }.getOrDefault(0)
+    }
+
+    /** Every evidence file and every daily close log, in one .zip. */
+    fun exportEvidence(context: Context, out: java.io.OutputStream) {
+        java.util.zip.ZipOutputStream(out.buffered()).use { zip ->
+            (dir(context).listFiles { f -> f.isFile }?.sortedBy { it.name }.orEmpty()).forEach { f ->
+                zip.putNextEntry(java.util.zip.ZipEntry(f.name)); f.inputStream().use { it.copyTo(zip) }; zip.closeEntry()
+            }
+        }
     }
 
     fun todayLines(context: Context): List<String> =

@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 66
-        versionName = "1.55.0"
+        versionCode = 67
+        versionName = "1.56.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -164,6 +164,8 @@ dependencies {
     implementation(libs.vico.compose.m3)
     // 1.54.0: camera reading of the TPMS kit card
     implementation(libs.zxing.android.embedded)
+    // 1.56.0: weekly automatic backup
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

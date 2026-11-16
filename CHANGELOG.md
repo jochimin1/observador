@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.56.0] — 2026-11-16
+
+### Añadido
+
+- Respaldo automático semanal, completo, en la carpeta que elijas, con batería y espacio suficientes; se verifica tras escribirlo y avisa si falla.
+- Lista de respaldos de esa carpeta (fecha, tamaño, automático o manual, cifrado) con restauración desde la lista; ninguno se borra solo.
+- Botón «Observador» en los ajustes rápidos de Android para pausar o reanudar la lectura.
+- Widget de pantalla de inicio: lectura o pausa, modo, estado de las gomas y último respaldo.
+- Evidencia para validar la X de Uber: en modo Automático, cada oferta de un sector «Cerrar» guarda la pantalla completa de Uber y la decisión (X encontrada o por qué no), exportable desde Ajustes › Sectores. El cierre sigue en simulación hasta revisar esa evidencia.
+
+### Validación
+
+Pruebas JVM `CloseEvidenceTest` y `AutoBackupRulesTest` correctas en el entorno del agente. Gradle, lint, instrumentación, ajustes rápidos, widget y trabajo semanal en el teléfono pendientes. Sin cambio de esquema (Room 24). Dependencia nueva `androidx.work:work-runtime-ktx` 2.10.0.
+
 ## [1.55.0] — 2026-11-16
 
 ### Añadido

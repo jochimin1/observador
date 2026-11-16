@@ -124,6 +124,9 @@ fun BackupSection(viewModel: BackupViewModel = viewModel()) {
         }
     }
 
+    // 1.56.0: weekly automatic backup and the list of backups in its folder
+    AutoBackupCard(onRestore = { uri -> viewModel.choose(uri, if (encrypted) password else "") }, busy = state.busy)
+
     state.progress?.let { progress ->
         // Cannot be dismissed: the data is being replaced or erased
         AlertDialog(
@@ -241,4 +244,82 @@ fun RestoreResultDialog() {
         text = { Text(ResetRules.noticeBody(text)) },
         confirmButton = { TextButton(onClick = { scope.launch { settings.setPendingNotice(null) } }) { Text("Listo") } }
     )
+}
+
+
+/** 1.56.0: «Respaldo automático semanal» and every Observador backup found in its folder. */
+@Composable
+private fun AutoBackupCard(onRestore: (android.net.Uri) -> Unit, busy: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var version by androidx.compose.runtime.remember { mutableStateOf(0) }
+    var enabled by androidx.compose.runtime.remember { mutableStateOf(com.ubers.observador.service.AutoBackup.enabled(context)) }
+    var list by androidx.compose.runtime.remember { mutableStateOf<List<com.ubers.observador.domain.backup.AutoBackupRules.Entry>?>(null) }
+    var status by androidx.compose.runtime.remember { mutableStateOf(com.ubers.observador.service.AutoBackup.status(context)) }
+    var restoring by androidx.compose.runtime.remember { mutableStateOf<com.ubers.observador.domain.backup.AutoBackupRules.Entry?>(null) }
+    androidx.compose.runtime.LaunchedEffect(version) {
+        list = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ubers.observador.service.AutoBackup.list(context) }
+        status = com.ubers.observador.service.AutoBackup.status(context)
+        enabled = com.ubers.observador.service.AutoBackup.enabled(context)
+    }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) { com.ubers.observador.service.AutoBackup.setFolder(context, uri); version++ }
+    }
+    SectionCard(title = "Respaldo automático", icon = R.drawable.ic_download, subtitle = "Una vez por semana, con batería suficiente") {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Guarda cada semana un respaldo completo, con todos tus datos, en la carpeta que elijas: el teléfono, la tarjeta SD o una carpeta de Drive si tienes la app. " +
+                "Cada respaldo se comprueba después de escribirlo. No lleva contraseña; si quieres uno cifrado, créalo a mano arriba.",
+                style = MaterialTheme.typography.bodySmall)
+            val folder = com.ubers.observador.service.AutoBackup.folder(context)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (folder == null) "Sin carpeta elegida" else "Carpeta: " + (folder.lastPathSegment?.substringAfterLast(':') ?: "elegida"),
+                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(checked = enabled, enabled = folder != null, onCheckedChange = {
+                    com.ubers.observador.service.AutoBackup.setEnabled(context, it); version++
+                })
+            }
+            Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { folderPicker.launch(null) }) { Text(if (folder == null) "Elegir carpeta" else "Cambiar carpeta") }
+                if (folder != null) TextButton(enabled = !busy, onClick = {
+                    com.ubers.observador.service.AutoBackup.runNow(context)
+                    scope.launch { kotlinx.coroutines.delay(15_000); version++ }
+                }) { Text("Hacer uno ahora") }
+            }
+            if (folder != null) {
+                androidx.compose.material3.HorizontalDivider()
+                val l = list
+                when {
+                    l == null -> Text("Buscando respaldos…", style = MaterialTheme.typography.bodySmall)
+                    l.isEmpty() -> Text("No hay respaldos de Observador en esa carpeta todavía.", style = MaterialTheme.typography.bodySmall)
+                    else -> {
+                        Text("${l.size} respaldos · ${BackupFormat.sizeText(com.ubers.observador.domain.backup.AutoBackupRules.totalBytes(l))} en total. " +
+                            "Ninguno se borra solo; si necesitas espacio, bórralos desde la app de archivos.", style = MaterialTheme.typography.bodySmall)
+                        l.forEach { e ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(LAST_BACKUP_FORMAT.format(Instant.ofEpochMilli(e.modifiedAt).atZone(ZoneId.systemDefault())) + " · " +
+                                    BackupFormat.sizeText(e.bytes) + " · " + (if (e.automatic) "automático" else "manual") + if (e.encrypted) " · cifrado" else "",
+                                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                TextButton(enabled = !busy, onClick = { restoring = e }) { Text("Restaurar") }
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = { version++ }) { Text("Actualizar lista") }
+            }
+        }
+    }
+    restoring?.let { e ->
+        AlertDialog(onDismissRequest = { restoring = null }, title = { Text("Restaurar este respaldo") },
+            text = { Text("Se revisará el archivo antes de reemplazar nada y antes se guarda una copia de seguridad de lo actual." +
+                if (e.encrypted) " Es un respaldo cifrado: activa «Cifrar / abrir respaldo cifrado» arriba y escribe su contraseña antes." else "") },
+            confirmButton = { TextButton(onClick = {
+                restoring = null
+                scope.launch {
+                    val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ubers.observador.service.AutoBackup.documentUri(context, e.name) }
+                    if (uri != null) onRestore(uri)
+                }
+            }) { Text("Revisar y restaurar") } },
+            dismissButton = { TextButton(onClick = { restoring = null }) { Text("Cancelar") } })
+    }
 }

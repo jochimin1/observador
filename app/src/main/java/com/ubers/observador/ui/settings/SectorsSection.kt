@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ubers.observador.R
+import kotlinx.coroutines.launch
 import com.ubers.observador.domain.sectors.CareSector
 import com.ubers.observador.domain.sectors.CareSectorCodec
 import com.ubers.observador.domain.sectors.OfferPlaceKind
@@ -104,6 +105,11 @@ fun SectorsSection(viewModel: SectorsViewModel = viewModel()) {
                 state.closeLog.forEach { line ->
                     Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            // 1.56.0: evidence to turn the «Automático» close from simulation into a real touch
+            if (state.sectors.isNotEmpty()) {
+                HorizontalDivider()
+                CloseEvidenceBlock()
             }
             if (state.sectors.isNotEmpty()) {
                 OutlinedButton(onClick = { testing = true }, modifier = Modifier.fillMaxWidth()) {
@@ -444,4 +450,38 @@ private fun verdictText(v: SectorMatcher.Verdict): String = when (v) {
     is SectorMatcher.Verdict.OutOfSchedule -> "No avisa ahora: su horario es ${v.schedule.label}."
     is SectorMatcher.Verdict.OtherProduct -> "No avisa: es solo para ${v.product}."
     SectorMatcher.Verdict.NotFound -> "No está en esta dirección."
+}
+
+
+/**
+ * 1.56.0: every «Cerrar» countdown writes Uber's whole screen and what Observador decided. With a
+ * few of them exported, the real X can be confirmed and the close stops being a simulation.
+ */
+@Composable
+private fun CloseEvidenceBlock() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var count by remember { mutableStateOf<Int?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        count = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ubers.observador.service.CloseLogStore.evidenceCount(context) }
+    }
+    val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) scope.launch {
+            message = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri, "w")?.use { com.ubers.observador.service.CloseLogStore.exportEvidence(context, it) }; "Evidencia exportada." }
+                    .getOrElse { "No se pudo exportar: ${it.message}" }
+            }
+        }
+    }
+    Text("Cierre con la X: ${if (com.ubers.observador.domain.sectors.CloseTarget.VALIDATED) "activo" else "en simulación"}", style = MaterialTheme.typography.labelLarge)
+    Text(if (com.ubers.observador.domain.sectors.CloseTarget.VALIDATED) "Observador toca la X de Uber en las ofertas de sectores «Cerrar» en modo Automático."
+        else "Para activarlo hace falta confirmar dónde está la X de Uber. Con el modo Automático y un sector en «Cerrar», cada oferta de ese sector guarda aquí la pantalla de Uber y lo que Observador habría hecho, sin tocar nada. " +
+            "Cuando tengas 3 o más, exporta la evidencia y envíamela.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("${count ?: "…"} ofertas grabadas", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        TextButton(enabled = (count ?: 0) > 0, onClick = { exporter.launch("observador-evidencia-cierres-${java.time.LocalDate.now()}.zip") }) { Text("Exportar evidencia") }
+    }
+    message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }

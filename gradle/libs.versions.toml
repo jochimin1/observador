@@ -18,6 +18,8 @@ playServicesLocation = "21.3.0"
 vico = "3.2.3"
 # 1.54.0: read the sensor kit card (Code 128 per sensor, QR for both)
 zxingEmbedded = "4.3.0"
+# 1.56.0: weekly automatic backup
+workRuntime = "2.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +49,7 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntime" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
