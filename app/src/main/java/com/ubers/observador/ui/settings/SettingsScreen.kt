@@ -381,6 +381,8 @@ fun SettingsScreen(
 
             if (group == SettingsGroup.PROFIT) {
             SectionHeader("Ganancias y metas", R.drawable.ic_flag)
+            // 1.61.0
+            WeeklyReviewCard()
             val goals by viewModel.goals.collectAsState()
             IntSettingCard(
                 title = "Meta diaria",
@@ -495,6 +497,8 @@ fun SettingsScreen(
             }
 
             if (group == SettingsGroup.READING) {
+            // 1.61.0
+            ReadingHealthCard()
             SectionHeader("Tarjeta sobre Uber", R.drawable.ic_layers)
             SettingCard(
                 title = "Mostrar tarjeta sobre Uber",

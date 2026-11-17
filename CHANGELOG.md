@@ -14,6 +14,20 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.61.0] — 2026-11-16
+
+### Añadido
+
+- Cuando Uber se actualiza, Observador lo detecta, te avisa y vigila las primeras 20 ofertas. Si empieza a leer mal varias (3 o más y al menos el 30 % de las últimas 20), te avisa con una notificación.
+- Ajustes › Lectura: «Salud de lectura por versión de Uber», con ofertas leídas, sin leer, totales de dinero y estado de la X por versión.
+- Tras una actualización de Uber, la confirmación del dinero en Ganancias vuelve a pedir 3 viajes con la nueva versión (la X ya se aprendía de nuevo).
+- Neumáticos: con la goma caliente (5 °C o más sobre 25 °C) se muestra también la presión equivalente en frío, y las alertas de presión usan esa.
+- «Revisión de la semana»: una notificación el día elegido (domingo por defecto, desde las 7 p. m.) con ingreso, neto, horas, viajes, cierres de sectores, gomas y pendientes. Se apaga o cambia de día en Ajustes › Ganancias y metas; «Ver ahora» la envía al momento.
+
+### Validación
+
+`UberWatchTest` (3), `TireWarmthTest` (1), `WeekReviewTest` (2), `MoneyChecksTest` (4) y las de neumáticos y TPMS correctas en el entorno del agente. Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.60.0] — 2026-11-16
 
 ### Añadido

@@ -63,7 +63,7 @@ object TireAlertMonitor {
             for (f in frames.sortedBy { it.receivedAt }) {
                 val b = bindings.firstOrNull { it.sensorId == f.sensorId && f.parsedId == it.sensorId } ?: continue
                 val target = TireRules.active(TireData(tires), b.vehicleId, b.position)?.target
-                tracker.onSample(TpmsSample(b.position, f.receivedAt, f.pressurePa?.let { TpmsReference.gauge(it) }, f.temperatureCenti, f.batteryPct, f.leak?.let { it == 1 }), target)
+                tracker.onSample(TpmsSample(b.position, f.receivedAt, f.pressurePa?.let { TireWarmth.coldGauge(TpmsReference.gauge(it), f.temperatureCenti) }, f.temperatureCenti, f.batteryPct, f.leak?.let { it == 1 }), target)
                     .forEach { events += it to b }
             }
             tracker.onTick(System.currentTimeMillis(), listening, bindings.map { it.position }.toSet()).forEach { e ->

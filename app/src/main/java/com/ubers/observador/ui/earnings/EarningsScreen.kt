@@ -312,7 +312,7 @@ private fun MoneyCheckCard(mc: MoneyChecksUi, viewModel: EarningsViewModel) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                 Icon(painterResource(R.drawable.ic_science), contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
-                Text(com.ubers.observador.domain.earnings.MoneyChecks.describe(mc.state), style = MaterialTheme.typography.bodySmall, color = content)
+                Text(com.ubers.observador.domain.earnings.MoneyChecks.describe(mc.state, mc.afterUpdate), style = MaterialTheme.typography.bodySmall, color = content)
             }
             if (mc.candidates.isEmpty() && !mc.state.validated) {
                 Text("Cuando termines un viaje y Observador lea su total de Uber, aparecerá aquí para que lo compares.",

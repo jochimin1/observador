@@ -46,6 +46,10 @@ class FinancialPersistenceCoordinator(
             val result = repository.persistObservation(observation, System.currentTimeMillis())
             _metrics.value = _metrics.value.afterPersist(result)
             if (result is FinancialPersistResult.Stored) {
+                // 1.61.0: a trip total read from Uber's screen, for the reading health per Uber version
+                if (observation.source == com.ubers.observador.domain.finance.FinancialSource.UBER_SCREEN &&
+                    observation.semantics == com.ubers.observador.domain.finance.AmountSemantics.ABSOLUTE_TOTAL
+                ) UberWatchStore.mark(com.ubers.observador.domain.health.ReadingEvent.MONEY_TOTAL)
                 try {
                     onStored()
                 } catch (e: CancellationException) {

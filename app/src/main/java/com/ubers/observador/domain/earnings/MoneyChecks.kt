@@ -45,9 +45,12 @@ object MoneyChecks {
 
     fun parse(text: String): List<MoneyCheck> = text.lines().mapNotNull(::decode)
 
-    /** The last answer for each trip counts; then the run of matches at the end decides. */
-    fun state(checks: List<MoneyCheck>): MoneyCheckState {
-        val last = checks.sortedBy { it.atMs }.associateBy { it.tripId }.values.sortedBy { it.atMs }
+    /**
+     * The last answer for each trip counts; then the run of matches at the end decides. 1.61.0:
+     * after an Uber update ([sinceMs]), only answers given since then count.
+     */
+    fun state(checks: List<MoneyCheck>, sinceMs: Long? = null): MoneyCheckState {
+        val last = checks.filter { sinceMs == null || it.atMs >= sinceMs }.sortedBy { it.atMs }.associateBy { it.tripId }.values.sortedBy { it.atMs }
         val inARow = last.takeLastWhile { it.verdict == MoneyVerdict.MATCH }.size
         return MoneyCheckState(inARow >= REQUIRED, inARow, last.count { it.verdict == MoneyVerdict.MATCH },
             last.count { it.verdict == MoneyVerdict.CORRECTED }, last.map { it.tripId }.toSet())
@@ -57,11 +60,13 @@ object MoneyChecks {
      * Trips worth checking: a real total read from Uber's screen (never a manual one), not
      * cancelled, not yet checked; newest first.
      */
-    fun candidates(rows: List<TripMoneyRow>, readFromUber: Set<String>, state: MoneyCheckState, limit: Int = REQUIRED): List<TripMoneyRow> =
-        rows.filter { it.real != null && !it.cancelled && it.tripId in readFromUber && it.tripId !in state.checkedTrips }
+    fun candidates(rows: List<TripMoneyRow>, readFromUber: Set<String>, state: MoneyCheckState, limit: Int = REQUIRED, sinceMs: Long? = null): List<TripMoneyRow> =
+        rows.filter { it.real != null && !it.cancelled && it.tripId in readFromUber && it.tripId !in state.checkedTrips &&
+            (sinceMs == null || it.completedAt >= sinceMs) }
             .sortedByDescending { it.completedAt }.take(limit)
 
-    fun describe(s: MoneyCheckState): String = when {
+    fun describe(s: MoneyCheckState, afterUpdate: Boolean = false): String = when {
+        afterUpdate && !s.validated -> "Uber se actualizó: confirma otra vez $REQUIRED viajes con esta versión (${s.inARow} de $REQUIRED coinciden)."
         s.validated -> "Lecturas de dinero confirmadas: los últimos ${s.inARow} viajes que revisaste coinciden con Uber."
         s.corrections > 0 && s.inARow == 0 -> "La última lectura que revisaste no coincidía con Uber y quedó corregida. " +
             "Hacen falta $REQUIRED viajes seguidos que coincidan para confirmar las lecturas."

@@ -65,7 +65,9 @@ import java.time.ZoneId
  */
 data class MoneyChecksUi(
     val state: com.ubers.observador.domain.earnings.MoneyCheckState,
-    val candidates: List<TripMoneyRow>
+    val candidates: List<TripMoneyRow>,
+    /** 1.61.0: Uber changed version on this phone; the count restarted then. */
+    val afterUpdate: Boolean = false
 )
 
 /** The goals as shown: always today and this week, whatever period is being browsed. */
@@ -417,7 +419,9 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     val moneyChecks: StateFlow<MoneyChecksUi?> = combine(state, checksVersion) { s, _ -> s }
         .mapLatest { s ->
             val app = getApplication<Application>()
-            val st = com.ubers.observador.domain.earnings.MoneyChecks.state(com.ubers.observador.data.MoneyCheckStore.all(app))
+            // 1.61.0: after an Uber update, only answers and trips since then count
+            val since = com.ubers.observador.service.UberWatchStore.updatedAt(app)
+            val st = com.ubers.observador.domain.earnings.MoneyChecks.state(com.ubers.observador.data.MoneyCheckStore.all(app), since)
             val rows = s.report?.trips.orEmpty().filter { it.real != null && !it.cancelled && it.tripId !in st.checkedTrips }.take(15)
             // Only totals read from Uber's screen are worth checking: a manual one is already the driver's
             val fromUber = rows.filter { row ->
@@ -426,7 +430,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
                     it.semantics == com.ubers.observador.domain.finance.AmountSemantics.ABSOLUTE_TOTAL } &&
                     history.none { it.source == com.ubers.observador.domain.finance.FinancialSource.MANUAL }
             }.map { it.tripId }.toSet()
-            MoneyChecksUi(st, com.ubers.observador.domain.earnings.MoneyChecks.candidates(rows, fromUber, st))
+            MoneyChecksUi(st, com.ubers.observador.domain.earnings.MoneyChecks.candidates(rows, fromUber, st, sinceMs = since), since != null)
         }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

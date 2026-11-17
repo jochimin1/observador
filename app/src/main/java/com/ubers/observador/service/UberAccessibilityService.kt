@@ -99,6 +99,8 @@ class UberAccessibilityService : AccessibilityService() {
         if (com.ubers.observador.data.backup.DataRecovery.failure != null) { observing = false; return }
         settings = AppSettings(applicationContext)
         ReadingAuditRecorder.init(applicationContext)
+        // 1.61.0: every reading is marked with the Uber version installed
+        UberWatchStore.init(applicationContext)
         repository = OfferRepository(AppDatabase.getInstance(applicationContext))
         shadowScorer = ShadowScorer(
             settings, IntelligenceRepository(AppDatabase.getInstance(applicationContext)),
@@ -258,6 +260,7 @@ class UberAccessibilityService : AccessibilityService() {
             cancelAbsenceCheck()
             val hash = offer.offerHash()
             if (tracker.onOfferSeen(hash, SystemClock.elapsedRealtime())) {
+                UberWatchStore.mark(com.ubers.observador.domain.health.ReadingEvent.OFFER_OK)
                 sessionStart(offer, hash, found?.second?.windowId)
             }
         }
@@ -273,6 +276,7 @@ class UberAccessibilityService : AccessibilityService() {
                 if (reading.problems.isNotEmpty() && unreadableKey != key) {
                     unreadableKey = key
                     HealthMonitor.onUnreadable(snapshot.timestampMs, reading.problems.joinToString(". ") { it.label })
+                    UberWatchStore.mark(com.ubers.observador.domain.health.ReadingEvent.OFFER_UNREADABLE)
                     overlayManager.dismiss()
                     notifier.cancel()
                     val generation = readingGeneration

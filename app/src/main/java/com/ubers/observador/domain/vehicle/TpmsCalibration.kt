@@ -185,3 +185,31 @@ object TpmsDiagnosis {
 
     private fun minutes(ms: Long): String = if (ms < 90_000) "${ms / 1000} s" else "${ms / 60_000} min"
 }
+
+/**
+ * 1.61.0: a warm tyre reads more pressure than a cold one. The manufacturer's pressure is for a cold
+ * tyre, so the alerts compare the pressure the tyre would have cold: same air, same volume, the
+ * absolute pressure scales with the absolute temperature (ideal gas). The cold reference is 25 °C,
+ * the usual morning air here; a tyre less than 5 °C above it counts as cold and is not corrected.
+ */
+object TireWarmth {
+    const val COLD_REFERENCE_CENTI = 2_500
+    const val WARM_MARGIN_CENTI = 500
+
+    fun isWarm(temperatureCenti: Int?): Boolean = temperatureCenti != null && temperatureCenti >= COLD_REFERENCE_CENTI + WARM_MARGIN_CENTI
+
+    /** The gauge pressure at the cold reference for [gaugePa] read at [temperatureCenti]. */
+    fun coldGauge(gaugePa: Int, temperatureCenti: Int?): Int {
+        if (!isWarm(temperatureCenti)) return gaugePa
+        val absolute = gaugePa.toDouble() + TpmsParser.ATMOSPHERE_PA
+        val k = (COLD_REFERENCE_CENTI / 100.0 + 273.15) / (temperatureCenti!! / 100.0 + 273.15)
+        return Math.round(absolute * k - TpmsParser.ATMOSPHERE_PA).toInt().coerceAtLeast(0)
+    }
+
+    /** «33.0 psi a 45 °C · en frío ≈ 30.0 psi», or just the pressure when cold. */
+    fun shown(gaugePa: Int, temperatureCenti: Int?, unit: PressureUnit, temperature: TemperatureUnit): String {
+        val now = TirePressure.format(gaugePa, unit)
+        if (!isWarm(temperatureCenti)) return now
+        return "$now a ${temperature.format(temperatureCenti!!)} · en frío ≈ ${TirePressure.format(coldGauge(gaugePa, temperatureCenti), unit)}"
+    }
+}

@@ -389,7 +389,9 @@ private fun SensorLine(position: WheelPosition, state: TiresUiState, sensors: Se
         val bat = frame.batteryPct?.let { " · batería del sensor $it %" } ?: ""
         Text("Temperatura y batería: ${t.removePrefix(" · ")}$bat.", style = MaterialTheme.typography.bodySmall)
         val confirmed = (tpms.state as? CalibrationState.Confirmed)?.reference
-        if (confirmed != null) Text("Presión: ${TirePressure.format(TpmsReference.gauge(raw, confirmed), state.unit)} (como la marcaría el manómetro)",
+        // 1.61.0: hot, it also says the pressure it would have cold (what the alerts compare)
+        if (confirmed != null) Text("Presión: ${TireWarmth.shown(TpmsReference.gauge(raw, confirmed), frame.temperatureCenti, state.unit, state.limits.temperature)}" +
+            if (TireWarmth.isWarm(frame.temperatureCenti)) ". Las alertas usan la presión en frío." else " (como la marcaría el manómetro)",
             style = MaterialTheme.typography.bodySmall)
         else Text("Presión por confirmar: el sensor envía ${TirePressure.format(raw, PressureUnit.KPA)}. Si es absoluta, el manómetro marcaría " +
             "${TirePressure.format(TpmsParser.gaugeIfAbsolute(raw), state.unit)}; si ya es manométrica, ${TirePressure.format(raw, state.unit)}. " +

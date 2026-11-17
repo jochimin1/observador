@@ -11,5 +11,7 @@ class ObservadorApplication : Application() {
         // The restart helper is intentionally independent of the process replacing its data.
         if (getProcessName().endsWith(":restart")) return
         runBlocking(Dispatchers.IO) { DataRecovery.recover(this@ObservadorApplication) }
+        // 1.61.0: «Revisión de la semana» (a daily check; notifies only on the chosen day)
+        com.ubers.observador.service.WeeklyReview.ensureScheduled(this)
     }
 }

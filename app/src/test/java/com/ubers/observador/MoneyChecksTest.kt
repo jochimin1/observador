@@ -47,4 +47,13 @@ class MoneyChecksTest {
         assertEquals(listOf("e", "b", "a"), got.map { it.tripId })
         assertEquals(listOf("e"), MoneyChecks.candidates(rows, setOf("e"), st).map { it.tripId })
     }
+
+    @Test fun afterAnUberUpdateOnlyNewAnswersCount() {
+        val before = listOf(ok(1, "a"), ok(2, "b"), ok(3, "c"))
+        assertTrue(MoneyChecks.state(before).validated)
+        val st = MoneyChecks.state(before + ok(20, "d"), sinceMs = 10)
+        assertFalse(st.validated)
+        assertEquals(1, st.inARow)
+        assertTrue(MoneyChecks.describe(st, afterUpdate = true).startsWith("Uber se actualizó"))
+    }
 }
