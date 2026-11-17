@@ -482,7 +482,8 @@ class UberAccessibilityService : AccessibilityService() {
         return com.ubers.observador.domain.sectors.CloseRules.decide(
             automatic = config.automatic,
             level = match.level,
-            validated = LearnedXStore.signature(this) != null,
+            validated = LearnedXStore.signature(this) != null ||
+                com.ubers.observador.domain.sectors.UberCardX.confirmedFor(UberWatchStore.uberVersion(this)),
             closedToday = CloseLogStore.usedToday(this)
         )
     }

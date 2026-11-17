@@ -49,6 +49,11 @@ object CloseEvidence {
         sb.append("decision=").append(clean(decision)).append('\n')
         sb.append("tarjeta=").append(region?.let { "${it.first}..${it.last}" } ?: "no encontrada").append('\n')
         sb.append("posibles_x_por_forma=").append(if (shapes.isEmpty()) "ninguna" else shapes.joinToString(",") { it.index.toString() }).append('\n')
+        // 1.63.0: what the rule of the captures finds (place and shape inside the card's box)
+        sb.append("x_por_regla=").append(when (val r = UberCardX.find(snapshot, price)) {
+            is CloseTarget.Result.Found -> r.index.toString()
+            is CloseTarget.Result.Refused -> "ninguna (" + clean(r.reason) + ")"
+        }).append('\n')
         snapshot.nodes.forEachIndexed { i, n ->
             val mark = when {
                 region != null && i in region -> "T"

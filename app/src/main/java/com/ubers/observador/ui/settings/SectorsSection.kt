@@ -485,11 +485,16 @@ private fun CloseEvidenceBlock() {
             }
         }
     }
-    val active = learned is com.ubers.observador.domain.sectors.LearnedX.State.Learned
+    // 1.63.0: active with the X learned from the driver, or with the X of the captures for this Uber version
+    val uberVersion = remember(refresh) { com.ubers.observador.service.LearnedXStore.uberVersion(context) }
+    val byRule = com.ubers.observador.domain.sectors.UberCardX.confirmedFor(uberVersion)
+    val active = learned is com.ubers.observador.domain.sectors.LearnedX.State.Learned || byRule
     Text("Cierre con la X: ${if (active) "activo" else "en simulación"}", style = MaterialTheme.typography.labelLarge)
     Text(
-        if (active) "Observador toca la X de Uber en las ofertas de sectores «Cerrar» en modo Automático, con 3 segundos para impedirlo. Nunca acepta viajes."
-        else "Observador aprende cuál es la X mirando cómo cierras tú: cierra a mano con la X de Uber ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} ofertas " +
+        if (active) "Observador toca la X de Uber en las ofertas de sectores «Cerrar» en modo Automático, con 3 segundos para impedirlo. Nunca acepta viajes." +
+            (if (byRule && learned !is com.ubers.observador.domain.sectors.LearnedX.State.Learned)
+                " La X está confirmada con tus capturas para Uber $uberVersion: un botón sin texto en la esquina superior derecha de la tarjeta." else "")
+        else "Esta versión de Uber (${uberVersion ?: "?"}) no está confirmada con capturas. Observador aprende cuál es la X mirando cómo cierras tú: cierra a mano con la X de Uber ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} ofertas " +
             "(cualquier oferta, con Observador encendido). Cuando las ${com.ubers.observador.domain.sectors.LearnedX.REQUIRED} coinciden en el mismo botón, el cierre deja de ser simulación.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
     )

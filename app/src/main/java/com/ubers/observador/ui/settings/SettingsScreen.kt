@@ -989,8 +989,8 @@ private fun ModeSelector(current: String, goodFrom: Int, onSelect: (String) -> U
             AppSettings.MODE_AUTO, "Automático",
             "Como Asistido, y además cierra con la X las ofertas de tus sectores en nivel «Cerrar», " +
                 "con 3 segundos para impedirlo tocando la tarjeta. Nunca acepta viajes." +
-                " Toca la X solo cuando ya la aprendió de 3 cierres tuyos a mano (Ajustes › Sectores); " +
-                    "hasta entonces simula: muestra y anota lo que cerraría, sin tocar Uber.",
+                " Toca la X cuando está confirmada para tu versión de Uber (con capturas reales o con 3 cierres tuyos a mano, " +
+                    "ver Ajustes › Sectores); si no, simula: muestra y anota lo que cerraría, sin tocar Uber.",
             true
         )
     )

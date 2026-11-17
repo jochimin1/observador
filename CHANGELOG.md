@@ -14,6 +14,22 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.63.0] — 2026-11-16
+
+### Añadido
+
+- El cierre automático con la X de Uber deja de ser simulación en Uber 4.605: la evidencia exportada el 16/11 (23 cuentas atrás y 2 pantallas completas, una tarjeta sola y el Radar) muestra que la X es un botón sin texto de 132×132 px en la esquina superior derecha de la tarjeta. Observador la busca por ese lugar y esa forma, exige que haya exactamente una y que la tarjeta siga siendo la misma oferta, y solo entonces toca, con los 3 segundos para impedirlo y el tope diario.
+- La evidencia de cada cierre anota además `x_por_regla`, el botón que encuentra la regla.
+
+### Corregido
+
+- Las 22 ofertas sin cerrar por «No se reconoce la X de la tarjeta»: la X no tiene palabras y Uber la escribe después de «Me interesa», fuera del tramo de la tarjeta donde se buscaba.
+- El aprendizaje de la X con cierres a mano (1.59.0) nunca podía aprender por la misma razón; ahora reconoce la X por su lugar dentro de la tarjeta.
+
+### Validación
+
+`UberCardXTest` (5) con las dos pantallas reales (lugares de pasajeros sustituidos por TEST), y `LearnedXTest`, `PendingSectorClosesTest`, `CloseEvidenceTest`, `CloseSummaryTest` correctas en el entorno del agente. Gradle, lint, instrumentación y el primer cierre real en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.62.0] — 2026-11-16
 
 ### Añadido

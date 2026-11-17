@@ -1,0 +1,192 @@
+=== Cierre 2026-11-16T16:01:55.403-04:00
+uber=4.605.10002 precio=90.51 lugares=Destino: Alameda
+decision=Sin X: No se reconoce la X de la tarjeta (simulación)
+tarjeta=0..77
+posibles_x_por_forma=ninguna
+T   0 | FrameLayout | t= | d= | id= | - | @0,0,1080,2340
+T   1 | LinearLayout | t= | d= | id= | - | @0,0,1080,2210
+T   2 | FrameLayout | t= | d= | id= | - | @0,0,1080,2210
+T   3 | LinearLayout | t= | d= | id=action_bar_root | - | @0,0,1080,2210
+T   4 | FrameLayout | t= | d= | id=content | - | @0,0,1080,2210
+T   5 | FrameLayout | t= | d= | id=rootView | - | @0,0,1080,2210
+T   6 | ViewGroup | t= | d= | id= | - | @0,76,1080,2210
+T   7 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   8 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   9 | ViewGroup | t= | d= | id=online_view_container | - | @0,76,1080,2210
+T   10 | LinearLayout | t= | d= | id= | - | @0,76,1080,2210
+T   11 | FrameLayout | t= | d= | id=system_banner_container | -,oculto | @0,76,1080,76
+T   12 | FrameLayout | t= | d= | id=glide_container | - | @0,76,1080,2210
+T   13 | FrameLayout | t= | d= | id=glide_background_container | - | @0,76,1080,2210
+T   14 | ViewGroup | t= | d= | id=rxmap | - | @0,76,1080,2210
+T   15 | ViewGroup | t= | d= | id=annotations | - | @0,76,1080,2210
+T   16 | FrameLayout | t= | d= | id=map | - | @0,76,1080,2210
+T   17 | FrameLayout | t= | d= | id= | toca | @0,76,1080,2210
+T   18 | View | t= | d= | id= | - | @0,76,1080,2210
+T   19 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   20 | ViewGroup | t= | d= | id=map_marker | toca | @420,557,519,736
+T   21 | ViewGroup | t= | d= | id=map_marker_pin_head | - | @420,557,519,656
+T   22 | FrameLayout | t= | d= | id=leading_custom_view | - | @448,557,492,656
+T   23 | ImageView | t= | d= | id= | - | @448,557,492,656
+T   24 | View | t= | d= | id=map_marker_needle_view | - | @464,654,475,690
+T   25 | View | t= | d= | id=map_marker_anchor | - | @448,686,492,730
+T   26 | ViewGroup | t= | d= | id=map_marker | toca | @159,406,258,585
+T   27 | ViewGroup | t= | d= | id=map_marker_pin_head | - | @159,406,258,505
+T   28 | FrameLayout | t= | d= | id=leading_custom_view | - | @187,406,231,505
+T   29 | ImageView | t= | d= | id= | - | @187,406,231,505
+T   30 | View | t= | d= | id=map_marker_needle_view | - | @203,503,214,539
+T   31 | View | t= | d= | id=map_marker_anchor | - | @187,535,231,579
+T   32 | FrameLayout | t= | d= | id=online_view | - | @0,76,1080,2210
+T   33 | ViewGroup | t= | d= | id= | - | @0,76,1080,2210
+T   34 | FrameLayout | t= | d= | id=ub_driver_offers_browse_pill_container | -,oculto | @496,1025,584,1025
+T   35 | FrameLayout | t= | d= | id= | - | @0,1047,1080,2210
+T   36 | ViewGroup | t= | d= | id= | - | @44,1047,1036,2166
+T   37 | FrameLayout | t= | d= | id=primary_touch_area | - | @44,1047,1036,2166
+T   38 | CardView | t= | d= | id= | toca | @44,1047,1036,2166
+T   39 | LinearLayout | t= | d= | id= | - | @44,1047,1036,2166
+T   40 | LinearLayout | t= | d= | id= | - | @44,1047,1036,1624
+T   41 | FrameLayout | t= | d= | id= | - | @88,1091,992,1591
+T   42 | LinearLayout | t= | d= | id= | - | @88,1091,992,1591
+T   43 | ViewGroup | t= | d= | id= | - | @88,1091,992,1177
+T   44 | LinearLayout | t= | d= | id= | - | @88,1091,295,1177
+T   45 | ImageView | t= | d= | id= | - | @110,1112,154,1156
+T   46 | TextView | t=Moto | d= | id= | - | @176,1091,295,1177
+T   47 | LinearLayout | t= | d= | id= | - | @88,1177,596,1320
+T   48 | TextView | t=DOP90.51 | d= | id= | - | @88,1177,596,1320
+T   49 | LinearLayout | t= | d= | id= | - | @88,1320,508,1397
+T   50 | TextView | t=DOP22.63/km est. | d= | id= | - | @88,1320,508,1397
+T   51 | ViewGroup | t= | d= | id= | - | @88,1397,992,1591
+T   52 | LinearLayout | t= | d= | id= | - | @88,1397,992,1483
+T   53 | ImageView | t= | d= | id= | - | @110,1418,154,1462
+T   54 | TextView | t=Identidad digital verificada o Tarjeta de crédito | d= | id= | - | @176,1397,992,1483
+T   55 | LinearLayout | t= | d= | id= | - | @88,1505,403,1591
+T   56 | ImageView | t= | d= | id= | - | @110,1526,154,1570
+T   57 | TextView | t=4.92 (1395) | d= | id= | - | @176,1505,403,1591
+T   58 | ImageView | t= | d= | id= | - | @44,1624,1036,1627
+T   59 | FrameLayout | t= | d= | id= | - | @44,1627,1036,1946
+T   60 | LinearLayout | t= | d= | id= | - | @88,1660,992,1924
+T   61 | LinearLayout | t= | d= | id= | - | @88,1660,913,1924
+T   62 | LinearLayout | t= | d= | id= | - | @88,1660,913,1792
+T   63 | ImageView | t= | d= | id= | - | @88,1693,154,1759
+T   64 | LinearLayout | t= | d= | id= | - | @176,1660,913,1792
+T   65 | LinearLayout | t= | d= | id= | - | @176,1660,715,1726
+T   66 | TextView | t=A 7 min (1.7 km) de distancia | d= | id= | - | @176,1660,715,1726
+T   67 | LinearLayout | t= | d= | id= | - | @176,1726,504,1792
+T   68 | TextView | t=TEST Recogida | d= | id= | - | @176,1726,504,1792
+T   69 | LinearLayout | t= | d= | id= | - | @88,1792,913,1924
+T   70 | ImageView | t= | d= | id= | - | @88,1825,154,1891
+T   71 | LinearLayout | t= | d= | id= | - | @176,1792,913,1924
+T   72 | LinearLayout | t= | d= | id= | - | @176,1792,557,1858
+T   73 | TextView | t=Viaje: 4 min (2.3 km) | d= | id= | - | @176,1792,557,1858
+T   74 | LinearLayout | t= | d= | id= | - | @176,1858,913,1924
+T   75 | TextView | t=TEST Destino, Alameda | d= | id= | - | @176,1858,913,1924
+T   76 | FrameLayout | t= | d= | id= | - | @88,1968,992,2122
+T   77 | Button | t=Me interesa | d= | id= | toca | @88,1968,992,2122
+    78 | View | t= | d= | id= | - | @88,1968,992,2122
+    79 | Button | t= | d= | id= | toca | @860,1091,992,1223
+    80 | View | t= | d= | id=statusBarBackground | -,oculto | @0,0,1080,76
+    81 | View | t= | d= | id=navigationBarBackground | -,oculto | @0,2210,1080,2340
+
+=== Cierre 2026-11-16T22:20:27.560-04:00
+uber=4.605.10002 precio=240.64 lugares=Destino: Country Club
+decision=Sin X: No se reconoce la X de la tarjeta (simulación)
+tarjeta=0..85
+posibles_x_por_forma=ninguna
+T   0 | FrameLayout | t= | d= | id= | - | @0,0,1080,2340
+T   1 | LinearLayout | t= | d= | id= | - | @0,0,1080,2210
+T   2 | FrameLayout | t= | d= | id= | - | @0,0,1080,2210
+T   3 | LinearLayout | t= | d= | id=action_bar_root | - | @0,0,1080,2210
+T   4 | FrameLayout | t= | d= | id=content | - | @0,0,1080,2210
+T   5 | FrameLayout | t= | d= | id=rootView | - | @0,0,1080,2210
+T   6 | ViewGroup | t= | d= | id= | - | @0,76,1080,2210
+T   7 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   8 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   9 | ViewGroup | t= | d= | id=online_view_container | - | @0,76,1080,2210
+T   10 | LinearLayout | t= | d= | id= | - | @0,76,1080,2210
+T   11 | FrameLayout | t= | d= | id=system_banner_container | -,oculto | @0,76,1080,76
+T   12 | FrameLayout | t= | d= | id=glide_container | - | @0,76,1080,2210
+T   13 | FrameLayout | t= | d= | id=glide_background_container | - | @0,76,1080,2210
+T   14 | ViewGroup | t= | d= | id=rxmap | - | @0,76,1080,2210
+T   15 | ViewGroup | t= | d= | id=annotations | - | @0,76,1080,2210
+T   16 | FrameLayout | t= | d= | id=map | - | @0,76,1080,2210
+T   17 | FrameLayout | t= | d= | id= | toca | @0,76,1080,2210
+T   18 | View | t= | d= | id= | - | @0,76,1080,2210
+T   19 | FrameLayout | t= | d= | id= | - | @0,76,1080,2210
+T   20 | ViewGroup | t= | d= | id=map_marker | toca | @650,119,749,298
+T   21 | ViewGroup | t= | d= | id=map_marker_pin_head | - | @650,119,749,218
+T   22 | FrameLayout | t= | d= | id=leading_custom_view | - | @678,119,722,218
+T   23 | ImageView | t= | d= | id= | - | @678,119,722,218
+T   24 | View | t= | d= | id=map_marker_needle_view | - | @694,216,705,252
+T   25 | View | t= | d= | id=map_marker_anchor | - | @678,248,722,292
+T   26 | ViewGroup | t= | d= | id=map_marker | toca | @341,418,440,597
+T   27 | ViewGroup | t= | d= | id=map_marker_pin_head | - | @341,418,440,517
+T   28 | FrameLayout | t= | d= | id=leading_custom_view | - | @369,418,413,517
+T   29 | ImageView | t= | d= | id= | - | @369,418,413,517
+T   30 | View | t= | d= | id=map_marker_needle_view | - | @385,515,396,551
+T   31 | View | t= | d= | id=map_marker_anchor | - | @369,547,413,591
+T   32 | FrameLayout | t= | d= | id=online_view | - | @0,76,1080,2210
+T   33 | ViewGroup | t= | d= | id= | - | @0,76,1080,2210
+T   34 | FrameLayout | t= | d= | id=ub_driver_offers_browse_pill_container | - | @168,684,913,816
+T   35 | ViewGroup | t= | d= | id=ub_driver_offers_browse_offer_pill_view | toca | @212,684,869,816
+T   36 | TextView | t=Radar de solicitud de viaje | d= | id=ub__driver_job_offers_pill_title | - | @256,717,748,783
+T   37 | FrameLayout | t= | d= | id=ub__driver_job_offers_pill_badge | - | @770,723,825,778
+T   38 | TextView | t=2 | d= | id= | - | @776,729,819,771
+T   39 | RecyclerView | t= | d= | id= | - | @0,838,1080,2210
+T   40 | FrameLayout | t= | d= | id= | - | @44,843,1036,2127
+T   41 | ViewGroup | t= | d= | id= | - | @44,843,1036,2127
+T   42 | FrameLayout | t= | d= | id=primary_touch_area | - | @44,843,1036,2127
+T   43 | CardView | t= | d= | id= | toca | @44,843,1036,2127
+T   44 | LinearLayout | t= | d= | id= | - | @44,843,1036,2127
+T   45 | LinearLayout | t= | d= | id= | - | @44,843,1036,1420
+T   46 | FrameLayout | t= | d= | id= | - | @88,887,992,1387
+T   47 | LinearLayout | t= | d= | id= | - | @88,887,992,1387
+T   48 | ViewGroup | t= | d= | id= | - | @88,887,992,973
+T   49 | LinearLayout | t= | d= | id= | - | @88,887,295,973
+T   50 | ImageView | t= | d= | id= | - | @110,908,154,952
+T   51 | TextView | t=Moto | d= | id= | - | @176,887,295,973
+T   52 | LinearLayout | t= | d= | id= | - | @88,973,668,1116
+T   53 | TextView | t=DOP240.64 | d= | id= | - | @88,973,668,1116
+T   54 | LinearLayout | t= | d= | id= | - | @88,1116,510,1193
+T   55 | TextView | t=DOP16.04/km est. | d= | id= | - | @88,1116,510,1193
+T   56 | ViewGroup | t= | d= | id= | - | @88,1193,992,1387
+T   57 | LinearLayout | t= | d= | id= | - | @88,1193,992,1279
+T   58 | ImageView | t= | d= | id= | - | @110,1214,154,1258
+T   59 | TextView | t=Identidad digital verificada o Tarjeta de crédito | d= | id= | - | @176,1193,992,1279
+T   60 | LinearLayout | t= | d= | id= | - | @88,1301,388,1387
+T   61 | ImageView | t= | d= | id= | - | @110,1322,154,1366
+T   62 | TextView | t=4.85 (445) | d= | id= | - | @176,1301,388,1387
+T   63 | LinearLayout | t= | d= | id= | - | @410,1301,881,1387
+T   64 | ImageView | t= | d= | id= | - | @432,1322,476,1366
+T   65 | TextView | t=+DOP17.00 incluido | d= | id= | - | @498,1301,881,1387
+T   66 | ImageView | t= | d= | id= | - | @44,1420,1036,1423
+T   67 | FrameLayout | t= | d= | id= | - | @44,1423,1036,1907
+T   68 | LinearLayout | t= | d= | id= | - | @88,1456,992,1885
+T   69 | LinearLayout | t= | d= | id= | - | @88,1456,992,1885
+T   70 | LinearLayout | t= | d= | id= | - | @88,1456,992,1698
+T   71 | ImageView | t= | d= | id= | - | @88,1544,154,1610
+T   72 | LinearLayout | t= | d= | id= | - | @176,1456,992,1698
+T   73 | LinearLayout | t= | d= | id= | - | @176,1456,721,1522
+T   74 | TextView | t=A 9 min (3.0 km) de distancia | d= | id= | - | @176,1456,721,1522
+T   75 | LinearLayout | t= | d= | id= | - | @176,1522,992,1698
+T   76 | TextView | t=TEST Recogida 2 | d= | id= | - | @176,1522,992,1698
+T   77 | LinearLayout | t= | d= | id= | - | @88,1698,992,1885
+T   78 | ImageView | t= | d= | id= | - | @88,1758,154,1824
+T   79 | LinearLayout | t= | d= | id= | - | @176,1698,992,1885
+T   80 | LinearLayout | t= | d= | id= | - | @176,1698,595,1764
+T   81 | TextView | t=Viaje: 13 min (12.0 km) | d= | id= | - | @176,1698,595,1764
+T   82 | LinearLayout | t= | d= | id= | - | @176,1764,992,1885
+T   83 | TextView | t=TEST Destino, Country Club | d= | id= | - | @176,1764,992,1885
+T   84 | FrameLayout | t= | d= | id= | - | @88,1929,992,2083
+T   85 | Button | t=Me interesa | d= | id= | toca | @88,1929,992,2083
+    86 | View | t= | d= | id= | - | @88,1929,992,2083
+    87 | Button | t= | d= | id= | toca | @860,887,992,1019
+    88 | FrameLayout | t= | d= | id= | - | @44,1343,1036,2168
+    89 | ViewGroup | t= | d= | id= | - | @44,1343,1036,2168
+    90 | CardView | t= | d= | id= | - | @44,1343,1036,2168
+    91 | LinearLayout | t= | d= | id= | - | @44,1343,1036,2168
+    92 | View | t= | d= | id= | - | @44,1376,1036,1486
+    93 | View | t= | d= | id= | - | @44,1519,1036,1629
+    94 | View | t= | d= | id= | - | @44,1695,1036,1915
+    95 | View | t= | d= | id= | - | @44,1981,1036,2135
+    96 | View | t= | d= | id=statusBarBackground | -,oculto | @0,0,1080,76
+    97 | View | t= | d= | id=navigationBarBackground | -,oculto | @0,2210,1080,2340
+

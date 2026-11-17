@@ -90,12 +90,17 @@ object CloseTarget {
         if (snapshot.packageName != "com.ubercab.driver" || snapshot.windowId != windowId) {
             return Result.Refused("La ventana cambió")
         }
-        val found = if (learned != null) LearnedX.find(snapshot, expected.price, learned) else find(snapshot, expected.price)
+        // 1.63.0: the learned X first, then the X of the captures (place and shape), then words
+        val found = when {
+            learned != null -> LearnedX.find(snapshot, expected.price, learned)
+            else -> UberCardX.find(snapshot, expected.price).let { rule ->
+                if (rule is Result.Found) rule else find(snapshot, expected.price).takeIf { it is Result.Found } ?: rule
+            }
+        }
         if (found !is Result.Found) return found
-        val actions = actionIndices(snapshot.nodes)
-        val end = actions.first { it > found.index }
-        val start = actions.lastOrNull { it < found.index }?.plus(1) ?: 0
-        val texts = snapshot.copy(nodes = snapshot.nodes.subList(start, end + 1)).texts
+        // The card that holds that price must still be exactly the offer that was scheduled
+        val card = UberCards.withPrice(UberCards.of(snapshot), expected.price) ?: return Result.Refused("La tarjeta cambió")
+        val texts = snapshot.copy(nodes = snapshot.nodes.subList(card.region.first, card.region.last + 1)).texts
         val actual = com.ubers.observador.domain.lifecycle.OfferCardParser.parseAll(texts).singleOrNull()
         if (actual == null || actual.contentFingerprint() != expected.contentFingerprint()) {
             return Result.Refused("La tarjeta cambió")

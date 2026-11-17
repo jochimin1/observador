@@ -88,11 +88,13 @@ class SectorCloser(
                     if (registry.take(ticket) == null) return@withContext
                     timers.remove(ticket.offer.offerHash())
                     val learned = LearnedXStore.signature(service)
-                    val outcome = registry.outcome(ticket, CloseLogStore.usedToday(service), overlayVisible(), learned != null)
+                    // 1.63.0: the X of the captures is confirmed for the Uber versions they came from
+                    val rule = com.ubers.observador.domain.sectors.UberCardX.confirmedFor(UberWatchStore.uberVersion(service))
+                    val outcome = registry.outcome(ticket, CloseLogStore.usedToday(service), overlayVisible(), learned != null || rule)
                     val result = if (outcome == CloseOutcome.NONE) {
                         "${CloseLog.NOT_CLOSED} (Las condiciones ya no permiten cerrar)"
                     } else {
-                        attempt(ticket, simulate = outcome == CloseOutcome.SIMULATE, learned = learned)
+                        attempt(ticket, simulate = outcome == CloseOutcome.SIMULATE, learned = learned, rule = rule)
                     }
                     CloseLogStore.append(service, result, ticket.places, ticket.offer.price)
                     if (result == CloseLog.REQUESTED) verifyLater(ticket)
@@ -111,7 +113,7 @@ class SectorCloser(
     }
 
     @Suppress("DEPRECATION")
-    private fun attempt(ticket: PendingSectorCloses.Ticket, simulate: Boolean, learned: LearnedX.Signature?): String {
+    private fun attempt(ticket: PendingSectorCloses.Ticket, simulate: Boolean, learned: LearnedX.Signature?, rule: Boolean = false): String {
         // Do not act on a background Uber window while another app is in front.
         val active = service.rootInActiveWindow ?: return "${CloseLog.NOT_CLOSED} (Sin ventana activa)"
         try {
@@ -134,8 +136,11 @@ class SectorCloser(
             if (found is CloseTarget.Result.Refused) return "${CloseLog.NOT_CLOSED} (${found.reason})"
             found as CloseTarget.Result.Found
             if (simulate) return "${CloseLog.SIMULATED} (botón «${found.label}»)"
-            // Even an accidental direct call cannot touch a button that was not learned from the driver.
-            if (learned == null) return "${CloseLog.NOT_CLOSED} (X sin aprender)"
+            // Even an accidental direct call cannot touch a button that was neither learned from the driver
+            // nor found by the rule of the captures for this Uber version (a word match alone never touches).
+            if (learned == null && !(rule && found.label == com.ubers.observador.domain.sectors.UberCardX.LABEL)) {
+                return "${CloseLog.NOT_CLOSED} (X sin confirmar para esta versión de Uber)"
+            }
             val node = ScreenSnapshotFactory.nodeAt(root, found.index)
                 ?: return "${CloseLog.NOT_CLOSED} (La pantalla cambió)"
             try {

@@ -1,6 +1,5 @@
 package com.ubers.observador.domain.sectors
 
-import com.ubers.observador.domain.lifecycle.OfferPatterns
 import com.ubers.observador.domain.lifecycle.ScreenNode
 import com.ubers.observador.domain.lifecycle.ScreenSnapshot
 import com.ubers.observador.domain.lifecycle.TextNormalizer
@@ -57,15 +56,6 @@ object LearnedX {
     private fun norm(s: String?): String? = s?.let { TextNormalizer.normalize(it) }?.takeIf { it.isNotBlank() }
     private fun blank(s: String?): String? = s?.takeIf { it.isNotBlank() }
 
-    /** The card regions of a screen: from after the previous card's button to this card's button. */
-    private fun regions(nodes: List<ScreenNode>): List<IntRange> {
-        val actions = CloseTarget.actionIndices(nodes)
-        return actions.mapIndexed { k, end -> (if (k == 0) 0 else actions[k - 1] + 1)..end }
-    }
-
-    private fun priceOf(nodes: List<ScreenNode>, region: IntRange): Double? =
-        region.firstNotNullOfOrNull { i -> nodes[i].text?.let { OfferPatterns.fareValue(it) } }
-
     private fun keyOf(n: ScreenNode) = Key(n.className?.substringAfterLast('.') ?: "?", blank(n.viewId), blank(n.contentDescription), blank(n.text))
 
     /**
@@ -84,14 +74,14 @@ object LearnedX {
         }
         val index = same.singleOrNull() ?: return null
         val node = nodes[index]
-        val region = regions(nodes).singleOrNull { index in it } ?: return null
-        if (index == region.last) return null
+        // 1.63.0: by place: Uber writes its X after the card's button, so it is outside the card's run of text
+        val card = UberCards.holding(UberCards.of(before), Box.of(node)) ?: return null
+        if (index == card.action) return null
         if (CloseTarget.forbidden(node) || CloseTarget.forbidden(touched)) return null
         val w = node.right - node.left; val h = node.bottom - node.top
         if (w !in MIN_SIDE..MAX_SIDE || h !in MIN_SIDE..MAX_SIDE) return null
-        val price = priceOf(nodes, region) ?: return null
-        val action = nodes[region.last]
-        return Observation(atMs, uberVersion ?: "?", keyOf(node), w, h, action.right - node.right, action.top - node.bottom, price)
+        val action = nodes[card.action]
+        return Observation(atMs, uberVersion ?: "?", keyOf(node), w, h, action.right - node.right, action.top - node.bottom, card.price)
     }
 
     // ---- The file: one line per observation, «olvidar» lines start again ----
@@ -150,21 +140,22 @@ object LearnedX {
     /** The learned X on the card that shows [price]: exactly one node or a refusal. */
     fun find(snapshot: ScreenSnapshot, price: Double, s: Signature): CloseTarget.Result {
         val nodes = snapshot.nodes
-        val regions = regions(nodes)
-        if (regions.isEmpty()) return CloseTarget.Result.Refused("No se ve el botón de la tarjeta")
-        val mine = regions.filter { r -> r.any { i -> nodes[i].text?.let { OfferPatterns.fareValue(it) }?.let { abs(it - price) < 0.005 } == true } }
+        val cards = UberCards.of(snapshot)
+        if (cards.isEmpty()) return CloseTarget.Result.Refused("No se ve el botón de la tarjeta")
+        val mine = cards.filter { abs(it.price - price) < 0.005 }
         if (mine.isEmpty()) return CloseTarget.Result.Refused("La oferta ya no está en pantalla")
         if (mine.size > 1) return CloseTarget.Result.Refused("Hay dos tarjetas con el mismo precio")
-        val region = mine.single()
-        val action = nodes[region.last]
-        val candidates = (region.first until region.last).filter { i ->
+        val card = mine.single()
+        val action = nodes[card.action]
+        // 1.63.0: anywhere inside the card's box (the real X comes after the button)
+        val candidates = nodes.indices.filter { i -> i != card.action && card.box.contains(Box.of(nodes[i])) && run {
             val n = nodes[i]
             val w = n.right - n.left; val h = n.bottom - n.top
             n.clickable && n.enabled && n.visibleToUser && !CloseTarget.forbidden(n) && keyOf(n).same(s.key) &&
                 close(w, s.width) && close(h, s.height) &&
                 abs((action.right - n.right) - s.fromRight) <= tolerance(s.width) &&
                 ((action.top - n.bottom) > 0) == s.above
-        }
+        } }
         return when (candidates.size) {
             1 -> CloseTarget.Result.Found(candidates.single(), label(nodes[candidates.single()]))
             0 -> CloseTarget.Result.Refused("No está la X aprendida en la tarjeta")
