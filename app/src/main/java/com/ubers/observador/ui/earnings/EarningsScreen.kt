@@ -229,6 +229,8 @@ fun EarningsScreen(
                 state.weekly?.let { w -> item { WeeklyCard(w) } }
                 item { GoalsCard(state.goals, onEdit = { editingGoals = true }) }
                 if (report.window.range != EarningsRange.DAY) item { BarsCard(report) }
+                // 1.62.0: the month as a calendar, money per day; a tap opens that day
+                if (report.window.range == EarningsRange.MONTH) item { MonthCalendarCard(report, state.goals.settings.weekStart, onDay = { viewModel.openDay(it) }) }
                 item { TimeCard(state.online, state.km, report.summary.totalObservedEarnings, report.summary.confirmedTripCount) }
                 state.expenses?.let { e -> item { ExpensesCard(e, state.net, report.window.range) } }
                 item { OperatingPanel(state.operating, state.costModels, state.clock, viewModel::saveCostModel) }
@@ -725,20 +727,63 @@ private fun UberCard(r: Reconciliation?, capturedAt: Long?) {
 @Composable
 private fun UberPeriodEditor(vm: EarningsViewModel) {
     var open by rememberSaveable { mutableStateOf(false) }
-    var start by rememberSaveable { mutableStateOf("") }
-    var end by rememberSaveable { mutableStateOf("") }
+    // 1.62.0: the days on the calendar, the hours written (HH:mm)
+    var startDay by rememberSaveable { mutableStateOf<String?>(null) }
+    var endDay by rememberSaveable { mutableStateOf<String?>(null) }
+    var startTime by rememberSaveable { mutableStateOf("00:00") }
+    var endTime by rememberSaveable { mutableStateOf("00:00") }
     var error by remember { mutableStateOf<String?>(null) }
     TextButton(onClick = { open = true }) { Text("Definir intervalo de esta referencia") }
     if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Periodo del importe de Uber") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Introduce los límites que corresponden al importe mostrado por Uber. Hora local; el final se excluye. La comparación solo dura esta consulta.")
-            OutlinedTextField(start, { start = it; error = null }, label = { Text("Inicio: AAAA-MM-DD HH:mm") }, singleLine = true)
-            OutlinedTextField(end, { end = it; error = null }, label = { Text("Fin: AAAA-MM-DD HH:mm") }, singleLine = true)
+        text = { Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Elige los límites que corresponden al importe mostrado por Uber. Hora local; el final se excluye. La comparación solo dura esta consulta.")
+            com.ubers.observador.ui.components.CalendarDateButton("Inicio", startDay?.let(java.time.LocalDate::parse),
+                onDate = { startDay = it.toString(); error = null }, max = java.time.LocalDate.now())
+            OutlinedTextField(startTime, { startTime = it; error = null }, label = { Text("Hora de inicio (HH:mm)") }, singleLine = true)
+            com.ubers.observador.ui.components.CalendarDateButton("Fin", endDay?.let(java.time.LocalDate::parse),
+                onDate = { endDay = it.toString(); error = null }, max = java.time.LocalDate.now().plusDays(1))
+            OutlinedTextField(endTime, { endTime = it; error = null }, label = { Text("Hora de fin (HH:mm)") }, singleLine = true)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             TextButton(onClick = { vm.clearUberPeriod(); open = false }) { Text("Quitar intervalo manual") }
         } },
-        confirmButton = { TextButton(onClick = { error = vm.compareUberPeriod(start, end); if (error == null) open = false }) { Text("Comparar") } },
+        confirmButton = { TextButton(onClick = {
+            val s = startDay; val e = endDay
+            error = if (s == null || e == null) "Elige el día de inicio y el de fin."
+            else vm.compareUberPeriod("$s ${startTime.trim()}", "$e ${endTime.trim()}")
+            if (error == null) open = false
+        }) { Text("Comparar") } },
         dismissButton = { TextButton(onClick = { open = false }) { Text("Cancelar") } })
+}
+
+/** 1.62.0: «Calendario del mes»: each working day with its confirmed income, coloured by how much. */
+@Composable
+private fun MonthCalendarCard(report: EarningsReport, weekStart: java.time.DayOfWeek, onDay: (java.time.LocalDate) -> Unit) {
+    val month = java.time.YearMonth.from(report.window.firstDay)
+    val best = report.bars.maxOfOrNull { it.incomeMinor }?.takeIf { it > 0 } ?: 1L
+    val marks = report.bars.filter { it.incomeMinor > 0 || it.completedTrips > 0 }.associate { b ->
+        b.day to com.ubers.observador.ui.components.DayMark(shortMoney(b.incomeMinor), (b.incomeMinor.toFloat() / best).coerceIn(0f, 1f))
+    }
+    val today = java.time.LocalDate.now()
+    SectionCard(title = "Calendario del mes", icon = R.drawable.ic_calendar_month,
+        subtitle = "${report.bars.count { it.incomeMinor > 0 }} días con ingreso confirmado") {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.ubers.observador.ui.components.MonthCalendar(
+                initialMonth = month, onDay = onDay, firstDayOfWeek = weekStart, minMonth = month, maxMonth = month,
+                enabled = { !it.isAfter(today) }, marks = marks
+            )
+            com.ubers.observador.ui.components.CalendarLegend("Más color, más ingreso. Toca un día para verlo.")
+        }
+    }
+}
+
+/** «1.2k», «850»: whole pesos, short enough for a calendar cell. */
+private fun shortMoney(minor: Long): String {
+    val pesos = minor / 100
+    return when {
+        pesos >= 10_000 -> "${pesos / 1000}k"
+        pesos >= 1_000 -> String.format(java.util.Locale.US, "%.1fk", pesos / 1000.0)
+        else -> pesos.toString()
+    }
 }
 
 // ---------------------------------------------------------------- pending and manual

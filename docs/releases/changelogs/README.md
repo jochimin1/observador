@@ -12,6 +12,7 @@ La única etiqueta original sin un changelog propio es 1.0.0: el archivo se intr
 - [1.59.0](1.59.0.md) — código 70
 - [1.60.0](1.60.0.md) — código 71
 - [1.61.0](1.61.0.md) — código 72
+- [1.62.0](1.62.0.md) — código 73
 - [1.57.0](1.57.0.md) — código 68
 - [1.56.0](1.56.0.md) — código 67
 - [1.55.0](1.55.0.md) — código 66

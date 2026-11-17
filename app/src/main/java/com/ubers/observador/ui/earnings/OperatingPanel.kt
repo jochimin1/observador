@@ -112,7 +112,9 @@ internal fun OperatingModelDialog(models: List<OperatingCostModel>, clock: Workd
             FixedCostBasis.entries.filter { it != FixedCostBasis.UNKNOWN }.forEach { option -> FilterChip(selected = basis == option, enabled = !busy, onClick = { basis = option }, label = { Text(option.label) }) }
             Text("Un fijo por jornada se carga una vez cuando hay actividad registrada. Por hora se carga sobre el tiempo en línea confirmado. Introduce la parte laboral; evita incluir costos que ya indicaste por km.", style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(share, { share = it }, enabled = !busy, label = { Text("Uso laboral de gastos sueltos (%)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            OutlinedTextField(date, { date = it }, enabled = !busy, label = { Text("Vigente desde AAAA-MM-DD") }, singleLine = true)
+            // 1.62.0: picked on the calendar; the rules of the validity date are still checked on save
+            com.ubers.observador.ui.components.CalendarDateButton("Vigente desde", runCatching { java.time.LocalDate.parse(date.trim()) }.getOrNull(),
+                onDate = { date = it.toString() }, enabled = !busy)
             Text(if (last == null) "La configuración inicial puede aplicarse desde el inicio de la jornada de hoy. Al guardar confirmas esa vigencia; las jornadas anteriores quedan sin modelo." else "Cada cambio crea otra versión para una jornada futura. No modifica las anteriores ni permite reescribir su vigencia.", style = MaterialTheme.typography.bodySmall)
             if (models.isNotEmpty()) {
                 Text("Historial de parámetros", style = MaterialTheme.typography.titleSmall)

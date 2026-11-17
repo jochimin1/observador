@@ -14,8 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,7 +27,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,7 +59,6 @@ import com.ubers.observador.ui.components.StatTile
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -307,24 +303,8 @@ private fun HistoryCard(state: ReportsUiState) {
     }
 }
 
-/** The Material date range picker; its dates are UTC midnights, read back as plain dates. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 1.62.0: the range is picked on the app's calendar (kizitonwose/Calendar): plain local dates, no time zone. */
 @Composable
 private fun RangeDialog(from: LocalDate?, to: LocalDate?, onDismiss: () -> Unit, onPick: (LocalDate, LocalDate) -> Unit) {
-    fun ms(d: LocalDate?) = d?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
-    val picker = rememberDateRangePickerState(initialSelectedStartDateMillis = ms(from), initialSelectedEndDateMillis = ms(to))
-    fun date(m: Long) = Instant.ofEpochMilli(m).atZone(ZoneOffset.UTC).toLocalDate()
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            val start = picker.selectedStartDateMillis
-            TextButton(
-                enabled = start != null,
-                onClick = { start?.let { s -> onPick(date(s), date(picker.selectedEndDateMillis ?: s)) } }
-            ) { Text("Listo") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    ) {
-        DateRangePicker(state = picker, modifier = Modifier.weight(1f))
-    }
+    com.ubers.observador.ui.components.CalendarRangeDialog("Periodo del reporte", from, to, onDismiss, onPick, max = LocalDate.now())
 }

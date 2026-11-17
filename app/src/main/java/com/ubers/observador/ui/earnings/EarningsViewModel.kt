@@ -148,7 +148,7 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
     fun compareUberPeriod(start: String, end: String): String? {
         val snapshot = state.value.referenceSnapshot ?: return "Ya no hay una referencia de Uber."
         val limits = com.ubers.observador.domain.finance.ExplicitMoneyPeriod.parse(start, end, ZoneId.systemDefault())
-            ?: return "Usa AAAA-MM-DD HH:mm, con fin posterior al inicio y hasta 366 días."
+            ?: return "Revisa las horas (HH:mm): el fin debe ser posterior al inicio y el periodo de hasta 366 días."
         uberPeriod.value = UberPeriodChoice(snapshot.snapshotId, limits.first, limits.second)
         return null
     }
@@ -308,6 +308,12 @@ class EarningsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun next() {
         selection.value = selection.value.let { it.first to minOf(0, it.second + 1) }
+    }
+
+    /** 1.62.0: a day tapped on the month calendar opens that working day. */
+    fun openDay(day: java.time.LocalDate) {
+        val today = state.value.clock.workdayOf(System.currentTimeMillis())
+        selection.value = EarningsRange.DAY to minOf(0, java.time.temporal.ChronoUnit.DAYS.between(today, day).toInt())
     }
 
     /** The weekly summary notification opens the week that ended. */

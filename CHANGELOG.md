@@ -14,6 +14,21 @@ Cada versión sube también `versionCode` en `app/build.gradle.kts` y lleva una 
 
 El detalle retrospectivo por versión, con commits y límites de validación, está en [el índice de changelogs](docs/releases/changelogs/README.md). Las etiquetas publicadas conservan su contenido original.
 
+## [1.62.0] — 2026-11-16
+
+### Añadido
+
+- Calendario propio de la app (biblioteca kizitonwose/Calendar 2.10.1, MIT), con la semana empezando en tu día de inicio, hoy marcado y lectura por TalkBack.
+- Ganancias › Mes: «Calendario del mes» con el ingreso confirmado de cada día, coloreado por cantidad; al tocar un día se abre ese día.
+
+### Cambiado
+
+- Las fechas se eligen en el calendario en lugar de escribir AAAA-MM-DD: instalación y registros de gomas (hasta hoy), vigencia del modelo de costos, periodo del importe de Uber (día en el calendario y hora HH:mm), gastos y periodo personalizado de Reportes (antes, el selector de Material).
+
+### Validación
+
+Sin pruebas JVM nuevas (cambios de interfaz). Gradle, lint, instrumentación y prueba en el teléfono pendientes. Sin cambio de esquema (Room 24).
+
 ## [1.61.0] — 2026-11-16
 
 ### Añadido

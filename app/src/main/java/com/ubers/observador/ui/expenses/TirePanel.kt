@@ -269,7 +269,7 @@ private fun InstallDialog(position: WheelPosition, unit: PressureUnit, current: 
     var note by rememberSaveable { mutableStateOf("") }
     val money = remember { MoneyRef(TireMoney.None) }
     TireDialog(if (current == null) "Registrar goma ${position.label.lowercase()}" else "Cambiar goma ${position.label.lowercase()}", onDismiss, save = {
-        val at = parseDay(date) ?: return@TireDialog "Fecha AAAA-MM-DD, hoy o anterior"
+        val at = parseDay(date) ?: return@TireDialog "Elige una fecha de hoy o anterior"
         val t = if (target.isBlank()) null else TirePressure.parse(target, targetUnit).getOrElse { return@TireDialog it.message }
         val k = parseKm(km).getOrElse { return@TireDialog it.message }
         val pay = money.read().getOrElse { return@TireDialog it.message }
@@ -280,7 +280,9 @@ private fun InstallDialog(position: WheelPosition, unit: PressureUnit, current: 
         OutlinedTextField(model, { model = it }, label = { Text("Modelo (opcional)") }, singleLine = true)
         OutlinedTextField(size, { size = it }, label = { Text("Medida, ej. 90/90-18 (opcional)") }, singleLine = true)
         PressureField("Presión objetivo (opcional)", target, { target = it }, targetUnit) { targetUnit = it }
-        OutlinedTextField(date, { date = it }, label = { Text("Fecha de instalación (AAAA-MM-DD)") }, singleLine = true)
+        // 1.62.0: picked on the calendar (today or before)
+        com.ubers.observador.ui.components.CalendarDateButton("Fecha de instalación", runCatching { LocalDate.parse(date) }.getOrNull(),
+            onDate = { date = it.toString() }, max = LocalDate.now(zone))
         OutlinedTextField(km, { km = it }, label = { Text("Odómetro al instalar, km (opcional)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
         OutlinedTextField(note, { note = it }, label = { Text("Nota (opcional)") })
@@ -319,7 +321,7 @@ private fun EventDialog(tire: Tire, kind: TireEventKind, existing: TireEvent?, u
     val initialMoney: TireMoney = existing?.expenseId?.let { id -> expenses.firstOrNull { it.id == id }?.let { TireMoney.New(it.amountMinor) } } ?: TireMoney.None
     val money = remember { MoneyRef(initialMoney) }
     TireDialog("${kind.label} · ${tire.position.label.lowercase()}", onDismiss, save = {
-        val at = if (existing != null && date == day(existing.atMs)) existing.atMs else parseDay(date) ?: return@TireDialog "Fecha AAAA-MM-DD, hoy o anterior"
+        val at = if (existing != null && date == day(existing.atMs)) existing.atMs else parseDay(date) ?: return@TireDialog "Elige una fecha de hoy o anterior"
         val p = if (pressure.isBlank()) null else TirePressure.parse(pressure, pUnit).getOrElse { return@TireDialog it.message }
         if (kind == TireEventKind.CHECK && p == null) return@TireDialog "Escribe la presión medida"
         val k = parseKm(km).getOrElse { return@TireDialog it.message }
@@ -335,7 +337,8 @@ private fun EventDialog(tire: Tire, kind: TireEventKind, existing: TireEvent?, u
                 TireTemperature.entries.forEach { t -> AppFilterChip(selected = temp == t, onClick = { temp = t }, label = { Text(t.label) }) }
             }
         }
-        OutlinedTextField(date, { date = it }, label = { Text("Fecha (AAAA-MM-DD)") }, singleLine = true)
+        com.ubers.observador.ui.components.CalendarDateButton("Fecha", runCatching { LocalDate.parse(date) }.getOrNull(),
+            onDate = { date = it.toString() }, max = LocalDate.now(zone))
         OutlinedTextField(km, { km = it }, label = { Text("Odómetro, km (opcional)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
         OutlinedTextField(note, { note = it }, label = { Text(if (kind == TireEventKind.REPAIR) "Qué se reparó (opcional)" else "Nota (opcional)") })

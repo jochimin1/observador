@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump on every release and log it in CHANGELOG.md:
         // versionCode +1 always; versionName MAJOR.MINOR.PATCH (each plan phase = MINOR, fixes = PATCH)
-        versionCode = 72
-        versionName = "1.61.0"
+        versionCode = 73
+        versionName = "1.62.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -166,6 +166,8 @@ dependencies {
     implementation(libs.zxing.android.embedded)
     // 1.56.0: weekly automatic backup
     implementation(libs.androidx.work.runtime.ktx)
+    // 1.62.0: month calendars for picking dates and for Ganancias
+    implementation(libs.kizitonwose.calendar.compose)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

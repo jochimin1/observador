@@ -12,9 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -22,7 +19,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +49,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
@@ -74,7 +69,7 @@ private fun minorText(minor: Long): String = BigDecimal.valueOf(minor, 2).stripT
 private fun <T> FieldResult<T>.error(): String? = (this as? FieldResult.Error)?.message
 private fun <T> FieldResult<T>.value(): T? = (this as? FieldResult.Ok)?.value
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 1.62.0: the date is picked on the app's calendar (kizitonwose/Calendar). */
 @Composable
 internal fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -82,19 +77,8 @@ internal fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Un
         Icon(painterResource(R.drawable.ic_calendar_month), contentDescription = null, modifier = Modifier.size(18.dp))
         Text("  $label: ${date.format(DATE)}")
     }
-    if (open) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { onDate(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
-                    open = false
-                }) { Text("Listo") }
-            },
-            dismissButton = { TextButton(onClick = { open = false }) { Text("Cancelar") } }
-        ) { DatePicker(state = state) }
-    }
+    if (open) com.ubers.observador.ui.components.CalendarDateDialog(label, date, onDismiss = { open = false },
+        onPick = { onDate(it); open = false })
 }
 
 @Composable
